@@ -18,7 +18,6 @@
 #include "../base/vulkanexamplebase.h"
 #include "../base/vulkanexamplebase.cpp"
 #include "../base/vulkantools.cpp"
-#include "../glm/gtc/quaternion.hpp"
 #include "../glm/gtc/matrix_transform.hpp"
 
 // Please note that this is deliberately minimal to aid comprehension.
