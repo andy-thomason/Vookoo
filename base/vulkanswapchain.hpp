@@ -20,7 +20,7 @@
 #else
 #endif
 
-#include <vulkan/vulkan.h>
+#include "../vulkan/vulkan.h"
 #include "vulkantools.h"
 
 #ifdef __ANDROID__

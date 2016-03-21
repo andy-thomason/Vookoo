@@ -46,8 +46,8 @@ VkResult VulkanExampleBase::createInstance(bool enableValidation)
 	}
 	if (enableValidation)
 	{
-		instanceCreateInfo.enabledLayerCount = vkDebug::validationLayerCount; // todo : change validation layer names!
-		instanceCreateInfo.ppEnabledLayerNames = vkDebug::validationLayerNames;
+		//instanceCreateInfo.enabledLayerCount = vkDebug::validationLayerCount; // todo : change validation layer names!
+		//instanceCreateInfo.ppEnabledLayerNames = vkDebug::validationLayerNames;
 	}
 	return vkCreateInstance(&instanceCreateInfo, nullptr, &instance);
 }
@@ -70,8 +70,8 @@ VkResult VulkanExampleBase::createDevice(VkDeviceQueueCreateInfo requestedQueues
 	}
 	if (enableValidation)
 	{
-		deviceCreateInfo.enabledLayerCount = vkDebug::validationLayerCount; // todo : validation layer names
-		deviceCreateInfo.ppEnabledLayerNames = vkDebug::validationLayerNames;
+		//deviceCreateInfo.enabledLayerCount = vkDebug::validationLayerCount; // todo : validation layer names
+		//deviceCreateInfo.ppEnabledLayerNames = vkDebug::validationLayerNames;
 	}
 
 	return vkCreateDevice(physicalDevice, &deviceCreateInfo, nullptr, &device);
@@ -187,7 +187,7 @@ void VulkanExampleBase::prepare()
 {
 	if (enableValidation)
 	{
-		vkDebug::setupDebugging(instance, VK_DEBUG_REPORT_ERROR_BIT_EXT | VK_DEBUG_REPORT_WARNING_BIT_EXT, NULL);
+		//vkDebug::setupDebugging(instance, VK_DEBUG_REPORT_ERROR_BIT_EXT | VK_DEBUG_REPORT_WARNING_BIT_EXT, NULL);
 	}
 
 	createCommandPool();
@@ -202,7 +202,7 @@ void VulkanExampleBase::prepare()
 	// Recreate setup command buffer for derived class
 	createSetupCommandBuffer();
 	// Create a simple texture loader class 
-	textureLoader = new vkTools::VulkanTextureLoader(physicalDevice, device, queue, cmdPool);
+	//textureLoader = new vkTools::VulkanTextureLoader(physicalDevice, device, queue, cmdPool);
 }
 
 VkPipelineShaderStageCreateInfo VulkanExampleBase::loadShader(const char * fileName, VkShaderStageFlagBits stage)
@@ -274,26 +274,6 @@ VkBool32 VulkanExampleBase::createBuffer(VkBufferUsageFlags usage, VkDeviceSize 
 	{
 		return false;
 	}
-}
-
-void VulkanExampleBase::loadMesh(
-	const char * filename, 
-	vkMeshLoader::MeshBuffer * meshBuffer, 
-	std::vector<vkMeshLoader::VertexLayout> vertexLayout, 
-	float scale)
-{
-	VulkanMeshLoader *mesh = new VulkanMeshLoader();
-	mesh->LoadMesh(filename);
-	assert(mesh->m_Entries.size() > 0);
-
-	mesh->createVulkanBuffers(
-		device,
-		deviceMemoryProperties,
-		meshBuffer,
-		vertexLayout,
-		scale);
-
-	delete(mesh);
 }
 
 void VulkanExampleBase::renderLoop()
@@ -435,18 +415,13 @@ VulkanExampleBase::~VulkanExampleBase()
 
 	vkDestroyPipelineCache(device, pipelineCache, nullptr);
 
-	if (textureLoader)
-	{
-		delete textureLoader;
-	}
-
 	vkDestroyCommandPool(device, cmdPool, nullptr);
 
 	vkDestroyDevice(device, nullptr); 
 
 	if (enableValidation)
 	{
-		vkDebug::freeDebugCallback(instance);
+		//vkDebug::freeDebugCallback(instance);
 	}
 
 	vkDestroyInstance(instance, nullptr);

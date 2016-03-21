@@ -22,11 +22,11 @@
 #include <chrono>
 
 #define GLM_FORCE_RADIANS
-#include <glm/glm.hpp>
+#include "../glm/glm.hpp"
 #include <string>
 #include <array>
 
-#include "vulkan/vulkan.h"
+#include "../vulkan/vulkan.h"
 
 #include "vulkantools.h"
 #include "vulkandebug.h"
@@ -35,7 +35,7 @@
 #include "vulkanTextureLoader.hpp"
 #include "vulkanMeshLoader.hpp"
 
-#define deg_to_rad(deg) deg * float(M_PI / 180)
+#define deg_to_rad(deg) deg * float(3.14159 / 180)
 
 class VulkanExampleBase
 {
@@ -87,7 +87,7 @@ protected:
 	// Wraps the swap chain to present images (framebuffers) to the windowing system
 	VulkanSwapChain swapChain;
 	// Simple texture loader
-	vkTools::VulkanTextureLoader *textureLoader = nullptr;
+	//vkTools::VulkanTextureLoader *textureLoader = nullptr;
 public: 
 	bool prepared = false;
 	uint32_t width = 1280;
@@ -219,13 +219,6 @@ public:
 		VkBuffer *buffer,
 		VkDeviceMemory *memory,
 		VkDescriptorBufferInfo *descriptor);
-
-	// Load a mesh (using ASSIMP) and create vulkan vertex and index buffers with given vertex layout
-	void loadMesh(
-		const char *filename,
-		vkMeshLoader::MeshBuffer *meshBuffer,
-		std::vector<vkMeshLoader::VertexLayout> vertexLayout,
-		float scale);
 
 	// Start the main render loop
 	void renderLoop();
