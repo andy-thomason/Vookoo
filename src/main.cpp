@@ -20,6 +20,8 @@
 #include "../base/vulkantools.cpp"
 #include "../glm/gtc/matrix_transform.hpp"
 
+#include "vkpp.hpp"
+
 // Please note that this is deliberately minimal to aid comprehension.
 // There is no error checking and it may assume certain properties of
 // hardware.
@@ -27,8 +29,7 @@ class VulkanExample : public VulkanExampleBase
 {
 public:
 	struct {
-		VkBuffer buf;
-		VkDeviceMemory mem;
+    vku::buffer storage;
 		VkPipelineVertexInputStateCreateInfo vi;
 		std::vector<VkVertexInputBindingDescription> bindingDescriptions;
 		std::vector<VkVertexInputAttributeDescription> attributeDescriptions;
@@ -36,8 +37,7 @@ public:
 
 	struct {
 		size_t count;
-		VkBuffer buf;
-		VkDeviceMemory mem;
+		vku::buffer storage;
 	} indices;
 
 	struct {
@@ -78,11 +78,11 @@ public:
 		vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
 		vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
 
-		vkDestroyBuffer(device, vertices.buf, nullptr);
-		vkFreeMemory(device, vertices.mem, nullptr);
+		//vkDestroyBuffer(device, vertices.buf, nullptr);
+		//vkFreeMemory(device, vertices.mem, nullptr);
 
-		vkDestroyBuffer(device, indices.buf, nullptr);
-		vkFreeMemory(device, indices.mem, nullptr);
+		//vkDestroyBuffer(device, indices.buf, nullptr);
+		//vkFreeMemory(device, indices.mem, nullptr);
 
 		vkDestroyBuffer(device, uniformDataVS.buffer, nullptr);
 		vkFreeMemory(device, uniformDataVS.memory, nullptr);
@@ -147,11 +147,12 @@ public:
 			vkCmdBindPipeline(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelines.solid);
 
 			// Bind triangle vertices
-			VkDeviceSize offsets[1] = { 0 };
-			vkCmdBindVertexBuffers(drawCmdBuffers[i], VERTEX_BUFFER_BIND_ID, 1, &vertices.buf, offsets);
+			VkDeviceSize offsets[] = { 0 };
+      VkBuffer bufs[] = { vertices.storage };
+			vkCmdBindVertexBuffers(drawCmdBuffers[i], VERTEX_BUFFER_BIND_ID, 1, bufs, offsets);
 
 			// Bind triangle indices
-			vkCmdBindIndexBuffer(drawCmdBuffers[i], indices.buf, 0, VK_INDEX_TYPE_UINT32);
+			vkCmdBindIndexBuffer(drawCmdBuffers[i], indices.storage, 0, VK_INDEX_TYPE_UINT32);
 
 			// Draw indexed triangle
 			vkCmdDrawIndexed(drawCmdBuffers[i], (uint32_t)indices.count, 1, 0, 0, 1);
@@ -308,9 +309,12 @@ public:
 		VkResult err;
 		void *data;
 
+    vku::device dev(device, physicalDevice);
+    vertices.storage = vku::buffer(dev, vertexBuffer.data(), vertexBufferSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
+
 		// Generate vertex buffer
 		//	Setup
-		VkBufferCreateInfo bufInfo = {};
+		/*VkBufferCreateInfo bufInfo = {};
 		bufInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 		bufInfo.pNext = NULL;
 		bufInfo.size = vertexBufferSize;
@@ -331,11 +335,11 @@ public:
 		vkUnmapMemory(device, vertices.mem);
 		assert(!err);
 		err = vkBindBufferMemory(device, vertices.buf, vertices.mem, 0);
-		assert(!err);
+		assert(!err);*/
 
 		// Generate index buffer
 		//	Setup
-		VkBufferCreateInfo indexbufferInfo = {};
+		/*VkBufferCreateInfo indexbufferInfo = {};
 		indexbufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 		indexbufferInfo.pNext = NULL;
 		indexbufferInfo.size = indexBufferSize;
@@ -355,7 +359,9 @@ public:
 		memcpy(data, indexBuffer.data(), indexBufferSize);
 		vkUnmapMemory(device, indices.mem);
 		err = vkBindBufferMemory(device, indices.buf, indices.mem, 0);
-		assert(!err);
+		assert(!err);*/
+
+    indices.storage = vku::buffer(dev, indexBuffer.data(), indexBufferSize, VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
 		indices.count = indexBuffer.size();
 
 		// Binding description

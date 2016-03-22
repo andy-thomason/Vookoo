@@ -21,6 +21,9 @@
   <ItemGroup>
     <ClCompile Include="src\main.cpp" />
   </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="src\vkpp.hpp" />
+  </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{688F8129-2F3B-44E8-ABFA-2ECBEA817E16}</ProjectGuid>
     <RootNamespace>vulkantriangle</RootNamespace>
