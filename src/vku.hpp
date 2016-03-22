@@ -47,11 +47,11 @@ public:
 
 class buffer {
 public:
-  buffer(VkDevice dev = nullptr, VkBuffer buf = nullptr) : buf(buf), dev(dev) {
+  buffer(VkDevice dev = nullptr, VkBuffer buf = nullptr) : buf_(buf), dev(dev) {
   }
 
   buffer(VkDevice dev, VkBufferCreateInfo *bufInfo) : dev(dev), size_(bufInfo->size) {
-		vkCreateBuffer(dev, bufInfo, nullptr, &buf);
+		vkCreateBuffer(dev, bufInfo, nullptr, &buf_);
     ownsBuffer = true;
   }
 
@@ -60,7 +60,7 @@ public:
 		bufInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 		bufInfo.size = size;
 		bufInfo.usage = usage;
-		VkResult err = vkCreateBuffer(dev, &bufInfo, nullptr, &buf);
+		VkResult err = vkCreateBuffer(dev, &bufInfo, nullptr, &buf_);
     if (err) throw err;
 
     ownsBuffer = true;
@@ -69,7 +69,7 @@ public:
 		VkMemoryAllocateInfo memAlloc = {};
 		memAlloc.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
 
-		vkGetBufferMemoryRequirements(dev, buf, &memReqs);
+		vkGetBufferMemoryRequirements(dev, buf_, &memReqs);
 		memAlloc.allocationSize = memReqs.size;
 		memAlloc.memoryTypeIndex = dev.getMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
 
@@ -85,27 +85,27 @@ public:
   }
 
   buffer(VkBufferCreateInfo bufInfo, VkDevice dev = nullptr) : dev(dev) {
-		vkCreateBuffer(dev, &bufInfo, nullptr, &buf);
+		vkCreateBuffer(dev, &bufInfo, nullptr, &buf_);
   }
 
   // RAII move operator
   buffer &operator=(buffer &&rhs) {
     dev = rhs.dev;
-    buf = rhs.buf;
+    buf_ = rhs.buf_;
     mem = rhs.mem;
     size_ = rhs.size_;
     rhs.dev = nullptr;
     rhs.mem = nullptr;
-    rhs.buf = nullptr;
+    rhs.buf_ = nullptr;
 
     rhs.ownsBuffer = false;
     return *this;
   }
 
   ~buffer() {
-    if (buf && ownsBuffer) {
-      vkDestroyBuffer(dev, buf, nullptr);
-      buf = nullptr;
+    if (buf_ && ownsBuffer) {
+      vkDestroyBuffer(dev, buf_, nullptr);
+      buf_ = nullptr;
     }
   }
 
@@ -121,7 +121,7 @@ public:
   }
 
   void bind() {
-		VkResult err = vkBindBufferMemory(dev, buf, mem, 0);
+		VkResult err = vkBindBufferMemory(dev, buf_, mem, 0);
     if (err) throw err;
   }
 
@@ -129,9 +129,19 @@ public:
     return size_;
   }
 
-  operator VkBuffer() const { return buf; }
+  //operator VkBuffer() const { return buf_; }
+
+  VkBuffer buf() const { return buf_; }
+
+  VkDescriptorBufferInfo desc() const {
+    VkDescriptorBufferInfo d = {};
+    d.buffer = buf_;
+    d.range = size_;
+    return d;
+  }
+
 private:
-  VkBuffer buf = nullptr;
+  VkBuffer buf_ = nullptr;
   VkDevice dev = nullptr;
   VkDeviceMemory mem = nullptr;
   size_t size_;

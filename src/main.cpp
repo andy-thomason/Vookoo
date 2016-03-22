@@ -42,7 +42,7 @@ public:
     vku::buffer storage;
 		//VkBuffer buffer;
 		//VkDeviceMemory memory;
-		VkDescriptorBufferInfo descriptor;
+		//VkDescriptorBufferInfo descriptor;
 	}  uniformDataVS;
 
 	struct {
@@ -147,11 +147,11 @@ public:
 
 			// Bind triangle vertices
 			VkDeviceSize offsets[] = { 0 };
-      VkBuffer bufs[] = { vertices.storage };
+      VkBuffer bufs[] = { vertices.storage.buf() };
 			vkCmdBindVertexBuffers(drawCmdBuffers[i], VERTEX_BUFFER_BIND_ID, 1, bufs, offsets);
 
 			// Bind triangle indices
-			vkCmdBindIndexBuffer(drawCmdBuffers[i], indices.storage, 0, VK_INDEX_TYPE_UINT32);
+			vkCmdBindIndexBuffer(drawCmdBuffers[i], indices.storage.buf(), 0, VK_INDEX_TYPE_UINT32);
 
 			// Draw indexed triangle
 			vkCmdDrawIndexed(drawCmdBuffers[i], (uint32_t)indices.count, 1, 0, 0, 1);
@@ -486,7 +486,7 @@ public:
 		writeDescriptorSet.dstSet = descriptorSet;
 		writeDescriptorSet.descriptorCount = 1;
 		writeDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-		writeDescriptorSet.pBufferInfo = &uniformDataVS.descriptor;
+		writeDescriptorSet.pBufferInfo = &uniformDataVS.storage.desc();
 		// Binds this uniform buffer to binding point 0
 		writeDescriptorSet.dstBinding = 0;
 
@@ -628,46 +628,13 @@ public:
 
 	void prepareUniformBuffers()
 	{
-    /*
-		// Prepare and initialize uniform buffer containing shader uniforms
-		VkMemoryRequirements memReqs;
-
-		// Vertex shader uniform buffer block
-		VkBufferCreateInfo bufferInfo = {};
-		VkMemoryAllocateInfo allocInfo = {};
-		allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-		allocInfo.pNext = NULL;
-		allocInfo.allocationSize = 0;
-		allocInfo.memoryTypeIndex = 0;
-		VkResult err;
-
-		bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-		bufferInfo.size = sizeof(uboVS);
-		bufferInfo.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
-
-		// Create a new buffer
-		err = vkCreateBuffer(device, &bufferInfo, nullptr, &uniformDataVS.buffer);
-		assert(!err);
-		// Get memory requirements including size, alignment and memory type 
-		vkGetBufferMemoryRequirements(device, uniformDataVS.buffer, &memReqs);
-		allocInfo.allocationSize = memReqs.size;
-		// Gets the appropriate memory type for this type of buffer allocation
-		// Only memory types that are visible to the host
-		getMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, &allocInfo.memoryTypeIndex);
-		// Allocate memory for the uniform buffer
-		err = vkAllocateMemory(device, &allocInfo, nullptr, &(uniformDataVS.memory));
-		assert(!err);
-		// Bind memory to buffer
-		err = vkBindBufferMemory(device, uniformDataVS.buffer, uniformDataVS.memory, 0);
-		assert(!err);
-    */
     vku::device dev(device, physicalDevice);
     uniformDataVS.storage = vku::buffer(dev, (void*)nullptr, sizeof(uboVS), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
 		
 		// Store information in the uniform's descriptor
-		uniformDataVS.descriptor.buffer = uniformDataVS.storage;
-		uniformDataVS.descriptor.offset = 0;
-		uniformDataVS.descriptor.range = sizeof(uboVS);
+		//uniformDataVS.descriptor.buffer = uniformDataVS.storage.buf();
+		//uniformDataVS.descriptor.offset = 0;
+		//uniformDataVS.descriptor.range = sizeof(uboVS);
 
 		updateUniformBuffers();
 	}
