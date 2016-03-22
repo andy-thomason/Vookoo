@@ -20,7 +20,7 @@
 #include "../base/vulkantools.cpp"
 #include "../glm/gtc/matrix_transform.hpp"
 
-#include "vkpp.hpp"
+#include "vku.hpp"
 
 // Please note that this is deliberately minimal to aid comprehension.
 // There is no error checking and it may assume certain properties of
@@ -30,9 +30,7 @@ class VulkanExample : public VulkanExampleBase
 public:
 	struct {
     vku::buffer storage;
-		VkPipelineVertexInputStateCreateInfo vi;
-		std::vector<VkVertexInputBindingDescription> bindingDescriptions;
-		std::vector<VkVertexInputAttributeDescription> attributeDescriptions;
+    vku::vertexInputState vertexInputState;
 	} vertices;
 
 	struct {
@@ -299,15 +297,15 @@ public:
 		std::vector<uint32_t> indexBuffer = { 0, 1, 2 };
 		size_t indexBufferSize = indexBuffer.size() * sizeof(uint32_t);
 
-		VkMemoryAllocateInfo memAlloc = {};
+		/*VkMemoryAllocateInfo memAlloc = {};
 		memAlloc.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
 		memAlloc.pNext = NULL;
 		memAlloc.allocationSize = 0;
-		memAlloc.memoryTypeIndex = 0;
-		VkMemoryRequirements memReqs;
+		memAlloc.memoryTypeIndex = 0;*/
+		//VkMemoryRequirements memReqs;
 
-		VkResult err;
-		void *data;
+		//VkResult err;
+		//void *data;
 
     vku::device dev(device, physicalDevice);
     vertices.storage = vku::buffer(dev, vertexBuffer.data(), vertexBufferSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
@@ -364,6 +362,11 @@ public:
     indices.storage = vku::buffer(dev, indexBuffer.data(), indexBufferSize, VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
 		indices.count = indexBuffer.size();
 
+    vertices.vertexInputState.binding(VERTEX_BUFFER_BIND_ID, sizeof(Vertex), VK_VERTEX_INPUT_RATE_VERTEX);
+    vertices.vertexInputState.attrib(0, VERTEX_BUFFER_BIND_ID, VK_FORMAT_R32G32B32_SFLOAT, 0);
+    vertices.vertexInputState.attrib(1, VERTEX_BUFFER_BIND_ID, VK_FORMAT_R32G32B32_SFLOAT, sizeof(float) * 3);
+
+    /*
 		// Binding description
 		vertices.bindingDescriptions.resize(1);
 		vertices.bindingDescriptions[0].binding = VERTEX_BUFFER_BIND_ID;
@@ -392,7 +395,7 @@ public:
 		vertices.vi.vertexBindingDescriptionCount = (uint32_t)vertices.bindingDescriptions.size();
 		vertices.vi.pVertexBindingDescriptions = vertices.bindingDescriptions.data();
 		vertices.vi.vertexAttributeDescriptionCount = (uint32_t)vertices.attributeDescriptions.size();
-		vertices.vi.pVertexAttributeDescriptions = vertices.attributeDescriptions.data();
+		vertices.vi.pVertexAttributeDescriptions = vertices.attributeDescriptions.data();*/
 	}
 
 	void setupDescriptorPool()
@@ -606,7 +609,7 @@ public:
 		// Two shader stages
 		pipelineCreateInfo.stageCount = 2;
 		// Assign pipeline state create information
-		pipelineCreateInfo.pVertexInputState = &vertices.vi;
+		pipelineCreateInfo.pVertexInputState = vertices.vertexInputState.get();
 		pipelineCreateInfo.pInputAssemblyState = &inputAssemblyState;
 		pipelineCreateInfo.pRasterizationState = &rasterizationState;
 		pipelineCreateInfo.pColorBlendState = &colorBlendState;

@@ -1,4 +1,7 @@
 
+#ifndef VKU_INCLUDED
+#define VKU_INCLUDED
+
 
 #include "../vulkan/vulkan.h"
 #include <cstring>
@@ -114,5 +117,52 @@ private:
   VkDeviceMemory mem;
 };
 
+class vertexInputState {
+public:
+  vertexInputState() {
+  }
+
+  vertexInputState(vertexInputState && rhs) {
+    vi = rhs.vi;
+    bindingDescriptions = std::move(rhs.bindingDescriptions);
+    attributeDescriptions = std::move(rhs.attributeDescriptions);
+  }
+
+  vertexInputState &attrib(uint32_t location, uint32_t binding, VkFormat format, uint32_t offset) {
+    VkVertexInputAttributeDescription desc = {};
+    desc.location = location;
+    desc.binding = binding;
+    desc.format = format;
+    desc.offset = offset;
+    attributeDescriptions.push_back(desc);
+    return *this;
+  }
+
+  vertexInputState &binding(uint32_t binding, uint32_t stride, VkVertexInputRate inputRate = VK_VERTEX_INPUT_RATE_VERTEX) {
+    VkVertexInputBindingDescription desc = {};
+    desc.binding = binding;
+    desc.stride = stride;
+    desc.inputRate = inputRate;
+    bindingDescriptions.push_back(desc);
+    return *this;
+  }
+
+  VkPipelineVertexInputStateCreateInfo *get() {
+		vi.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+		vi.pNext = nullptr;
+		vi.vertexBindingDescriptionCount = (uint32_t)bindingDescriptions.size();
+		vi.pVertexBindingDescriptions = bindingDescriptions.data();
+		vi.vertexAttributeDescriptionCount = (uint32_t)attributeDescriptions.size();
+		vi.pVertexAttributeDescriptions = attributeDescriptions.data();
+    return &vi;
+  }
+private:
+	VkPipelineVertexInputStateCreateInfo vi;
+	std::vector<VkVertexInputBindingDescription> bindingDescriptions;
+	std::vector<VkVertexInputAttributeDescription> attributeDescriptions;
+};
+
 
 } // vku
+
+#endif
