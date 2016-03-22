@@ -50,17 +50,20 @@ public:
   buffer(VkDevice dev = nullptr, VkBuffer buf = nullptr) : buf(buf), dev(dev) {
   }
 
-  buffer(VkDevice dev, VkBufferCreateInfo bufInfo) : dev(dev) {
-		vkCreateBuffer(dev, &bufInfo, nullptr, &buf);
+  buffer(VkDevice dev, VkBufferCreateInfo *bufInfo) : dev(dev), size_(bufInfo->size) {
+		vkCreateBuffer(dev, bufInfo, nullptr, &buf);
+    ownsBuffer = true;
   }
 
-  buffer(device dev, void *init, VkDeviceSize size, VkBufferUsageFlags usage) : dev(dev) {
+  buffer(device dev, void *init, VkDeviceSize size, VkBufferUsageFlags usage) : dev(dev), size_(size) {
     VkBufferCreateInfo bufInfo = {};
 		bufInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 		bufInfo.size = size;
 		bufInfo.usage = usage;
 		VkResult err = vkCreateBuffer(dev, &bufInfo, nullptr, &buf);
     if (err) throw err;
+
+    ownsBuffer = true;
 
 		VkMemoryRequirements memReqs;
 		VkMemoryAllocateInfo memAlloc = {};
@@ -73,48 +76,66 @@ public:
  		err = vkAllocateMemory(dev, &memAlloc, nullptr, &mem);
     if (err) throw err;
 
-		void *data = nullptr;
-		err = vkMapMemory(dev, mem, 0, memAlloc.allocationSize, 0, &data);
-    if (err) throw err;
-		std::memcpy(data, init, size);
-		vkUnmapMemory(dev, mem);
-    if (err) throw err;
-		err = vkBindBufferMemory(dev, buf, mem, 0);
-    if (err) throw err;
+		if (init) {
+		  void *dest = map();
+      std::memcpy(dest, init, size);
+      unmap();
+    }
+    bind();
   }
 
   buffer(VkBufferCreateInfo bufInfo, VkDevice dev = nullptr) : dev(dev) {
 		vkCreateBuffer(dev, &bufInfo, nullptr, &buf);
   }
 
-  // move operator
+  // RAII move operator
   buffer &operator=(buffer &&rhs) {
     dev = rhs.dev;
     buf = rhs.buf;
+    mem = rhs.mem;
+    size_ = rhs.size_;
     rhs.dev = nullptr;
+    rhs.mem = nullptr;
     rhs.buf = nullptr;
+
+    rhs.ownsBuffer = false;
     return *this;
   }
 
-  buffer(buffer &&rhs) {
-    dev = rhs.dev;
-    buf = rhs.buf;
-    rhs.dev = nullptr;
-    rhs.buf = nullptr;
-  }
-
   ~buffer() {
-    if (buf) {
+    if (buf && ownsBuffer) {
       vkDestroyBuffer(dev, buf, nullptr);
       buf = nullptr;
     }
   }
 
+  void *map() {
+    void *dest = nullptr;
+    VkResult err = vkMapMemory(dev, mem, 0, size(), 0, &dest);
+    if (err) throw err;
+    return dest;
+  }
+
+  void unmap() {
+		vkUnmapMemory(dev, mem);
+  }
+
+  void bind() {
+		VkResult err = vkBindBufferMemory(dev, buf, mem, 0);
+    if (err) throw err;
+  }
+
+  size_t size() const {
+    return size_;
+  }
+
   operator VkBuffer() const { return buf; }
 private:
-  VkBuffer buf;
-  VkDevice dev;
-  VkDeviceMemory mem;
+  VkBuffer buf = nullptr;
+  VkDevice dev = nullptr;
+  VkDeviceMemory mem = nullptr;
+  size_t size_;
+  bool ownsBuffer = false;
 };
 
 class vertexInputState {
@@ -122,7 +143,7 @@ public:
   vertexInputState() {
   }
 
-  vertexInputState(vertexInputState && rhs) {
+  vertexInputState &operator=(vertexInputState && rhs) {
     vi = rhs.vi;
     bindingDescriptions = std::move(rhs.bindingDescriptions);
     attributeDescriptions = std::move(rhs.attributeDescriptions);
@@ -156,12 +177,29 @@ public:
 		vi.pVertexAttributeDescriptions = attributeDescriptions.data();
     return &vi;
   }
+
 private:
+
 	VkPipelineVertexInputStateCreateInfo vi;
 	std::vector<VkVertexInputBindingDescription> bindingDescriptions;
 	std::vector<VkVertexInputAttributeDescription> attributeDescriptions;
 };
 
+
+class uniformInputState {
+public:
+  uniformInputState() {
+  }
+
+  uniformInputState &operator=(uniformInputState && rhs) {
+  }
+
+  VkDescriptorBufferInfo *get() {
+    return &descriptor;
+  }
+private:
+	VkDescriptorBufferInfo descriptor;
+};
 
 } // vku
 

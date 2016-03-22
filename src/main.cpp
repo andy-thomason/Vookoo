@@ -39,8 +39,9 @@ public:
 	} indices;
 
 	struct {
-		VkBuffer buffer;
-		VkDeviceMemory memory;
+    vku::buffer storage;
+		//VkBuffer buffer;
+		//VkDeviceMemory memory;
 		VkDescriptorBufferInfo descriptor;
 	}  uniformDataVS;
 
@@ -82,8 +83,8 @@ public:
 		//vkDestroyBuffer(device, indices.buf, nullptr);
 		//vkFreeMemory(device, indices.mem, nullptr);
 
-		vkDestroyBuffer(device, uniformDataVS.buffer, nullptr);
-		vkFreeMemory(device, uniformDataVS.memory, nullptr);
+		//vkDestroyBuffer(device, uniformDataVS.buffer, nullptr);
+		//vkFreeMemory(device, uniformDataVS.memory, nullptr);
 	}
 
 	// Build separate command buffers for every framebuffer image
@@ -627,6 +628,7 @@ public:
 
 	void prepareUniformBuffers()
 	{
+    /*
 		// Prepare and initialize uniform buffer containing shader uniforms
 		VkMemoryRequirements memReqs;
 
@@ -658,9 +660,12 @@ public:
 		// Bind memory to buffer
 		err = vkBindBufferMemory(device, uniformDataVS.buffer, uniformDataVS.memory, 0);
 		assert(!err);
+    */
+    vku::device dev(device, physicalDevice);
+    uniformDataVS.storage = vku::buffer(dev, (void*)nullptr, sizeof(uboVS), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
 		
 		// Store information in the uniform's descriptor
-		uniformDataVS.descriptor.buffer = uniformDataVS.buffer;
+		uniformDataVS.descriptor.buffer = uniformDataVS.storage;
 		uniformDataVS.descriptor.offset = 0;
 		uniformDataVS.descriptor.range = sizeof(uboVS);
 
@@ -679,13 +684,19 @@ public:
 		uboVS.modelMatrix = glm::rotate(uboVS.modelMatrix, deg_to_rad(rotation.y), glm::vec3(0.0f, 1.0f, 0.0f));
 		uboVS.modelMatrix = glm::rotate(uboVS.modelMatrix, deg_to_rad(rotation.z), glm::vec3(0.0f, 0.0f, 1.0f));
 
-		// Map uniform buffer and update it
+		uint8_t *pData = (uint8_t *)uniformDataVS.storage.map();
+
+		/*// Map uniform buffer and update it
 		uint8_t *pData;
 		VkResult err = vkMapMemory(device, uniformDataVS.memory, 0, sizeof(uboVS), 0, (void **)&pData);
 		assert(!err);
 		memcpy(pData, &uboVS, sizeof(uboVS));
 		vkUnmapMemory(device, uniformDataVS.memory);
-		assert(!err);
+		assert(!err);*/
+
+ 		memcpy(pData, &uboVS, sizeof(uboVS));
+
+    uniformDataVS.storage.unmap();
 	}
 
 	void prepare()
