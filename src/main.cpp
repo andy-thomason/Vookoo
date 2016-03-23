@@ -50,10 +50,6 @@ public:
 
   vku::pipeline pipe;
 
-	//VkPipelineLayout pipelineLayout;
-	//VkDescriptorSet descriptorSet;
-	//VkDescriptorSetLayout descriptorSetLayout;
-
 	VulkanExample() : VulkanExampleBase(false)
 	{
 		width = 1280;
@@ -61,25 +57,6 @@ public:
 		zoom = -2.5f;
 		title = "Vulkan Example - Basic indexed triangle";
 		// Values not set here are initialized in the base class constructor
-	}
-
-	~VulkanExample()
-	{
-		// Clean up used Vulkan resources 
-		// Note : Inherited destructor cleans up resources stored in base class
-		//vkDestroyPipeline(device, pipelines.solid, nullptr);
-
-		//vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
-		//vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
-
-		//vkDestroyBuffer(device, vertices.buf, nullptr);
-		//vkFreeMemory(device, vertices.mem, nullptr);
-
-		//vkDestroyBuffer(device, indices.buf, nullptr);
-		//vkFreeMemory(device, indices.mem, nullptr);
-
-		//vkDestroyBuffer(device, uniformDataVS.buffer, nullptr);
-		//vkFreeMemory(device, uniformDataVS.memory, nullptr);
 	}
 
 	// Build separate command buffers for every framebuffer image
@@ -293,67 +270,8 @@ public:
 		std::vector<uint32_t> indexBuffer = { 0, 1, 2 };
 		size_t indexBufferSize = indexBuffer.size() * sizeof(uint32_t);
 
-		/*VkMemoryAllocateInfo memAlloc = {};
-		memAlloc.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-		memAlloc.pNext = NULL;
-		memAlloc.allocationSize = 0;
-		memAlloc.memoryTypeIndex = 0;*/
-		//VkMemoryRequirements memReqs;
-
-		//VkResult err;
-		//void *data;
-
     vku::device dev(device, physicalDevice);
     vertices.storage = vku::buffer(dev, vertexBuffer.data(), vertexBufferSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
-
-		// Generate vertex buffer
-		//	Setup
-		/*VkBufferCreateInfo bufInfo = {};
-		bufInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-		bufInfo.pNext = NULL;
-		bufInfo.size = vertexBufferSize;
-		bufInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
-		bufInfo.flags = 0;
-		//	Copy vertex data to VRAM
-		memset(&vertices, 0, sizeof(vertices));
-		err = vkCreateBuffer(device, &bufInfo, nullptr, &vertices.buf);
-		assert(!err);
-		vkGetBufferMemoryRequirements(device, vertices.buf, &memReqs);
-		memAlloc.allocationSize = memReqs.size;
-		getMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, &memAlloc.memoryTypeIndex);
- 		vkAllocateMemory(device, &memAlloc, nullptr, &vertices.mem);
-		assert(!err);
-		err = vkMapMemory(device, vertices.mem, 0, memAlloc.allocationSize, 0, &data);
-		assert(!err);
-		memcpy(data, vertexBuffer.data(), vertexBufferSize);
-		vkUnmapMemory(device, vertices.mem);
-		assert(!err);
-		err = vkBindBufferMemory(device, vertices.buf, vertices.mem, 0);
-		assert(!err);*/
-
-		// Generate index buffer
-		//	Setup
-		/*VkBufferCreateInfo indexbufferInfo = {};
-		indexbufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-		indexbufferInfo.pNext = NULL;
-		indexbufferInfo.size = indexBufferSize;
-		indexbufferInfo.usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
-		indexbufferInfo.flags = 0;
-		// Copy index data to VRAM
-		memset(&indices, 0, sizeof(indices));
-		err = vkCreateBuffer(device, &indexbufferInfo, nullptr, &indices.buf);
-		assert(!err);
-		vkGetBufferMemoryRequirements(device, indices.buf, &memReqs);
-		memAlloc.allocationSize = memReqs.size;
-		getMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, &memAlloc.memoryTypeIndex);
-		err = vkAllocateMemory(device, &memAlloc, nullptr, &indices.mem);
-		assert(!err);
-		err = vkMapMemory(device, indices.mem, 0, indexBufferSize, 0, &data);
-		assert(!err);
-		memcpy(data, indexBuffer.data(), indexBufferSize);
-		vkUnmapMemory(device, indices.mem);
-		err = vkBindBufferMemory(device, indices.buf, indices.mem, 0);
-		assert(!err);*/
 
     indices.storage = vku::buffer(dev, indexBuffer.data(), indexBufferSize, VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
 		indices.count = indexBuffer.size();
@@ -361,37 +279,6 @@ public:
     vertices.vertexInputState.binding(VERTEX_BUFFER_BIND_ID, sizeof(Vertex), VK_VERTEX_INPUT_RATE_VERTEX);
     vertices.vertexInputState.attrib(0, VERTEX_BUFFER_BIND_ID, VK_FORMAT_R32G32B32_SFLOAT, 0);
     vertices.vertexInputState.attrib(1, VERTEX_BUFFER_BIND_ID, VK_FORMAT_R32G32B32_SFLOAT, sizeof(float) * 3);
-
-    /*
-		// Binding description
-		vertices.bindingDescriptions.resize(1);
-		vertices.bindingDescriptions[0].binding = VERTEX_BUFFER_BIND_ID;
-		vertices.bindingDescriptions[0].stride = sizeof(Vertex);
-		vertices.bindingDescriptions[0].inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-
-		// Attribute descriptions
-		// Describes memory layout and shader attribute locations
-		vertices.attributeDescriptions.resize(2);
-		// Location 0 : Position
-		vertices.attributeDescriptions[0].binding = VERTEX_BUFFER_BIND_ID;
-		vertices.attributeDescriptions[0].location = 0;
-		vertices.attributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
-		vertices.attributeDescriptions[0].offset = 0;
-		vertices.attributeDescriptions[0].binding = 0;
-		// Location 1 : Color
-		vertices.attributeDescriptions[1].binding = VERTEX_BUFFER_BIND_ID;
-		vertices.attributeDescriptions[1].location = 1;
-		vertices.attributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
-		vertices.attributeDescriptions[1].offset = sizeof(float) * 3;
-		vertices.attributeDescriptions[1].binding = 0;
-
-		// Assign to vertex buffer
-		vertices.vi.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-		vertices.vi.pNext = NULL;
-		vertices.vi.vertexBindingDescriptionCount = (uint32_t)vertices.bindingDescriptions.size();
-		vertices.vi.pVertexBindingDescriptions = vertices.bindingDescriptions.data();
-		vertices.vi.vertexAttributeDescriptionCount = (uint32_t)vertices.attributeDescriptions.size();
-		vertices.vi.pVertexAttributeDescriptions = vertices.attributeDescriptions.data();*/
 	}
 
 	void setupDescriptorPool()
@@ -424,42 +311,6 @@ public:
 
 	void setupDescriptorSetLayout()
 	{
-  /*
-		// Setup layout of descriptors used in this example
-		// Basically connects the different shader stages to descriptors
-		// for binding uniform buffers, image samplers, etc.
-		// So every shader binding should map to one descriptor set layout
-		// binding
-
-		// Binding 0 : Uniform buffer (Vertex shader)
-		VkDescriptorSetLayoutBinding layoutBinding = {};
-		layoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-		layoutBinding.descriptorCount = 1;
-		layoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-		layoutBinding.pImmutableSamplers = NULL;
-
-		VkDescriptorSetLayoutCreateInfo descriptorLayout = {};
-		descriptorLayout.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-		descriptorLayout.pNext = NULL;
-		descriptorLayout.bindingCount = 1;
-		descriptorLayout.pBindings = &layoutBinding;
-
-		VkResult err = vkCreateDescriptorSetLayout(device, &descriptorLayout, NULL, &descriptorSetLayout);
-		assert(!err);
-
-		// Create the pipeline layout that is used to generate the rendering pipelines that
-		// are based on this descriptor set layout
-		// In a more complex scenario you would have different pipeline layouts for different
-		// descriptor set layouts that could be reused
-		VkPipelineLayoutCreateInfo pPipelineLayoutCreateInfo = {};
-		pPipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-		pPipelineLayoutCreateInfo.pNext = NULL;
-		pPipelineLayoutCreateInfo.setLayoutCount = 1;
-		pPipelineLayoutCreateInfo.pSetLayouts = &descriptorSetLayout;
-
-		err = vkCreatePipelineLayout(device, &pPipelineLayoutCreateInfo, nullptr, &pipelineLayout);
-		assert(!err);
-  */
 	}
 
 	void setupDescriptorSet()
@@ -493,137 +344,6 @@ public:
 	void preparePipelines()
 	{
     pipe = vku::pipeline(device, renderPass, vertices.vertexInputState.get(), pipelineCache);
-
-		// Create our rendering pipeline used in this example
-		// Vulkan uses the concept of rendering pipelines to encapsulate
-		// fixed states
-		// This replaces OpenGL's huge (and cumbersome) state machine
-		// A pipeline is then stored and hashed on the GPU making
-		// pipeline changes much faster than having to set dozens of 
-		// states
-		// In a real world application you'd have dozens of pipelines
-		// for every shader set used in a scene
-		// Note that there are a few states that are not stored with
-		// the pipeline. These are called dynamic states and the 
-		// pipeline only stores that they are used with this pipeline,
-		// but not their states
-
-		/*VkGraphicsPipelineCreateInfo pipelineCreateInfo = {};
-
-		VkResult err;
-
-		pipelineCreateInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-		// The layout used for this pipeline
-		pipelineCreateInfo.layout = pipelineLayout;
-		// Renderpass this pipeline is attached to
-		pipelineCreateInfo.renderPass = renderPass;
-
-		// Vertex input state
-		// Describes the topoloy used with this pipeline
-		VkPipelineInputAssemblyStateCreateInfo inputAssemblyState = {};
-		inputAssemblyState.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-		// This pipeline renders vertex data as triangle lists
-		inputAssemblyState.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
-
-		// Rasterization state
-		VkPipelineRasterizationStateCreateInfo rasterizationState = {};
-		rasterizationState.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
-		// Solid polygon mode
-		rasterizationState.polygonMode = VK_POLYGON_MODE_FILL;
-		// No culling
-		rasterizationState.cullMode = VK_CULL_MODE_NONE;
-		rasterizationState.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
-		rasterizationState.depthClampEnable = VK_FALSE;
-		rasterizationState.rasterizerDiscardEnable = VK_FALSE;
-		rasterizationState.depthBiasEnable = VK_FALSE;
-
-		// Color blend state
-		// Describes blend modes and color masks
-		VkPipelineColorBlendStateCreateInfo colorBlendState = {};
-		colorBlendState.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-		// One blend attachment state
-		// Blending is not used in this example
-		VkPipelineColorBlendAttachmentState blendAttachmentState[1] = {};
-		blendAttachmentState[0].colorWriteMask = 0xf;
-		blendAttachmentState[0].blendEnable = VK_FALSE;
-		colorBlendState.attachmentCount = 1;
-		colorBlendState.pAttachments = blendAttachmentState;
-
-		// Viewport state
-		VkPipelineViewportStateCreateInfo viewportState = {};
-		viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
-		// One viewport
-		viewportState.viewportCount = 1;
-		// One scissor rectangle
-		viewportState.scissorCount = 1;
-
-		// Enable dynamic states
-		// Describes the dynamic states to be used with this pipeline
-		// Dynamic states can be set even after the pipeline has been created
-		// So there is no need to create new pipelines just for changing
-		// a viewport's dimensions or a scissor box
-		VkPipelineDynamicStateCreateInfo dynamicState = {};
-		// The dynamic state properties themselves are stored in the command buffer
-		std::vector<VkDynamicState> dynamicStateEnables;
-		dynamicStateEnables.push_back(VK_DYNAMIC_STATE_VIEWPORT);
-		dynamicStateEnables.push_back(VK_DYNAMIC_STATE_SCISSOR);
-		dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
-		dynamicState.pDynamicStates = dynamicStateEnables.data();
-		dynamicState.dynamicStateCount = (uint32_t)dynamicStateEnables.size();
-
-		// Depth and stencil state
-		// Describes depth and stenctil test and compare ops
-		VkPipelineDepthStencilStateCreateInfo depthStencilState = {};
-		// Basic depth compare setup with depth writes and depth test enabled
-		// No stencil used 
-		depthStencilState.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-		depthStencilState.depthTestEnable = VK_TRUE;
-		depthStencilState.depthWriteEnable = VK_TRUE;
-		depthStencilState.depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL;
-		depthStencilState.depthBoundsTestEnable = VK_FALSE;
-		depthStencilState.back.failOp = VK_STENCIL_OP_KEEP;
-		depthStencilState.back.passOp = VK_STENCIL_OP_KEEP;
-		depthStencilState.back.compareOp = VK_COMPARE_OP_ALWAYS;
-		depthStencilState.stencilTestEnable = VK_FALSE;
-		depthStencilState.front = depthStencilState.back;
-
-		// Multi sampling state
-		VkPipelineMultisampleStateCreateInfo multisampleState = {};
-		multisampleState.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-		multisampleState.pSampleMask = NULL;
-		// No multi sampling used in this example
-		multisampleState.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
-
-		// Load shaders
-		VkPipelineShaderStageCreateInfo shaderStages[2] = { {},{} };
-
-#ifdef USE_GLSL
-		shaderStages[0] = loadShaderGLSL("data/shaders/_test/test.vert", VK_SHADER_STAGE_VERTEX_BIT);
-		shaderStages[1] = loadShaderGLSL("data/shaders/_test/test.frag", VK_SHADER_STAGE_FRAGMENT_BIT);
-#else
-		shaderStages[0] = loadShader("data/shaders/triangle.vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
-		shaderStages[1] = loadShader("data/shaders/triangle.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
-#endif
-
-		// Assign states
-		// Two shader stages
-		pipelineCreateInfo.stageCount = 2;
-		// Assign pipeline state create information
-		pipelineCreateInfo.pVertexInputState = vertices.vertexInputState.get();
-		pipelineCreateInfo.pInputAssemblyState = &inputAssemblyState;
-		pipelineCreateInfo.pRasterizationState = &rasterizationState;
-		pipelineCreateInfo.pColorBlendState = &colorBlendState;
-		pipelineCreateInfo.pMultisampleState = &multisampleState;
-		pipelineCreateInfo.pViewportState = &viewportState;
-		pipelineCreateInfo.pDepthStencilState = &depthStencilState;
-		pipelineCreateInfo.pStages = shaderStages;
-		pipelineCreateInfo.renderPass = renderPass;
-		pipelineCreateInfo.pDynamicState = &dynamicState;
-
-		// Create rendering pipeline
-		err = vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineCreateInfo, nullptr, &pipelines.solid);
-		assert(!err);*/
-
 	}
 
 	void prepareUniformBuffers()
@@ -631,11 +351,6 @@ public:
     vku::device dev(device, physicalDevice);
     uniformDataVS.storage = vku::buffer(dev, (void*)nullptr, sizeof(uboVS), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
 		
-		// Store information in the uniform's descriptor
-		//uniformDataVS.descriptor.buffer = uniformDataVS.storage.buf();
-		//uniformDataVS.descriptor.offset = 0;
-		//uniformDataVS.descriptor.range = sizeof(uboVS);
-
 		updateUniformBuffers();
 	}
 
