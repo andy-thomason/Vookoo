@@ -223,7 +223,7 @@ public:
 		descriptorLayout.pBindings = &layoutBinding;
 
 		VkResult err = vkCreateDescriptorSetLayout(device, &descriptorLayout, NULL, &descriptorSetLayout);
-		assert(!err);
+		if (err) throw err;
 
 		// Create the pipeline layout that is used to generate the rendering pipelines that
 		// are based on this descriptor set layout
@@ -236,7 +236,7 @@ public:
 		pPipelineLayoutCreateInfo.pSetLayouts = &descriptorSetLayout;
 
 		err = vkCreatePipelineLayout(device, &pPipelineLayoutCreateInfo, nullptr, &pipelineLayout);
-		assert(!err);
+		if (err) throw err;
 
 		VkGraphicsPipelineCreateInfo pipelineCreateInfo = {};
 
@@ -350,7 +350,29 @@ public:
 
 		// Create rendering pipeline
 		err = vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineCreateInfo, nullptr, &pipe_);
-		assert(!err);
+		if (err) throw err;
+
+    ownsData = true;
+  }
+
+  pipeline &operator=(pipeline &&rhs) {
+    pipe_ = rhs.pipe_;
+	  pipelineLayout = rhs.pipelineLayout;
+	  descriptorSet = rhs.descriptorSet;
+	  descriptorSetLayout = rhs.descriptorSetLayout;
+    dev_ = rhs.dev_;
+	  shaderModules = std::move(shaderModules);
+    ownsData = true;
+    rhs.ownsData = false;
+    return *this;
+  }
+
+  ~pipeline() {
+    if (ownsData) {
+		  vkDestroyPipeline(dev_, pipe_, nullptr);
+		  vkDestroyPipelineLayout(dev_, pipelineLayout, nullptr);
+		  vkDestroyDescriptorSetLayout(dev_, descriptorSetLayout, nullptr);
+    }
   }
 
   VkPipeline pipe() { return pipe_; }
@@ -389,6 +411,7 @@ private:
 	VkDescriptorSetLayout descriptorSetLayout = nullptr;
   VkDevice dev_ = nullptr;
 	std::vector<VkShaderModule> shaderModules;
+  bool ownsData = false;
 };
 
 } // vku
