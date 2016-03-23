@@ -354,6 +354,9 @@ public:
   }
 
   VkPipeline pipe() { return pipe_; }
+  VkPipelineLayout layout() const { return pipelineLayout; }
+  VkDescriptorSet *descriptorSets() { return &descriptorSet; }
+  VkDescriptorSetLayout *descriptorLayouts() { return &descriptorSetLayout; }
 
 private:
   VkPipelineShaderStageCreateInfo loadShader(const char * fileName, VkShaderStageFlagBits stage)

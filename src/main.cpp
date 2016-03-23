@@ -48,14 +48,11 @@ public:
 		glm::mat4 viewMatrix;
 	} uboVS;
 
-	struct {
-    vku::pipeline pipe;
-		VkPipeline solid;
-	} pipelines;
+  vku::pipeline pipe;
 
-	VkPipelineLayout pipelineLayout;
-	VkDescriptorSet descriptorSet;
-	VkDescriptorSetLayout descriptorSetLayout;
+	//VkPipelineLayout pipelineLayout;
+	//VkDescriptorSet descriptorSet;
+	//VkDescriptorSetLayout descriptorSetLayout;
 
 	VulkanExample() : VulkanExampleBase(false)
 	{
@@ -70,10 +67,10 @@ public:
 	{
 		// Clean up used Vulkan resources 
 		// Note : Inherited destructor cleans up resources stored in base class
-		vkDestroyPipeline(device, pipelines.solid, nullptr);
+		//vkDestroyPipeline(device, pipelines.solid, nullptr);
 
-		vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
-		vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
+		//vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
+		//vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
 
 		//vkDestroyBuffer(device, vertices.buf, nullptr);
 		//vkFreeMemory(device, vertices.mem, nullptr);
@@ -138,10 +135,10 @@ public:
 			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &scissor);
 
 			// Bind descriptor sets describing shader binding points
-			vkCmdBindDescriptorSets(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 0, NULL);
+			vkCmdBindDescriptorSets(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipe.layout(), 0, 1, pipe.descriptorSets(), 0, NULL);
 
 			// Bind the rendering pipeline (including the shaders)
-			vkCmdBindPipeline(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelines.solid);
+			vkCmdBindPipeline(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipe.pipe());
 
 			// Bind triangle vertices
 			VkDeviceSize offsets[] = { 0 };
@@ -427,6 +424,7 @@ public:
 
 	void setupDescriptorSetLayout()
 	{
+  /*
 		// Setup layout of descriptors used in this example
 		// Basically connects the different shader stages to descriptors
 		// for binding uniform buffers, image samplers, etc.
@@ -461,6 +459,7 @@ public:
 
 		err = vkCreatePipelineLayout(device, &pPipelineLayoutCreateInfo, nullptr, &pipelineLayout);
 		assert(!err);
+  */
 	}
 
 	void setupDescriptorSet()
@@ -474,14 +473,14 @@ public:
 		allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
 		allocInfo.descriptorPool = descriptorPool;
 		allocInfo.descriptorSetCount = 1;
-		allocInfo.pSetLayouts = &descriptorSetLayout;
+		allocInfo.pSetLayouts = pipe.descriptorLayouts();
 
-		VkResult vkRes = vkAllocateDescriptorSets(device, &allocInfo, &descriptorSet);
+		VkResult vkRes = vkAllocateDescriptorSets(device, &allocInfo, pipe.descriptorSets());
 		assert(!vkRes);
 
 		// Binding 0 : Uniform buffer
 		writeDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-		writeDescriptorSet.dstSet = descriptorSet;
+		writeDescriptorSet.dstSet = pipe.descriptorSets()[0];
 		writeDescriptorSet.descriptorCount = 1;
 		writeDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 		writeDescriptorSet.pBufferInfo = &uniformDataVS.storage.desc();
@@ -493,6 +492,8 @@ public:
 
 	void preparePipelines()
 	{
+    pipe = vku::pipeline(device, renderPass, vertices.vertexInputState.get(), pipelineCache);
+
 		// Create our rendering pipeline used in this example
 		// Vulkan uses the concept of rendering pipelines to encapsulate
 		// fixed states
@@ -507,7 +508,7 @@ public:
 		// pipeline only stores that they are used with this pipeline,
 		// but not their states
 
-		VkGraphicsPipelineCreateInfo pipelineCreateInfo = {};
+		/*VkGraphicsPipelineCreateInfo pipelineCreateInfo = {};
 
 		VkResult err;
 
@@ -621,7 +622,8 @@ public:
 
 		// Create rendering pipeline
 		err = vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineCreateInfo, nullptr, &pipelines.solid);
-		assert(!err);
+		assert(!err);*/
+
 	}
 
 	void prepareUniformBuffers()
