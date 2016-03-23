@@ -40,10 +40,7 @@ public:
 
 	struct {
     vku::buffer storage;
-		//VkBuffer buffer;
-		//VkDeviceMemory memory;
-		//VkDescriptorBufferInfo descriptor;
-	}  uniformDataVS;
+	} uniformDataVS;
 
 	struct {
 		glm::mat4 projectionMatrix;
@@ -52,6 +49,7 @@ public:
 	} uboVS;
 
 	struct {
+    vku::pipeline pipe;
 		VkPipeline solid;
 	} pipelines;
 
@@ -651,18 +649,8 @@ public:
 		uboVS.modelMatrix = glm::rotate(uboVS.modelMatrix, deg_to_rad(rotation.y), glm::vec3(0.0f, 1.0f, 0.0f));
 		uboVS.modelMatrix = glm::rotate(uboVS.modelMatrix, deg_to_rad(rotation.z), glm::vec3(0.0f, 0.0f, 1.0f));
 
-		uint8_t *pData = (uint8_t *)uniformDataVS.storage.map();
-
-		/*// Map uniform buffer and update it
-		uint8_t *pData;
-		VkResult err = vkMapMemory(device, uniformDataVS.memory, 0, sizeof(uboVS), 0, (void **)&pData);
-		assert(!err);
-		memcpy(pData, &uboVS, sizeof(uboVS));
-		vkUnmapMemory(device, uniformDataVS.memory);
-		assert(!err);*/
-
- 		memcpy(pData, &uboVS, sizeof(uboVS));
-
+		void *dest = uniformDataVS.storage.map();
+ 		memcpy(dest, &uboVS, sizeof(uboVS));
     uniformDataVS.storage.unmap();
 	}
 
