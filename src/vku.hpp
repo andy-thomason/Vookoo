@@ -10,7 +10,46 @@
 
 namespace vku {
 
-class device;
+/*
+template <class VulkanType> VulkanType create(VkDevice dev) {}
+template <> vkDescriptorPool create<vkDescriptorPool>(VkDevice dev) { return vkCreateDescriptorPool(dev); }
+
+template <class VulkanType> void destroy(VkDevice dev, VulkanType value) {}
+void destroy(VkDevice dev, vkDescriptorPool value) { vkDestroyDescriptorPool(dev, value); }
+
+template <class VulkanType>
+class resource {
+  struct ref {
+    VulkanType value;
+    std::atomic<size_t> ref_count;
+    VkDevice dev;
+  };
+public:
+  resource() {
+  }
+
+  resource(VkDevice dev) {
+    ref_ = new ref{ create<VulkanType>(dev), 1, dev };
+  }
+
+  void operator=(resource &rhs) {
+    ref_ = rhs.ref_;
+    ref_->ref_count++;
+  }
+
+  ~resource() {
+    if (ref_ && --ref_->ref_count == 0) {
+      destroy(ref_->value);
+    }
+  }
+
+  operator VulkanType() {
+    return ref_ ? ref_->value : nullptr;
+  }
+private:
+  ref *ref_ = nullptr;
+};
+*/
 
 class instance {
 public:
@@ -45,62 +84,6 @@ public:
 public:
   VkDevice dev;
   VkPhysicalDevice physicalDevice;
-};
-
-class descriptorPool {
-public:
-  descriptorPool() {
-  }
-
-  descriptorPool(VkDevice dev) : dev_(dev) {
-		// We need to tell the API the number of max. requested descriptors per type
-		VkDescriptorPoolSize typeCounts[1];
-		// This example only uses one descriptor type (uniform buffer) and only
-		// requests one descriptor of this type
-		typeCounts[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-		typeCounts[0].descriptorCount = 1;
-		// For additional types you need to add new entries in the type count list
-		// E.g. for two combined image samplers :
-		// typeCounts[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-		// typeCounts[1].descriptorCount = 2;
-
-		// Create the global descriptor pool
-		// All descriptors used in this example are allocated from this pool
-		VkDescriptorPoolCreateInfo descriptorPoolInfo = {};
-		descriptorPoolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-		descriptorPoolInfo.pNext = NULL;
-		descriptorPoolInfo.poolSizeCount = 1;
-		descriptorPoolInfo.pPoolSizes = typeCounts;
-		// Set the max. number of sets that can be requested
-		// Requesting descriptors beyond maxSets will result in an error
-		descriptorPoolInfo.maxSets = 1;
-
-		VkResult err = vkCreateDescriptorPool(dev_, &descriptorPoolInfo, nullptr, &pool_);
-    if (err) throw err;
-
-    ownsResource_ = true;
-  }
-
-  ~descriptorPool() {
-    if (pool_ && ownsResource_) {
-      vkDestroyDescriptorPool(dev_, pool_, nullptr);
-      ownsResource_ = false;
-    }
-  }
-
-  descriptorPool &operator=(descriptorPool &&rhs) {
-    ownsResource_ = true;
-    pool_ = rhs.pool_;
-    rhs.ownsResource_ = false;
-    dev_ = rhs.dev_;
-    return *this;
-  }
-
-  operator VkDescriptorPool() { return pool_; }
-private:
-  VkDevice dev_ = nullptr;
-  VkDescriptorPool pool_ = nullptr;
-  bool ownsResource_ = false;
 };
 
 class buffer {
@@ -251,6 +234,62 @@ private:
 	VkPipelineVertexInputStateCreateInfo vi;
 	std::vector<VkVertexInputBindingDescription> bindingDescriptions;
 	std::vector<VkVertexInputAttributeDescription> attributeDescriptions;
+};
+
+class descriptorPool {
+public:
+  descriptorPool() {
+  }
+
+  descriptorPool(VkDevice dev) : dev_(dev) {
+		// We need to tell the API the number of max. requested descriptors per type
+		VkDescriptorPoolSize typeCounts[1];
+		// This example only uses one descriptor type (uniform buffer) and only
+		// requests one descriptor of this type
+		typeCounts[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		typeCounts[0].descriptorCount = 1;
+		// For additional types you need to add new entries in the type count list
+		// E.g. for two combined image samplers :
+		// typeCounts[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+		// typeCounts[1].descriptorCount = 2;
+
+		// Create the global descriptor pool
+		// All descriptors used in this example are allocated from this pool
+		VkDescriptorPoolCreateInfo descriptorPoolInfo = {};
+		descriptorPoolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+		descriptorPoolInfo.pNext = NULL;
+		descriptorPoolInfo.poolSizeCount = 1;
+		descriptorPoolInfo.pPoolSizes = typeCounts;
+		// Set the max. number of sets that can be requested
+		// Requesting descriptors beyond maxSets will result in an error
+		descriptorPoolInfo.maxSets = 1;
+
+		VkResult err = vkCreateDescriptorPool(dev_, &descriptorPoolInfo, nullptr, &pool_);
+    if (err) throw err;
+
+    ownsResource_ = true;
+  }
+
+  ~descriptorPool() {
+    if (pool_ && ownsResource_) {
+      vkDestroyDescriptorPool(dev_, pool_, nullptr);
+      ownsResource_ = false;
+    }
+  }
+
+  descriptorPool &operator=(descriptorPool &&rhs) {
+    ownsResource_ = true;
+    pool_ = rhs.pool_;
+    rhs.ownsResource_ = false;
+    dev_ = rhs.dev_;
+    return *this;
+  }
+
+  operator VkDescriptorPool() { return pool_; }
+private:
+  VkDevice dev_ = nullptr;
+  VkDescriptorPool pool_ = nullptr;
+  bool ownsResource_ = false;
 };
 
 class pipeline {
