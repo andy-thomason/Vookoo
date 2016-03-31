@@ -392,7 +392,7 @@ VulkanExampleBase::~VulkanExampleBase()
 {
 	// Clean up Vulkan resources
 	swapChain.cleanup();
-	vkDestroyDescriptorPool(device, descriptorPool, nullptr);
+	//vkDestroyDescriptorPool(device, descriptorPool, nullptr);
 	if (setupCmdBuffer != VK_NULL_HANDLE) 
 	{
 		vkFreeCommandBuffers(device, cmdPool, 1, &setupCmdBuffer);
