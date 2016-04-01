@@ -90,43 +90,57 @@ public:
 		
 		for (int32_t i = 0; i < drawCmdBuffers.size(); ++i)
 		{
+      vku::cmdBuffer cmdbuf(drawCmdBuffers[i]);
+
 			// Set target frame buffer
-			renderPassBeginInfo.framebuffer = frameBuffers[i];
+			//renderPassBeginInfo.framebuffer = frameBuffers[i];
 
-			err = vkBeginCommandBuffer(drawCmdBuffers[i], &cmdBufInfo);
-			assert(!err);
+      cmdbuf.beginCommandBuffer();
 
-			vkCmdBeginRenderPass(drawCmdBuffers[i], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+			//err = vkBeginCommandBuffer(drawCmdBuffers[i], &cmdBufInfo);
+			//assert(!err);
+
+      cmdbuf.beginRenderPass(renderPass, frameBuffers[i], 0, 0, width, height);
+			//vkCmdBeginRenderPass(drawCmdBuffers[i], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 
 			// Update dynamic viewport state
-			VkViewport viewport = {};
+			/*VkViewport viewport = {};
 			viewport.height = (float)height;
 			viewport.width = (float)width;
 			viewport.minDepth = (float) 0.0f;
 			viewport.maxDepth = (float) 1.0f;
-			vkCmdSetViewport(drawCmdBuffers[i], 0, 1, &viewport);
+			vkCmdSetViewport(drawCmdBuffers[i], 0, 1, &viewport);*/
+
+      cmdbuf.setViewport(0, 0, (float)width, (float)height);
 
 			// Update dynamic scissor state
-			VkRect2D scissor = {};
+			/*VkRect2D scissor = {};
 			scissor.extent.width = width;
 			scissor.extent.height = height;
 			scissor.offset.x = 0;
 			scissor.offset.y = 0;
-			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &scissor);
+			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &scissor);*/
+
+      cmdbuf.setScissor(0, 0, width, height);
+
+      cmdbuf.bindPipeline(pipe);
+
+      cmdbuf.bindVertexBuffer(vertices.storage, VERTEX_BUFFER_BIND_ID);
+      cmdbuf.bindIndexBuffer(indices.storage);
 
 			// Bind descriptor sets describing shader binding points
-			vkCmdBindDescriptorSets(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipe.layout(), 0, 1, pipe.descriptorSets(), 0, NULL);
+			//vkCmdBindDescriptorSets(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipe.layout(), 0, 1, pipe.descriptorSets(), 0, NULL);
 
 			// Bind the rendering pipeline (including the shaders)
-			vkCmdBindPipeline(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipe.pipe());
+			//vkCmdBindPipeline(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipe.pipe());
 
 			// Bind triangle vertices
-			VkDeviceSize offsets[] = { 0 };
-      VkBuffer bufs[] = { vertices.storage.buf() };
-			vkCmdBindVertexBuffers(drawCmdBuffers[i], VERTEX_BUFFER_BIND_ID, 1, bufs, offsets);
+			//VkDeviceSize offsets[] = { 0 };
+      //VkBuffer bufs[] = { vertices.storage.buf() };
+			//vkCmdBindVertexBuffers(drawCmdBuffers[i], VERTEX_BUFFER_BIND_ID, 1, bufs, offsets);
 
 			// Bind triangle indices
-			vkCmdBindIndexBuffer(drawCmdBuffers[i], indices.storage.buf(), 0, VK_INDEX_TYPE_UINT32);
+			//vkCmdBindIndexBuffer(drawCmdBuffers[i], indices.storage.buf(), 0, VK_INDEX_TYPE_UINT32);
 
 			// Draw indexed triangle
 			vkCmdDrawIndexed(drawCmdBuffers[i], (uint32_t)indices.count, 1, 0, 0, 1);

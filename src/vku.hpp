@@ -564,6 +564,84 @@ private:
   bool ownsData = false;
 };
 
+class cmdBuffer {
+public:
+  cmdBuffer(VkCommandBuffer buffer = nullptr) : buffer_(buffer) {
+  }
+
+  void beginCommandBuffer() {
+		VkCommandBufferBeginInfo cmdBufInfo = {};
+		cmdBufInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+		cmdBufInfo.pNext = NULL;
+    vkBeginCommandBuffer(buffer_, &cmdBufInfo);
+  }
+
+  void beginRenderPass(VkRenderPass renderPass, VkFramebuffer framebuffer, int x = 0, int y = 0, int width = 256, int height = 256) {
+		VkClearValue clearValues[2];
+		clearValues[0].color = { { 0.025f, 0.025f, 0.025f, 1.0f } };
+		clearValues[1].depthStencil = { 1.0f, 0 };
+
+		VkRenderPassBeginInfo renderPassBeginInfo = {};
+		renderPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+		renderPassBeginInfo.pNext = NULL;
+    renderPassBeginInfo.framebuffer = framebuffer;
+		renderPassBeginInfo.renderPass = renderPass;
+		renderPassBeginInfo.renderArea.offset.x = x;
+		renderPassBeginInfo.renderArea.offset.y = y;
+		renderPassBeginInfo.renderArea.extent.width = width;
+		renderPassBeginInfo.renderArea.extent.height = height;
+		renderPassBeginInfo.clearValueCount = 2;
+		renderPassBeginInfo.pClearValues = clearValues;
+
+    vkCmdBeginRenderPass(buffer_, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+  }
+
+  void setViewport(float x=0, float y=0, float width=256, float height=256, float minDepth=0, float maxDepth=1) {
+		// Update dynamic viewport state
+		VkViewport viewport = {};
+		viewport.x = x;
+		viewport.y = y;
+		viewport.width = width;
+		viewport.height = height;
+		viewport.minDepth = minDepth;
+		viewport.maxDepth = maxDepth;
+		vkCmdSetViewport(buffer_, 0, 1, &viewport);
+  }
+
+  void setScissor(int x=0, int y=0, int width=256, int height=256) {
+		// Update dynamic scissor state
+		VkRect2D scissor = {};
+		scissor.offset.x = x;
+		scissor.offset.y = y;
+		scissor.extent.width = width;
+		scissor.extent.height = height;
+		vkCmdSetScissor(buffer_, 0, 1, &scissor);
+  }
+
+  void bindPipeline(pipeline &pipe) {
+		// Bind descriptor sets describing shader binding points
+		vkCmdBindDescriptorSets(buffer_, VK_PIPELINE_BIND_POINT_GRAPHICS, pipe.layout(), 0, 1, pipe.descriptorSets(), 0, NULL);
+
+		// Bind the rendering pipeline (including the shaders)
+		vkCmdBindPipeline(buffer_, VK_PIPELINE_BIND_POINT_GRAPHICS, pipe.pipe());
+  }
+
+  void bindVertexBuffer(buffer &buf, int bindId) {
+		VkDeviceSize offsets[] = { 0 };
+    VkBuffer bufs[] = { buf.buf() };
+		vkCmdBindVertexBuffers(buffer_, bindId, 1, bufs, offsets);
+  }
+
+  void bindIndexBuffer(buffer &buf) {
+		// Bind triangle indices
+		vkCmdBindIndexBuffer(buffer_, buf.buf(), 0, VK_INDEX_TYPE_UINT32);
+  }
+
+private:
+  VkCommandBuffer buffer_;
+  bool ownsData = false;
+};
+
 } // vku
 
 #endif
