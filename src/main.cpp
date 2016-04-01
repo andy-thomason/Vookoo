@@ -297,35 +297,6 @@ public:
 	{
     pipe.allocateDescriptorSets(descPool);
     pipe.updateDescriptorSets(uniformDataVS.storage);
-
-    /*
-    return;
-
-    // Update descriptor sets determining the shader binding points
-		// For every binding point used in a shader there needs to be one
-		// descriptor set matching that binding point
-		VkWriteDescriptorSet writeDescriptorSet = {};
-
-		VkDescriptorSetAllocateInfo allocInfo = {};
-		allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-		allocInfo.descriptorPool = descPool;
-		allocInfo.descriptorSetCount = 1;
-		allocInfo.pSetLayouts = pipe.descriptorLayouts();
-
-		VkResult vkRes = vkAllocateDescriptorSets(device, &allocInfo, pipe.descriptorSets());
-		assert(!vkRes);
-
-		// Binding 0 : Uniform buffer
-		writeDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-		writeDescriptorSet.dstSet = pipe.descriptorSets()[0];
-		writeDescriptorSet.descriptorCount = 1;
-		writeDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-		writeDescriptorSet.pBufferInfo = &uniformDataVS.storage.desc();
-		// Binds this uniform buffer to binding point 0
-		writeDescriptorSet.dstBinding = 0;
-
-		vkUpdateDescriptorSets(device, 1, &writeDescriptorSet, 0, NULL);
-    */
 	}
 
 	void preparePipelines()
