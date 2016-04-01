@@ -295,7 +295,13 @@ public:
 
 	void setupDescriptorSet()
 	{
-		// Update descriptor sets determining the shader binding points
+    pipe.allocateDescriptorSets(descPool);
+    pipe.updateDescriptorSets(uniformDataVS.storage);
+
+    /*
+    return;
+
+    // Update descriptor sets determining the shader binding points
 		// For every binding point used in a shader there needs to be one
 		// descriptor set matching that binding point
 		VkWriteDescriptorSet writeDescriptorSet = {};
@@ -319,6 +325,7 @@ public:
 		writeDescriptorSet.dstBinding = 0;
 
 		vkUpdateDescriptorSets(device, 1, &writeDescriptorSet, 0, NULL);
+    */
 	}
 
 	void preparePipelines()

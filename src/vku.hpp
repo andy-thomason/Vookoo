@@ -230,7 +230,6 @@ public:
   }
 
 private:
-
 	VkPipelineVertexInputStateCreateInfo vi;
 	std::vector<VkVertexInputBindingDescription> bindingDescriptions;
 	std::vector<VkVertexInputAttributeDescription> attributeDescriptions;
@@ -247,7 +246,7 @@ public:
 		// This example only uses one descriptor type (uniform buffer) and only
 		// requests one descriptor of this type
 		typeCounts[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-		typeCounts[0].descriptorCount = 1;
+		typeCounts[0].descriptorCount = 2;
 		// For additional types you need to add new entries in the type count list
 		// E.g. for two combined image samplers :
 		// typeCounts[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
@@ -262,12 +261,39 @@ public:
 		descriptorPoolInfo.pPoolSizes = typeCounts;
 		// Set the max. number of sets that can be requested
 		// Requesting descriptors beyond maxSets will result in an error
-		descriptorPoolInfo.maxSets = 1;
+		descriptorPoolInfo.maxSets = 2;
 
 		VkResult err = vkCreateDescriptorPool(dev_, &descriptorPoolInfo, nullptr, &pool_);
     if (err) throw err;
 
     ownsResource_ = true;
+  }
+
+  // allocate a descriptor set for a buffer
+  VkWriteDescriptorSet *allocateDescriptorSet(const buffer &buffer, const VkDescriptorSetLayout *layout, VkDescriptorSet *descriptorSets) {
+		// Update descriptor sets determining the shader binding points
+		// For every binding point used in a shader there needs to be one
+		// descriptor set matching that binding point
+
+		VkDescriptorSetAllocateInfo allocInfo = {};
+		allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+		allocInfo.descriptorPool = pool_;
+		allocInfo.descriptorSetCount = 1;
+		allocInfo.pSetLayouts = layout;
+
+		VkResult err = vkAllocateDescriptorSets(dev_, &allocInfo, descriptorSets);
+    if (err) throw err;
+
+		// Binding 0 : Uniform buffer
+		writeDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		writeDescriptorSet.dstSet = descriptorSets[0];
+		writeDescriptorSet.descriptorCount = 1;
+		writeDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		writeDescriptorSet.pBufferInfo = &buffer.desc();
+		// Binds this uniform buffer to binding point 0
+		writeDescriptorSet.dstBinding = 0;
+
+    return &writeDescriptorSet;
   }
 
   ~descriptorPool() {
@@ -290,7 +316,9 @@ private:
   VkDevice dev_ = nullptr;
   VkDescriptorPool pool_ = nullptr;
   bool ownsResource_ = false;
+  VkWriteDescriptorSet writeDescriptorSet = {};
 };
+
 
 class pipeline {
 public:
@@ -468,6 +496,33 @@ public:
 		  vkDestroyPipelineLayout(dev_, pipelineLayout, nullptr);
 		  vkDestroyDescriptorSetLayout(dev_, descriptorSetLayout, nullptr);
     }
+  }
+
+  void allocateDescriptorSets(descriptorPool &descPool) {
+		VkDescriptorSetAllocateInfo allocInfo = {};
+		allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+		allocInfo.descriptorPool = descPool;
+		allocInfo.descriptorSetCount = 1;
+		allocInfo.pSetLayouts = &descriptorSetLayout;
+
+    descriptorSet = nullptr;
+		VkResult err = vkAllocateDescriptorSets(dev_, &allocInfo, &descriptorSet);
+		if (err) throw err;
+  }
+
+  void updateDescriptorSets(buffer &uniformVS) {
+		VkWriteDescriptorSet writeDescriptorSet = {};
+
+		// Binding 0 : Uniform buffer
+		writeDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		writeDescriptorSet.dstSet = descriptorSet;
+		writeDescriptorSet.descriptorCount = 1;
+		writeDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		writeDescriptorSet.pBufferInfo = &uniformVS.desc();
+		// Binds this uniform buffer to binding point 0
+		writeDescriptorSet.dstBinding = 0;
+
+		vkUpdateDescriptorSets(dev_, 1, &writeDescriptorSet, 0, NULL);
   }
 
   VkPipeline pipe() { return pipe_; }
