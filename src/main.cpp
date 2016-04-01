@@ -142,10 +142,14 @@ public:
 			// Bind triangle indices
 			//vkCmdBindIndexBuffer(drawCmdBuffers[i], indices.storage.buf(), 0, VK_INDEX_TYPE_UINT32);
 
-			// Draw indexed triangle
-			vkCmdDrawIndexed(drawCmdBuffers[i], (uint32_t)indices.count, 1, 0, 0, 1);
+      cmdbuf.drawIndexed((uint32_t)indices.count, 1, 0, 0, 1);
 
-			vkCmdEndRenderPass(drawCmdBuffers[i]);
+      cmdbuf.endRenderPass();
+
+			// Draw indexed triangle
+			//vkCmdDrawIndexed(drawCmdBuffers[i], (uint32_t)indices.count, 1, 0, 0, 1);
+
+			//vkCmdEndRenderPass(drawCmdBuffers[i]);
 
 			// Add a present memory barrier to the end of the command buffer
 			// This will transform the frame buffer color attachment to a

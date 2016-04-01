@@ -637,6 +637,15 @@ public:
 		vkCmdBindIndexBuffer(buffer_, buf.buf(), 0, VK_INDEX_TYPE_UINT32);
   }
 
+  void drawIndexed(uint32_t indexCount, uint32_t instanceCount, uint32_t firstIndex, int32_t vertexOffset, uint32_t firstInstance) {
+		// Draw indexed triangle
+		vkCmdDrawIndexed(buffer_, indexCount, instanceCount, firstIndex, vertexOffset, firstInstance);
+  }
+
+  void endRenderPass() {
+    vkCmdEndRenderPass(buffer_);
+  }
+
 private:
   VkCommandBuffer buffer_;
   bool ownsData = false;
