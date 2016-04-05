@@ -18,28 +18,18 @@ class VulkanExample : public VulkanExampleBase
 {
 public:
 	struct {
-    vku::buffer storage;
-    vku::vertexInputState vertexInputState;
-	} vertices;
-
-	struct {
-		size_t count;
-		vku::buffer storage;
-	} indices;
-
-	struct {
-    vku::buffer storage;
-	} uniformDataVS;
-
-	struct {
 		glm::mat4 projectionMatrix;
 		glm::mat4 modelMatrix;
 		glm::mat4 viewMatrix;
-	} uboVS;
+	} uniform_data;
 
-  vku::pipeline pipe;
-
+  vku::buffer vertex_buffer;
+  vku::buffer index_buffer;
+  vku::buffer uniform_buffer;
+  vku::vertexInputState vertexInputState;
   vku::descriptorPool descPool;
+  vku::pipeline pipe;
+  size_t num_indices;
 
 	VulkanExample() : VulkanExampleBase(false)
 	{
@@ -61,11 +51,9 @@ public:
       cmdbuf.begin(renderPass, frameBuffers[i], width, height);
 
       cmdbuf.bindPipeline(pipe);
-
-      cmdbuf.bindVertexBuffer(vertices.storage, VERTEX_BUFFER_BIND_ID);
-      cmdbuf.bindIndexBuffer(indices.storage);
-
-      cmdbuf.drawIndexed((uint32_t)indices.count, 1, 0, 0, 1);
+      cmdbuf.bindVertexBuffer(vertex_buffer, VERTEX_BUFFER_BIND_ID);
+      cmdbuf.bindIndexBuffer(index_buffer);
+      cmdbuf.drawIndexed((uint32_t)num_indices, 1, 0, 0, 1);
 
       cmdbuf.end(swapChain.buffers[i].image);
 		}
@@ -73,27 +61,30 @@ public:
 
 	void draw()
 	{
+    vku::semaphore sema(device);
+
 		VkResult err;
-		VkSemaphore presentCompleteSemaphore;
+		/*VkSemaphore presentCompleteSemaphore;
 		VkSemaphoreCreateInfo presentCompleteSemaphoreCreateInfo = {};
 		presentCompleteSemaphoreCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
 		presentCompleteSemaphoreCreateInfo.pNext = NULL;
 		presentCompleteSemaphoreCreateInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 
 		err = vkCreateSemaphore(device, &presentCompleteSemaphoreCreateInfo, nullptr, &presentCompleteSemaphore);
-		assert(!err);
+		assert(!err);*/
 
 		// Get next image in the swap chain (back/front buffer)
-		err = swapChain.acquireNextImage(presentCompleteSemaphore, &currentBuffer);
+		err = swapChain.acquireNextImage(sema, &currentBuffer);
 		assert(!err);
 
 		// The submit infor strcuture contains a list of
 		// command buffers and semaphores to be submitted to a queue
 		// If you want to submit multiple command buffers, pass an array
 		VkSubmitInfo submitInfo = {};
+    VkSemaphore s[] = { sema };
 		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 		submitInfo.waitSemaphoreCount = 1;
-		submitInfo.pWaitSemaphores = &presentCompleteSemaphore;
+		submitInfo.pWaitSemaphores = s;
 		submitInfo.commandBufferCount = 1;
 		submitInfo.pCommandBuffers = &drawCmdBuffers[currentBuffer];
 
@@ -106,7 +97,7 @@ public:
 		err = swapChain.queuePresent(queue, currentBuffer);
 		assert(!err);
 
-		vkDestroySemaphore(device, presentCompleteSemaphore, nullptr);
+		//vkDestroySemaphore(device, presentCompleteSemaphore, nullptr);
 
 		// Add a post present image memory barrier
 		// This will transform the frame buffer color attachment back
@@ -170,26 +161,25 @@ public:
 		};
 
 		// Setup vertices
-		std::vector<Vertex> vertexBuffer = {
-			{ { 1.0f,  1.0f, 0.0f },{ 1.0f, 0.0f, 0.0f } },
-			{ { -1.0f,  1.0f, 0.0f },{ 0.0f, 1.0f, 0.0f } },
-			{ { 0.0f, -1.0f, 0.0f },{ 0.0f, 0.0f, 1.0f } }
+    typedef float f3[3];
+		static const f3 vertex_data[] = {
+			{ 1.0f,  1.0f, 0.0f }, { 1.0f, 0.0f, 0.0f },
+			{ -1.0f,  1.0f, 0.0f }, { 0.0f, 1.0f, 0.0f },
+			{ 0.0f, -1.0f, 0.0f }, { 0.0f, 0.0f, 1.0f}
 		};
-		size_t vertexBufferSize = vertexBuffer.size() * sizeof(Vertex);
 
 		// Setup indices
-		std::vector<uint32_t> indexBuffer = { 0, 1, 2 };
-		size_t indexBufferSize = indexBuffer.size() * sizeof(uint32_t);
+		static const uint32_t index_data[] = { 0, 1, 2 };
 
     vku::device dev(device, physicalDevice);
-    vertices.storage = vku::buffer(dev, vertexBuffer.data(), vertexBufferSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
+    vertex_buffer = vku::buffer(dev, (void*)vertex_data, sizeof(vertex_data), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
 
-    indices.storage = vku::buffer(dev, indexBuffer.data(), indexBufferSize, VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
-		indices.count = indexBuffer.size();
+    index_buffer = vku::buffer(dev, (void*)index_data, sizeof(index_data), VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
+		num_indices = 3;
 
-    vertices.vertexInputState.binding(VERTEX_BUFFER_BIND_ID, sizeof(Vertex), VK_VERTEX_INPUT_RATE_VERTEX);
-    vertices.vertexInputState.attrib(0, VERTEX_BUFFER_BIND_ID, VK_FORMAT_R32G32B32_SFLOAT, 0);
-    vertices.vertexInputState.attrib(1, VERTEX_BUFFER_BIND_ID, VK_FORMAT_R32G32B32_SFLOAT, sizeof(float) * 3);
+    vertexInputState.binding(VERTEX_BUFFER_BIND_ID, sizeof(Vertex), VK_VERTEX_INPUT_RATE_VERTEX);
+    vertexInputState.attrib(0, VERTEX_BUFFER_BIND_ID, VK_FORMAT_R32G32B32_SFLOAT, 0);
+    vertexInputState.attrib(1, VERTEX_BUFFER_BIND_ID, VK_FORMAT_R32G32B32_SFLOAT, sizeof(float) * 3);
 	}
 
 	void setupDescriptorPool()
@@ -204,18 +194,18 @@ public:
 	void setupDescriptorSet()
 	{
     pipe.allocateDescriptorSets(descPool);
-    pipe.updateDescriptorSets(uniformDataVS.storage);
+    pipe.updateDescriptorSets(uniform_buffer);
 	}
 
 	void preparePipelines()
 	{
-    pipe = vku::pipeline(device, renderPass, vertices.vertexInputState.get(), pipelineCache);
+    pipe = vku::pipeline(device, renderPass, vertexInputState.get(), pipelineCache);
 	}
 
 	void prepareUniformBuffers()
 	{
     vku::device dev(device, physicalDevice);
-    uniformDataVS.storage = vku::buffer(dev, (void*)nullptr, sizeof(uboVS), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+    uniform_buffer = vku::buffer(dev, (void*)nullptr, sizeof(uniform_data), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
 		
 		updateUniformBuffers();
 	}
@@ -223,18 +213,18 @@ public:
 	void updateUniformBuffers()
 	{
 		// Update matrices
-		uboVS.projectionMatrix = glm::perspective(deg_to_rad(60.0f), (float)width / (float)height, 0.1f, 256.0f);
+		uniform_data.projectionMatrix = glm::perspective(deg_to_rad(60.0f), (float)width / (float)height, 0.1f, 256.0f);
 
-		uboVS.viewMatrix = glm::translate(glm::mat4(), glm::vec3(0.0f, 0.0f, zoom));
+		uniform_data.viewMatrix = glm::translate(glm::mat4(), glm::vec3(0.0f, 0.0f, zoom));
 
-		uboVS.modelMatrix = glm::mat4();
-		uboVS.modelMatrix = glm::rotate(uboVS.modelMatrix, deg_to_rad(rotation.x), glm::vec3(1.0f, 0.0f, 0.0f));
-		uboVS.modelMatrix = glm::rotate(uboVS.modelMatrix, deg_to_rad(rotation.y), glm::vec3(0.0f, 1.0f, 0.0f));
-		uboVS.modelMatrix = glm::rotate(uboVS.modelMatrix, deg_to_rad(rotation.z), glm::vec3(0.0f, 0.0f, 1.0f));
+		uniform_data.modelMatrix = glm::mat4();
+		uniform_data.modelMatrix = glm::rotate(uniform_data.modelMatrix, deg_to_rad(rotation.x), glm::vec3(1.0f, 0.0f, 0.0f));
+		uniform_data.modelMatrix = glm::rotate(uniform_data.modelMatrix, deg_to_rad(rotation.y), glm::vec3(0.0f, 1.0f, 0.0f));
+		uniform_data.modelMatrix = glm::rotate(uniform_data.modelMatrix, deg_to_rad(rotation.z), glm::vec3(0.0f, 0.0f, 1.0f));
 
-		void *dest = uniformDataVS.storage.map();
- 		memcpy(dest, &uboVS, sizeof(uboVS));
-    uniformDataVS.storage.unmap();
+		void *dest = uniform_buffer.map();
+ 		memcpy(dest, &uniform_data, sizeof(uniform_data));
+    uniform_buffer.unmap();
 	}
 
 	void prepare()

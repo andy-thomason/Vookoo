@@ -708,6 +708,49 @@ private:
   bool ownsData = false;
 };
 
+class semaphore {
+public:
+  semaphore() {
+  }
+
+  semaphore(VkDevice device) : dev_(device) {
+		VkResult err;
+		VkSemaphoreCreateInfo presentCompleteSemaphoreCreateInfo = {};
+		presentCompleteSemaphoreCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+		presentCompleteSemaphoreCreateInfo.pNext = NULL;
+		presentCompleteSemaphoreCreateInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+
+		err = vkCreateSemaphore(dev_, &presentCompleteSemaphoreCreateInfo, nullptr, &sema_);
+		if (err) throw err;
+
+    ownsResource_ = true;
+  }
+
+  ~semaphore() {
+    if (ownsResource_ && sema_) {
+  		vkDestroySemaphore(dev_, sema_, nullptr);
+      ownsResource_ = false;
+    }
+  }
+
+  semaphore &operator=(semaphore &&rhs) {
+    ownsResource_ = true;
+    sema_ = rhs.sema_;
+    rhs.ownsResource_ = false;
+    dev_ = rhs.dev_;
+    return *this;
+  }
+
+  operator VkSemaphore() const {
+    return sema_;
+  }
+
+public:
+  VkDevice dev_ = nullptr;
+	VkSemaphore sema_ = nullptr;
+  bool ownsResource_ = false;
+};
+
 } // vku
 
 #endif
