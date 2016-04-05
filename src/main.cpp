@@ -4,21 +4,9 @@
 //
 // 
 
-#ifdef _WIN32
-  #define VK_USE_PLATFORM_WIN32_KHR
-  #pragma comment(lib, "vulkan/vulkan-1.lib")
-#endif
 
 #define VERTEX_BUFFER_BIND_ID 0
-#define _CRT_SECURE_NO_WARNINGS
 
-
-#include "../vulkan/vulkan.h"
-#include "../glm/glm.hpp"
-#include "../base/vulkanexamplebase.h"
-#include "../base/vulkanexamplebase.cpp"
-#include "../base/vulkantools.cpp"
-#include "../glm/gtc/matrix_transform.hpp"
 
 // vulkan utilities.
 #include "vku.hpp"
@@ -70,11 +58,7 @@ public:
 		for (int32_t i = 0; i < drawCmdBuffers.size(); ++i)
 		{
       vku::cmdBuffer cmdbuf(drawCmdBuffers[i]);
-      cmdbuf.beginCommandBuffer();
-      cmdbuf.beginRenderPass(renderPass, frameBuffers[i], 0, 0, width, height);
-
-      cmdbuf.setViewport(0, 0, (float)width, (float)height);
-      cmdbuf.setScissor(0, 0, width, height);
+      cmdbuf.begin(renderPass, frameBuffers[i], width, height);
 
       cmdbuf.bindPipeline(pipe);
 
@@ -83,11 +67,7 @@ public:
 
       cmdbuf.drawIndexed((uint32_t)indices.count, 1, 0, 0, 1);
 
-      cmdbuf.endRenderPass();
-
-      cmdbuf.addPresentationBarrier(swapChain.buffers[i].image);
-
-      cmdbuf.endCommandBuffer();
+      cmdbuf.end(swapChain.buffers[i].image);
 		}
 	}
 

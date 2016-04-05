@@ -3,7 +3,20 @@
 #define VKU_INCLUDED
 
 
+#ifdef _WIN32
+  #define VK_USE_PLATFORM_WIN32_KHR
+  #pragma comment(lib, "vulkan/vulkan-1.lib")
+  #define _CRT_SECURE_NO_WARNINGS
+
+#endif
+
 #include "../vulkan/vulkan.h"
+#include "../glm/glm.hpp"
+#include "../base/vulkanexamplebase.h"
+#include "../base/vulkanexamplebase.cpp"
+#include "../base/vulkantools.cpp"
+#include "../glm/gtc/matrix_transform.hpp"
+
 #include <cstring>
 
 // derived from https://github.com/SaschaWillems/Vulkan
