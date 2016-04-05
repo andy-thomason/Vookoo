@@ -67,60 +67,13 @@ public:
 	// into command buffers that are then resubmitted to the queue
 	void buildCommandBuffers()
 	{
-		VkCommandBufferBeginInfo cmdBufInfo = {};
-		cmdBufInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-		cmdBufInfo.pNext = NULL;
-
-		VkClearValue clearValues[2];
-		clearValues[0].color = defaultClearColor;
-		clearValues[1].depthStencil = { 1.0f, 0 };
-
-		VkRenderPassBeginInfo renderPassBeginInfo = {};
-		renderPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-		renderPassBeginInfo.pNext = NULL;
-		renderPassBeginInfo.renderPass = renderPass;
-		renderPassBeginInfo.renderArea.offset.x = 0;
-		renderPassBeginInfo.renderArea.offset.y = 0;
-		renderPassBeginInfo.renderArea.extent.width = width;
-		renderPassBeginInfo.renderArea.extent.height = height;
-		renderPassBeginInfo.clearValueCount = 2;
-		renderPassBeginInfo.pClearValues = clearValues;
-
-		VkResult err;
-		
 		for (int32_t i = 0; i < drawCmdBuffers.size(); ++i)
 		{
       vku::cmdBuffer cmdbuf(drawCmdBuffers[i]);
-
-			// Set target frame buffer
-			//renderPassBeginInfo.framebuffer = frameBuffers[i];
-
       cmdbuf.beginCommandBuffer();
-
-			//err = vkBeginCommandBuffer(drawCmdBuffers[i], &cmdBufInfo);
-			//assert(!err);
-
       cmdbuf.beginRenderPass(renderPass, frameBuffers[i], 0, 0, width, height);
-			//vkCmdBeginRenderPass(drawCmdBuffers[i], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
-
-			// Update dynamic viewport state
-			/*VkViewport viewport = {};
-			viewport.height = (float)height;
-			viewport.width = (float)width;
-			viewport.minDepth = (float) 0.0f;
-			viewport.maxDepth = (float) 1.0f;
-			vkCmdSetViewport(drawCmdBuffers[i], 0, 1, &viewport);*/
 
       cmdbuf.setViewport(0, 0, (float)width, (float)height);
-
-			// Update dynamic scissor state
-			/*VkRect2D scissor = {};
-			scissor.extent.width = width;
-			scissor.extent.height = height;
-			scissor.offset.x = 0;
-			scissor.offset.y = 0;
-			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &scissor);*/
-
       cmdbuf.setScissor(0, 0, width, height);
 
       cmdbuf.bindPipeline(pipe);
@@ -128,56 +81,13 @@ public:
       cmdbuf.bindVertexBuffer(vertices.storage, VERTEX_BUFFER_BIND_ID);
       cmdbuf.bindIndexBuffer(indices.storage);
 
-			// Bind descriptor sets describing shader binding points
-			//vkCmdBindDescriptorSets(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipe.layout(), 0, 1, pipe.descriptorSets(), 0, NULL);
-
-			// Bind the rendering pipeline (including the shaders)
-			//vkCmdBindPipeline(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipe.pipe());
-
-			// Bind triangle vertices
-			//VkDeviceSize offsets[] = { 0 };
-      //VkBuffer bufs[] = { vertices.storage.buf() };
-			//vkCmdBindVertexBuffers(drawCmdBuffers[i], VERTEX_BUFFER_BIND_ID, 1, bufs, offsets);
-
-			// Bind triangle indices
-			//vkCmdBindIndexBuffer(drawCmdBuffers[i], indices.storage.buf(), 0, VK_INDEX_TYPE_UINT32);
-
       cmdbuf.drawIndexed((uint32_t)indices.count, 1, 0, 0, 1);
 
       cmdbuf.endRenderPass();
 
-			// Draw indexed triangle
-			//vkCmdDrawIndexed(drawCmdBuffers[i], (uint32_t)indices.count, 1, 0, 0, 1);
+      cmdbuf.addPresentationBarrier(swapChain.buffers[i].image);
 
-			//vkCmdEndRenderPass(drawCmdBuffers[i]);
-
-			// Add a present memory barrier to the end of the command buffer
-			// This will transform the frame buffer color attachment to a
-			// new layout for presenting it to the windowing system integration 
-			VkImageMemoryBarrier prePresentBarrier = {};
-			prePresentBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-			prePresentBarrier.pNext = NULL;
-			prePresentBarrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-			prePresentBarrier.dstAccessMask = 0;
-			prePresentBarrier.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-			prePresentBarrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-			prePresentBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-			prePresentBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-			prePresentBarrier.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };			
-			prePresentBarrier.image = swapChain.buffers[i].image;
-
-			VkImageMemoryBarrier *pMemoryBarrier = &prePresentBarrier;
-			vkCmdPipelineBarrier(
-				drawCmdBuffers[i], 
-				VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 
-				VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 
-				VK_FLAGS_NONE,
-				0, nullptr,
-				0, nullptr,
-				1, &prePresentBarrier);
-
-			err = vkEndCommandBuffer(drawCmdBuffers[i]);
-			assert(!err);
+      cmdbuf.endCommandBuffer();
 		}
 	}
 

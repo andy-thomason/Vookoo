@@ -569,6 +569,19 @@ public:
   cmdBuffer(VkCommandBuffer buffer = nullptr) : buffer_(buffer) {
   }
 
+  void begin(VkRenderPass renderPass, VkFramebuffer framebuffer, int width, int height) {
+    beginCommandBuffer();
+    beginRenderPass(renderPass, framebuffer, 0, 0, width, height);
+    setViewport(0, 0, (float)width, (float)height);
+    setScissor(0, 0, width, height);
+  }
+
+  void end(VkImage image) {
+    endRenderPass();
+    addPresentationBarrier(image);
+    endCommandBuffer();
+  }
+
   void beginCommandBuffer() {
 		VkCommandBufferBeginInfo cmdBufInfo = {};
 		cmdBufInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -644,6 +657,37 @@ public:
 
   void endRenderPass() {
     vkCmdEndRenderPass(buffer_);
+  }
+
+  void addPresentationBarrier(VkImage image) {
+		// Add a present memory barrier to the end of the command buffer
+		// This will transform the frame buffer color attachment to a
+		// new layout for presenting it to the windowing system integration 
+		VkImageMemoryBarrier prePresentBarrier = {};
+		prePresentBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+		prePresentBarrier.pNext = NULL;
+		prePresentBarrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+		prePresentBarrier.dstAccessMask = 0;
+		prePresentBarrier.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+		prePresentBarrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+		prePresentBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+		prePresentBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+		prePresentBarrier.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };			
+		prePresentBarrier.image = image;
+
+		VkImageMemoryBarrier *pMemoryBarrier = &prePresentBarrier;
+		vkCmdPipelineBarrier(
+			buffer_, 
+			VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 
+			VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 
+			VK_FLAGS_NONE,
+			0, nullptr,
+			0, nullptr,
+			1, &prePresentBarrier);
+  }
+
+  void endCommandBuffer() {
+    vkEndCommandBuffer(buffer_);
   }
 
 private:
