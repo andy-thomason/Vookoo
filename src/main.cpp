@@ -64,15 +64,6 @@ public:
     vku::semaphore sema(device);
 
 		VkResult err;
-		/*VkSemaphore presentCompleteSemaphore;
-		VkSemaphoreCreateInfo presentCompleteSemaphoreCreateInfo = {};
-		presentCompleteSemaphoreCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-		presentCompleteSemaphoreCreateInfo.pNext = NULL;
-		presentCompleteSemaphoreCreateInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
-
-		err = vkCreateSemaphore(device, &presentCompleteSemaphoreCreateInfo, nullptr, &presentCompleteSemaphore);
-		assert(!err);*/
-
 		// Get next image in the swap chain (back/front buffer)
 		err = swapChain.acquireNextImage(sema, &currentBuffer);
 		assert(!err);
@@ -99,43 +90,11 @@ public:
 
 		//vkDestroySemaphore(device, presentCompleteSemaphore, nullptr);
 
-		// Add a post present image memory barrier
-		// This will transform the frame buffer color attachment back
-		// to it's initial layout after it has been presented to the
-		// windowing system
-		// See buildCommandBuffers for the pre present barrier that 
-		// does the opposite transformation 
-		VkImageMemoryBarrier postPresentBarrier = {};
-		postPresentBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-		postPresentBarrier.pNext = NULL;
-		postPresentBarrier.srcAccessMask = 0;
-		postPresentBarrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-		postPresentBarrier.oldLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-		postPresentBarrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-		postPresentBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-		postPresentBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-		postPresentBarrier.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
-		postPresentBarrier.image = swapChain.buffers[currentBuffer].image;
 
-		// Use dedicated command buffer from example base class for submitting the post present barrier
-		VkCommandBufferBeginInfo cmdBufInfo = {};
-		cmdBufInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-
-		err = vkBeginCommandBuffer(postPresentCmdBuffer, &cmdBufInfo);
-		assert(!err);
-
-		// Put post present barrier into command buffer
-		vkCmdPipelineBarrier(
-			postPresentCmdBuffer,
-			VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
-			VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-			VK_FLAGS_NONE,
-			0, nullptr,
-			0, nullptr,
-			1, &postPresentBarrier);
-
-		err = vkEndCommandBuffer(postPresentCmdBuffer);
-		assert(!err);
+    vku::cmdBuffer postPresent(postPresentCmdBuffer);
+    postPresent.beginCommandBuffer();
+    postPresent.pipelineBarrier(swapChain.buffers[currentBuffer].image);
+    postPresent.endCommandBuffer();
 
 		// Submit to the queue
 		submitInfo = {};

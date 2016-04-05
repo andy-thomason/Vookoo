@@ -703,6 +703,41 @@ public:
     vkEndCommandBuffer(buffer_);
   }
 
+  void pipelineBarrier(VkImage image) {
+		// Add a post present image memory barrier
+		// This will transform the frame buffer color attachment back
+		// to it's initial layout after it has been presented to the
+		// windowing system
+		// See buildCommandBuffers for the pre present barrier that 
+		// does the opposite transformation 
+		VkImageMemoryBarrier postPresentBarrier = {};
+		postPresentBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+		postPresentBarrier.pNext = NULL;
+		postPresentBarrier.srcAccessMask = 0;
+		postPresentBarrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+		postPresentBarrier.oldLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+		postPresentBarrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+		postPresentBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+		postPresentBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+		postPresentBarrier.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
+		postPresentBarrier.image = image;
+
+		// Use dedicated command buffer from example base class for submitting the post present barrier
+		VkCommandBufferBeginInfo cmdBufInfo = {};
+		cmdBufInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+
+		// Put post present barrier into command buffer
+		vkCmdPipelineBarrier(
+			buffer_,
+			VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+			VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+			VK_FLAGS_NONE,
+			0, nullptr,
+			0, nullptr,
+			1, &postPresentBarrier);
+
+  }
+
 private:
   VkCommandBuffer buffer_;
   bool ownsData = false;
@@ -734,6 +769,10 @@ public:
   }
 
   semaphore &operator=(semaphore &&rhs) {
+    if (ownsResource_ && sema_) {
+  		vkDestroySemaphore(dev_, sema_, nullptr);
+    }
+
     ownsResource_ = true;
     sema_ = rhs.sema_;
     rhs.ownsResource_ = false;
