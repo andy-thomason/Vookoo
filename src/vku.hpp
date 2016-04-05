@@ -563,13 +563,13 @@ private:
 		moduleCreateInfo.flags = 0;
 		VkShaderModule shaderModule;
 		VkResult err = vkCreateShaderModule(dev_, &moduleCreateInfo, NULL, &shaderModule);
+    if (err) throw err;
 
 	  VkPipelineShaderStageCreateInfo shaderStage = {};
 	  shaderStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
 	  shaderStage.stage = stage;
 	  shaderStage.module = shaderModule;
 	  shaderStage.pName = "main"; // todo : make param
-	  assert(shaderStage.module != NULL);
 	  shaderModules.push_back(shaderStage.module);
 	  return shaderStage;
   }
@@ -588,26 +588,21 @@ private:
     while (b != e) buf.push_back(*b++);
     buf.push_back(0);
 
-		VkShaderModule shaderModule;
-		VkShaderModuleCreateInfo moduleCreateInfo;
-		VkResult err;
-
+		VkShaderModuleCreateInfo moduleCreateInfo = {};
 		moduleCreateInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-		moduleCreateInfo.pNext = NULL;
-
 		moduleCreateInfo.codeSize = buf.size();
 		moduleCreateInfo.pCode = (uint32_t*)buf.data();
 		moduleCreateInfo.flags = 0;
 
-		err = vkCreateShaderModule(dev_, &moduleCreateInfo, NULL, &shaderModule);
-		assert(!err);
+		VkShaderModule shaderModule;
+		VkResult err = vkCreateShaderModule(dev_, &moduleCreateInfo, NULL, &shaderModule);
+    if (err) throw err;
 
 	  VkPipelineShaderStageCreateInfo shaderStage = {};
 	  shaderStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
 	  shaderStage.stage = stage;
 	  shaderStage.module = shaderModule;
 	  shaderStage.pName = "main";
-	  assert(shaderStage.module != NULL);
 	  shaderModules.push_back(shaderStage.module);
 	  return shaderStage;
   }
