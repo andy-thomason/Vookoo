@@ -12,7 +12,7 @@ VkResult VulkanExampleBase::createInstance(bool enableValidation)
 {
 	this->enableValidation = enableValidation;
 
-	VkApplicationInfo appInfo = {};
+	/*VkApplicationInfo appInfo = {};
 	appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
 	appInfo.pApplicationName = name.c_str();
 	appInfo.pEngineName = name.c_str();
@@ -49,7 +49,8 @@ VkResult VulkanExampleBase::createInstance(bool enableValidation)
 		//instanceCreateInfo.enabledLayerCount = vkDebug::validationLayerCount; // todo : change validation layer names!
 		//instanceCreateInfo.ppEnabledLayerNames = vkDebug::validationLayerNames;
 	}
-	return vkCreateInstance(&instanceCreateInfo, nullptr, &instance);
+	return vkCreateInstance(&instanceCreateInfo, nullptr, &instance);*/
+  return VkResult::VK_SUCCESS;
 }
 
 VkResult VulkanExampleBase::createDevice(VkDeviceQueueCreateInfo requestedQueues, bool enableValidation)
@@ -424,7 +425,7 @@ VulkanExampleBase::~VulkanExampleBase()
 		//vkDebug::freeDebugCallback(instance);
 	}
 
-	vkDestroyInstance(instance, nullptr);
+	//vkDestroyInstance(instance, nullptr);
 
 #ifndef _WIN32
 	xcb_destroy_window(connection, window);
@@ -436,12 +437,7 @@ void VulkanExampleBase::initVulkan(bool enableValidation)
 {
 	VkResult err;
 
-	// Vulkan instance
-	err = createInstance(enableValidation);
-	if (err)
-	{
-		vkTools::exitFatal("Could not create Vulkan instance : \n" + vkTools::errorString(err), "Fatal error");
-	}
+  instance = vku::instance("vku");
 
 	// Physical device
 	uint32_t gpuCount = 0;

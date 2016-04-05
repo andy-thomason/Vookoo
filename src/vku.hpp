@@ -11,13 +11,10 @@
 #endif
 
 #include "../vulkan/vulkan.h"
-#include "../glm/glm.hpp"
-#include "../base/vulkanexamplebase.h"
-#include "../base/vulkanexamplebase.cpp"
-#include "../base/vulkantools.cpp"
-#include "../glm/gtc/matrix_transform.hpp"
 
 #include <cstring>
+#include <vector>
+#include <fstream>
 
 // derived from https://github.com/SaschaWillems/Vulkan
 
@@ -45,7 +42,7 @@ public:
     if (value_ && ownsResource) destroy<VulkanType>(dev_, value_);
     value_ = rhs.value_;
     ownsResource = rhs.ownsResource;
-    rhs.value = nullptr;
+    rhs.value_ = nullptr;
     rhs.ownsResource = false;
   }
 
@@ -65,14 +62,70 @@ private:
   VkDevice dev_ = nullptr;
 };
 
-class instance {
+template<> VkInstance create<VkInstance>(VkDevice dev) {
+  bool enableValidation = false;
+	VkApplicationInfo appInfo = {};
+	appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
+	appInfo.pApplicationName = "vku";
+	appInfo.pEngineName = "vku";
+
+	// Temporary workaround for drivers not supporting SDK 1.0.3 upon launch
+	// todo : Use VK_API_VERSION 
+	appInfo.apiVersion = VK_MAKE_VERSION(1, 0, 2);
+
+	std::vector<const char*> enabledExtensions = { VK_KHR_SURFACE_EXTENSION_NAME };
+
+  #ifdef _WIN32
+    enabledExtensions.push_back(VK_KHR_WIN32_SURFACE_EXTENSION_NAME);
+  #else
+    // todo : linux/android
+    enabledExtensions.push_back(VK_KHR_XCB_SURFACE_EXTENSION_NAME);
+  #endif
+
+	// todo : check if all extensions are present
+
+	VkInstanceCreateInfo instanceCreateInfo = {};
+	instanceCreateInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+	instanceCreateInfo.pNext = NULL;
+	instanceCreateInfo.pApplicationInfo = &appInfo;
+	if (enabledExtensions.size() > 0)
+	{
+		if (enableValidation)
+		{
+			enabledExtensions.push_back(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);
+		}
+		instanceCreateInfo.enabledExtensionCount = (uint32_t)enabledExtensions.size();
+		instanceCreateInfo.ppEnabledExtensionNames = enabledExtensions.data();
+	}
+	if (enableValidation)
+	{
+		//instanceCreateInfo.enabledLayerCount = vkDebug::validationLayerCount; // todo : change validation layer names!
+		//instanceCreateInfo.ppEnabledLayerNames = vkDebug::validationLayerNames;
+	}
+
+  VkInstance inst = nullptr;
+	vkCreateInstance(&instanceCreateInfo, nullptr, &inst);
+  return inst;
+}
+
+template<> void destroy<VkInstance>(VkDevice dev, VkInstance inst) {
+  vkDestroyInstance(inst, nullptr);
+}
+
+class instance : public resource<VkInstance> {
 public:
-  instance(VkInstance inst) : inst(inst) {
+  instance() : resource((VkInstance)nullptr) {
   }
 
-  operator VkInstance() const { return inst; }
+  /// queue that does not own its pointer
+  instance(VkInstance value) : resource(value, nullptr) {
+  }
+
+  /// queue that does owns (and creates) its pointer
+  instance(const char *name) : resource((VkDevice)nullptr) {
+  }
 public:
-  VkInstance inst;
+  bool enableValidation = false;
 };
 
 class device {
@@ -737,7 +790,7 @@ public:
 			*this, 
 			VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 
 			VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 
-			VK_FLAGS_NONE,
+			0,
 			0, nullptr,
 			0, nullptr,
 			1, &prePresentBarrier);
@@ -775,7 +828,7 @@ public:
 			*this,
 			VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
 			VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-			VK_FLAGS_NONE,
+			0,
 			0, nullptr,
 			0, nullptr,
 			1, &postPresentBarrier

@@ -50,7 +50,8 @@ protected:
 	// Last frame time, measured using a high performance timer (if available)
 	float frameTimer = 1.0f;
 	// Vulkan instance, stores all per-application states
-	VkInstance instance;
+	//VkInstance instance;
+  vku::instance instance;
 	// Physical device (GPU) that Vulkan will ise
 	VkPhysicalDevice physicalDevice;
 	// Stores all available memory (type) properties for the physical device

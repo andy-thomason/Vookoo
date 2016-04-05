@@ -11,6 +11,12 @@
 // vulkan utilities.
 #include "vku.hpp"
 
+#include "../glm/glm.hpp"
+#include "../glm/gtc/matrix_transform.hpp"
+#include "../base/vulkanexamplebase.h"
+#include "../base/vulkanexamplebase.cpp"
+#include "../base/vulkantools.cpp"
+
 class VulkanExample : public VulkanExampleBase
 {
 public:
