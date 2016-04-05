@@ -467,8 +467,8 @@ public:
 		VkPipelineShaderStageCreateInfo shaderStages[2] = { {},{} };
 
 #ifdef USE_GLSL
-		shaderStages[0] = loadShaderGLSL("data/shaders/_test/test.vert", VK_SHADER_STAGE_VERTEX_BIT);
-		shaderStages[1] = loadShaderGLSL("data/shaders/_test/test.frag", VK_SHADER_STAGE_FRAGMENT_BIT);
+		shaderStages[0] = loadShaderGLSL("data/shaders/triangle.vert", VK_SHADER_STAGE_VERTEX_BIT);
+		shaderStages[1] = loadShaderGLSL("data/shaders/triangle.frag", VK_SHADER_STAGE_FRAGMENT_BIT);
 #else
 		shaderStages[0] = loadShader("data/shaders/triangle.vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
 		shaderStages[1] = loadShader("data/shaders/triangle.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
@@ -576,11 +576,37 @@ private:
 
   VkPipelineShaderStageCreateInfo loadShaderGLSL(const char * fileName, VkShaderStageFlagBits stage)
   {
+    std::ifstream input(fileName, std::ios::binary);
+    auto &b = std::istreambuf_iterator<char>(input);
+    auto &e = std::istreambuf_iterator<char>();
+
+    std::vector<char> buf;
+    buf.resize(12);
+		((uint32_t *)buf.data())[0] = 0x07230203; 
+		((uint32_t *)buf.data())[1] = 0;
+		((uint32_t *)buf.data())[2] = stage;
+    while (b != e) buf.push_back(*b++);
+    buf.push_back(0);
+
+		VkShaderModule shaderModule;
+		VkShaderModuleCreateInfo moduleCreateInfo;
+		VkResult err;
+
+		moduleCreateInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+		moduleCreateInfo.pNext = NULL;
+
+		moduleCreateInfo.codeSize = buf.size();
+		moduleCreateInfo.pCode = (uint32_t*)buf.data();
+		moduleCreateInfo.flags = 0;
+
+		err = vkCreateShaderModule(dev_, &moduleCreateInfo, NULL, &shaderModule);
+		assert(!err);
+
 	  VkPipelineShaderStageCreateInfo shaderStage = {};
 	  shaderStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
 	  shaderStage.stage = stage;
-	  shaderStage.module = vkTools::loadShaderGLSL(fileName, dev_, stage);
-	  shaderStage.pName = "main"; // todo : make param
+	  shaderStage.module = shaderModule;
+	  shaderStage.pName = "main";
 	  assert(shaderStage.module != NULL);
 	  shaderModules.push_back(shaderStage.module);
 	  return shaderStage;

@@ -4,7 +4,7 @@
 //
 // 
 
-
+#define USE_GLSL
 #define VERTEX_BUFFER_BIND_ID 0
 
 
