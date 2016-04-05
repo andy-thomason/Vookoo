@@ -11,9 +11,6 @@
 // vulkan utilities.
 #include "vku.hpp"
 
-// Please note that this is deliberately minimal to aid comprehension.
-// There is no error checking and it may assume certain properties of
-// hardware.
 class VulkanExample : public VulkanExampleBase
 {
 public:
@@ -40,133 +37,30 @@ public:
 		// Values not set here are initialized in the base class constructor
 	}
 
-	// Build separate command buffers for every framebuffer image
-	// Unlike in OpenGL all rendering commands are recorded once
-	// into command buffers that are then resubmitted to the queue
-	void buildCommandBuffers()
-	{
-		for (int32_t i = 0; i < drawCmdBuffers.size(); ++i)
-		{
-      vku::cmdBuffer cmdbuf(drawCmdBuffers[i]);
-      cmdbuf.begin(renderPass, frameBuffers[i], width, height);
-
-      cmdbuf.bindPipeline(pipe);
-      cmdbuf.bindVertexBuffer(vertex_buffer, VERTEX_BUFFER_BIND_ID);
-      cmdbuf.bindIndexBuffer(index_buffer);
-      cmdbuf.drawIndexed((uint32_t)num_indices, 1, 0, 0, 1);
-
-      cmdbuf.end(swapChain.buffers[i].image);
-		}
-	}
-
 	void draw()
 	{
     vku::semaphore sema(device);
+    vku::queue theQueue(queue);
 
-		VkResult err;
 		// Get next image in the swap chain (back/front buffer)
-		err = swapChain.acquireNextImage(sema, &currentBuffer);
+		VkResult err = swapChain.acquireNextImage(sema, &currentBuffer);
 		assert(!err);
 
-		// The submit infor strcuture contains a list of
-		// command buffers and semaphores to be submitted to a queue
-		// If you want to submit multiple command buffers, pass an array
-		VkSubmitInfo submitInfo = {};
-    VkSemaphore s[] = { sema };
-		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-		submitInfo.waitSemaphoreCount = 1;
-		submitInfo.pWaitSemaphores = s;
-		submitInfo.commandBufferCount = 1;
-		submitInfo.pCommandBuffers = &drawCmdBuffers[currentBuffer];
-
-		// Submit to the graphics queue
-		err = vkQueueSubmit(queue, 1, &submitInfo, VK_NULL_HANDLE);
-		assert(!err);
+    theQueue.submit(sema, drawCmdBuffers[currentBuffer]);
 
 		// Present the current buffer to the swap chain
 		// This will display the image
 		err = swapChain.queuePresent(queue, currentBuffer);
 		assert(!err);
 
-		//vkDestroySemaphore(device, presentCompleteSemaphore, nullptr);
-
-
     vku::cmdBuffer postPresent(postPresentCmdBuffer);
     postPresent.beginCommandBuffer();
     postPresent.pipelineBarrier(swapChain.buffers[currentBuffer].image);
     postPresent.endCommandBuffer();
 
-		// Submit to the queue
-		submitInfo = {};
-		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-		submitInfo.commandBufferCount = 1;
-		submitInfo.pCommandBuffers = &postPresentCmdBuffer;
+    theQueue.submit(nullptr, postPresentCmdBuffer);
 
-		err = vkQueueSubmit(queue, 1, &submitInfo, VK_NULL_HANDLE);
-		assert(!err);
-		
-		err = vkQueueWaitIdle(queue);
-		assert(!err);
-	}
-
-	// Setups vertex and index buffers for an indexed triangle,
-	// uploads them to the VRAM and sets binding points and attribute
-	// descriptions to match locations inside the shaders
-	void prepareVertices()
-	{
-		struct Vertex {
-			float pos[3];
-			float col[3];
-		};
-
-		// Setup vertices
-    typedef float f3[3];
-		static const f3 vertex_data[] = {
-			{ 1.0f,  1.0f, 0.0f }, { 1.0f, 0.0f, 0.0f },
-			{ -1.0f,  1.0f, 0.0f }, { 0.0f, 1.0f, 0.0f },
-			{ 0.0f, -1.0f, 0.0f }, { 0.0f, 0.0f, 1.0f}
-		};
-
-		// Setup indices
-		static const uint32_t index_data[] = { 0, 1, 2 };
-
-    vku::device dev(device, physicalDevice);
-    vertex_buffer = vku::buffer(dev, (void*)vertex_data, sizeof(vertex_data), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
-
-    index_buffer = vku::buffer(dev, (void*)index_data, sizeof(index_data), VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
-		num_indices = 3;
-
-    vertexInputState.binding(VERTEX_BUFFER_BIND_ID, sizeof(Vertex), VK_VERTEX_INPUT_RATE_VERTEX);
-    vertexInputState.attrib(0, VERTEX_BUFFER_BIND_ID, VK_FORMAT_R32G32B32_SFLOAT, 0);
-    vertexInputState.attrib(1, VERTEX_BUFFER_BIND_ID, VK_FORMAT_R32G32B32_SFLOAT, sizeof(float) * 3);
-	}
-
-	void setupDescriptorPool()
-	{
-    descPool = vku::descriptorPool(device);
-	}
-
-	void setupDescriptorSetLayout()
-	{
-	}
-
-	void setupDescriptorSet()
-	{
-    pipe.allocateDescriptorSets(descPool);
-    pipe.updateDescriptorSets(uniform_buffer);
-	}
-
-	void preparePipelines()
-	{
-    pipe = vku::pipeline(device, renderPass, vertexInputState.get(), pipelineCache);
-	}
-
-	void prepareUniformBuffers()
-	{
-    vku::device dev(device, physicalDevice);
-    uniform_buffer = vku::buffer(dev, (void*)nullptr, sizeof(uniform_data), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
-		
-		updateUniformBuffers();
+    theQueue.waitIdle();
 	}
 
 	void updateUniformBuffers()
@@ -188,25 +82,70 @@ public:
 
 	void prepare()
 	{
+    vku::device dev(device, physicalDevice);
+
 		VulkanExampleBase::prepare();
-		prepareVertices();
-		prepareUniformBuffers();
-		setupDescriptorSetLayout();
-		preparePipelines();
-		setupDescriptorPool();
-		setupDescriptorSet();
-		buildCommandBuffers();
+
+    // Vertices
+		struct Vertex { float pos[3]; float col[3]; };
+
+		static const Vertex vertex_data[] = {
+			{ { 1.0f,  1.0f, 0.0f }, { 1.0f, 0.0f, 0.0f } },
+			{ { -1.0f,  1.0f, 0.0f }, { 0.0f, 1.0f, 0.0f } },
+			{ { 0.0f, -1.0f, 0.0f }, { 0.0f, 0.0f, 1.0f} }
+		};
+
+    vertex_buffer = vku::buffer(dev, (void*)vertex_data, sizeof(vertex_data), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
+
+		// Indices
+		static const uint32_t index_data[] = { 0, 1, 2 };
+    index_buffer = vku::buffer(dev, (void*)index_data, sizeof(index_data), VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
+		num_indices = 3;
+
+    // Binding state
+    vertexInputState.binding(VERTEX_BUFFER_BIND_ID, sizeof(Vertex), VK_VERTEX_INPUT_RATE_VERTEX);
+    vertexInputState.attrib(0, VERTEX_BUFFER_BIND_ID, VK_FORMAT_R32G32B32_SFLOAT, 0);
+    vertexInputState.attrib(1, VERTEX_BUFFER_BIND_ID, VK_FORMAT_R32G32B32_SFLOAT, sizeof(float) * 3);
+
+    uniform_buffer = vku::buffer(dev, (void*)nullptr, sizeof(uniform_data), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+		
+		updateUniformBuffers();
+
+    pipe = vku::pipeline(device, renderPass, vertexInputState.get(), pipelineCache);
+
+    descPool = vku::descriptorPool(device);
+
+    pipe.allocateDescriptorSets(descPool);
+    pipe.updateDescriptorSets(uniform_buffer);
+
+		for (int32_t i = 0; i < drawCmdBuffers.size(); ++i)
+		{
+      vku::cmdBuffer cmdbuf(drawCmdBuffers[i]);
+      cmdbuf.begin(renderPass, frameBuffers[i], width, height);
+
+      cmdbuf.bindPipeline(pipe);
+      cmdbuf.bindVertexBuffer(vertex_buffer, VERTEX_BUFFER_BIND_ID);
+      cmdbuf.bindIndexBuffer(index_buffer);
+      cmdbuf.drawIndexed((uint32_t)num_indices, 1, 0, 0, 1);
+
+      cmdbuf.end(swapChain.buffers[i].image);
+		}
+
 		prepared = true;
 	}
 
 	virtual void render()
 	{
+    vku::device dev(device, physicalDevice);
+
 		if (!prepared)
 			return;
-		vkDeviceWaitIdle(device);
-		draw();
-		vkDeviceWaitIdle(device);
 
+		dev.waitIdle();
+
+		draw();
+
+		dev.waitIdle();
 	}
 
 	virtual void viewChanged()

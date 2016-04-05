@@ -23,46 +23,47 @@
 
 namespace vku {
 
-/*
 template <class VulkanType> VulkanType create(VkDevice dev) {}
-template <> vkDescriptorPool create<vkDescriptorPool>(VkDevice dev) { return vkCreateDescriptorPool(dev); }
-
 template <class VulkanType> void destroy(VkDevice dev, VulkanType value) {}
-void destroy(VkDevice dev, vkDescriptorPool value) { vkDestroyDescriptorPool(dev, value); }
+
+
+
 
 template <class VulkanType>
 class resource {
-  struct ref {
-    VulkanType value;
-    std::atomic<size_t> ref_count;
-    VkDevice dev;
-  };
 public:
-  resource() {
+  resource() : value_(nullptr), ownsResource(false), dev_(nullptr) {
   }
 
-  resource(VkDevice dev) {
-    ref_ = new ref{ create<VulkanType>(dev), 1, dev };
+  resource(VulkanType value, VkDevice dev = nullptr) : value_(value), ownsResource(false), dev_(dev) {
   }
 
-  void operator=(resource &rhs) {
-    ref_ = rhs.ref_;
-    ref_->ref_count++;
+  resource(VkDevice dev = nullptr) : value_(create<VulkanType>(dev)), ownsResource(true), dev_(dev) {
+  }
+
+  void operator=(resource &&rhs) {
+    if (value_ && ownsResource) destroy<VulkanType>(dev_, value_);
+    value_ = rhs.value_;
+    ownsResource = rhs.ownsResource;
+    rhs.value = nullptr;
+    rhs.ownsResource = false;
   }
 
   ~resource() {
-    if (ref_ && --ref_->ref_count == 0) {
-      destroy(ref_->value);
-    }
+    if (value_ && ownsResource) destroy<VulkanType>(dev_, value_);
   }
 
   operator VulkanType() {
-    return ref_ ? ref_->value : nullptr;
+    return value_;
   }
+
+  VulkanType get() const { return value_; }
+  VkDevice dev() const { return dev_; }
 private:
-  ref *ref_ = nullptr;
+  VulkanType value_ = nullptr;
+  bool ownsResource = false;
+  VkDevice dev_ = nullptr;
 };
-*/
 
 class instance {
 public:
@@ -94,6 +95,10 @@ public:
   }
 
   operator VkDevice() const { return dev; }
+
+  void waitIdle() const {
+    vkDeviceWaitIdle(dev);
+  }
 public:
   VkDevice dev;
   VkPhysicalDevice physicalDevice;
@@ -577,9 +582,14 @@ private:
   bool ownsData = false;
 };
 
-class cmdBuffer {
+class cmdBuffer : public resource<VkCommandBuffer> {
 public:
-  cmdBuffer(VkCommandBuffer buffer = nullptr) : buffer_(buffer) {
+  /// command buffer that does not own its pointer
+  cmdBuffer(VkCommandBuffer value = nullptr, VkDevice dev = nullptr) : resource(value, dev) {
+  }
+
+  /// command buffer that does owns (and creates) its pointer
+  cmdBuffer(VkDevice dev) : resource(dev) {
   }
 
   void begin(VkRenderPass renderPass, VkFramebuffer framebuffer, int width, int height) {
@@ -599,7 +609,7 @@ public:
 		VkCommandBufferBeginInfo cmdBufInfo = {};
 		cmdBufInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 		cmdBufInfo.pNext = NULL;
-    vkBeginCommandBuffer(buffer_, &cmdBufInfo);
+    vkBeginCommandBuffer(*this, &cmdBufInfo);
   }
 
   void beginRenderPass(VkRenderPass renderPass, VkFramebuffer framebuffer, int x = 0, int y = 0, int width = 256, int height = 256) {
@@ -619,7 +629,7 @@ public:
 		renderPassBeginInfo.clearValueCount = 2;
 		renderPassBeginInfo.pClearValues = clearValues;
 
-    vkCmdBeginRenderPass(buffer_, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+    vkCmdBeginRenderPass(*this, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
   }
 
   void setViewport(float x=0, float y=0, float width=256, float height=256, float minDepth=0, float maxDepth=1) {
@@ -631,7 +641,7 @@ public:
 		viewport.height = height;
 		viewport.minDepth = minDepth;
 		viewport.maxDepth = maxDepth;
-		vkCmdSetViewport(buffer_, 0, 1, &viewport);
+		vkCmdSetViewport(*this, 0, 1, &viewport);
   }
 
   void setScissor(int x=0, int y=0, int width=256, int height=256) {
@@ -641,35 +651,35 @@ public:
 		scissor.offset.y = y;
 		scissor.extent.width = width;
 		scissor.extent.height = height;
-		vkCmdSetScissor(buffer_, 0, 1, &scissor);
+		vkCmdSetScissor(*this, 0, 1, &scissor);
   }
 
   void bindPipeline(pipeline &pipe) {
 		// Bind descriptor sets describing shader binding points
-		vkCmdBindDescriptorSets(buffer_, VK_PIPELINE_BIND_POINT_GRAPHICS, pipe.layout(), 0, 1, pipe.descriptorSets(), 0, NULL);
+		vkCmdBindDescriptorSets(*this, VK_PIPELINE_BIND_POINT_GRAPHICS, pipe.layout(), 0, 1, pipe.descriptorSets(), 0, NULL);
 
 		// Bind the rendering pipeline (including the shaders)
-		vkCmdBindPipeline(buffer_, VK_PIPELINE_BIND_POINT_GRAPHICS, pipe.pipe());
+		vkCmdBindPipeline(*this, VK_PIPELINE_BIND_POINT_GRAPHICS, pipe.pipe());
   }
 
   void bindVertexBuffer(buffer &buf, int bindId) {
 		VkDeviceSize offsets[] = { 0 };
     VkBuffer bufs[] = { buf.buf() };
-		vkCmdBindVertexBuffers(buffer_, bindId, 1, bufs, offsets);
+		vkCmdBindVertexBuffers(*this, bindId, 1, bufs, offsets);
   }
 
   void bindIndexBuffer(buffer &buf) {
 		// Bind triangle indices
-		vkCmdBindIndexBuffer(buffer_, buf.buf(), 0, VK_INDEX_TYPE_UINT32);
+		vkCmdBindIndexBuffer(*this, buf.buf(), 0, VK_INDEX_TYPE_UINT32);
   }
 
   void drawIndexed(uint32_t indexCount, uint32_t instanceCount, uint32_t firstIndex, int32_t vertexOffset, uint32_t firstInstance) {
 		// Draw indexed triangle
-		vkCmdDrawIndexed(buffer_, indexCount, instanceCount, firstIndex, vertexOffset, firstInstance);
+		vkCmdDrawIndexed(*this, indexCount, instanceCount, firstIndex, vertexOffset, firstInstance);
   }
 
   void endRenderPass() {
-    vkCmdEndRenderPass(buffer_);
+    vkCmdEndRenderPass(*this);
   }
 
   void addPresentationBarrier(VkImage image) {
@@ -690,7 +700,7 @@ public:
 
 		VkImageMemoryBarrier *pMemoryBarrier = &prePresentBarrier;
 		vkCmdPipelineBarrier(
-			buffer_, 
+			*this, 
 			VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 
 			VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 
 			VK_FLAGS_NONE,
@@ -700,7 +710,7 @@ public:
   }
 
   void endCommandBuffer() {
-    vkEndCommandBuffer(buffer_);
+    vkEndCommandBuffer(*this);
   }
 
   void pipelineBarrier(VkImage image) {
@@ -728,66 +738,79 @@ public:
 
 		// Put post present barrier into command buffer
 		vkCmdPipelineBarrier(
-			buffer_,
+			*this,
 			VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
 			VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
 			VK_FLAGS_NONE,
 			0, nullptr,
 			0, nullptr,
-			1, &postPresentBarrier);
-
+			1, &postPresentBarrier
+    );
   }
 
 private:
-  VkCommandBuffer buffer_;
-  bool ownsData = false;
 };
 
-class semaphore {
+template<> VkSemaphore create<VkSemaphore>(VkDevice dev) {
+	VkSemaphoreCreateInfo info = {};
+	info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+	info.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+
+  VkSemaphore res = nullptr;
+	VkResult err = vkCreateSemaphore(dev, &info, nullptr, &res);
+	if (err) throw err;
+  return res;
+}
+
+template<> void destroy<VkSemaphore>(VkDevice dev, VkSemaphore sema) {
+  vkDestroySemaphore(dev, sema, nullptr);
+}
+
+class semaphore : public resource<VkSemaphore> {
 public:
-  semaphore() {
+  /// semaphore that does not own its pointer
+  semaphore(VkSemaphore value = nullptr, VkDevice dev = nullptr) : resource(value, dev) {
   }
 
-  semaphore(VkDevice device) : dev_(device) {
-		VkResult err;
-		VkSemaphoreCreateInfo presentCompleteSemaphoreCreateInfo = {};
-		presentCompleteSemaphoreCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-		presentCompleteSemaphoreCreateInfo.pNext = NULL;
-		presentCompleteSemaphoreCreateInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
-
-		err = vkCreateSemaphore(dev_, &presentCompleteSemaphoreCreateInfo, nullptr, &sema_);
-		if (err) throw err;
-
-    ownsResource_ = true;
+  /// semaphore that does owns (and creates) its pointer
+  semaphore(VkDevice dev) : resource(dev) {
   }
+};
 
-  ~semaphore() {
-    if (ownsResource_ && sema_) {
-  		vkDestroySemaphore(dev_, sema_, nullptr);
-      ownsResource_ = false;
-    }
-  }
+template<> VkQueue create<VkQueue>(VkDevice dev) { return nullptr; }
+template<> void destroy<VkQueue>(VkDevice dev, VkQueue queue_) { }
 
-  semaphore &operator=(semaphore &&rhs) {
-    if (ownsResource_ && sema_) {
-  		vkDestroySemaphore(dev_, sema_, nullptr);
-    }
-
-    ownsResource_ = true;
-    sema_ = rhs.sema_;
-    rhs.ownsResource_ = false;
-    dev_ = rhs.dev_;
-    return *this;
-  }
-
-  operator VkSemaphore() const {
-    return sema_;
-  }
-
+class queue : public resource<VkQueue> {
 public:
-  VkDevice dev_ = nullptr;
-	VkSemaphore sema_ = nullptr;
-  bool ownsResource_ = false;
+  /// queue that does not own its pointer
+  queue(VkQueue value = nullptr, VkDevice dev = nullptr) : resource(value, dev) {
+  }
+
+  /// queue that does owns (and creates) its pointer
+  queue(VkDevice dev) : resource(dev) {
+  }
+
+  void submit(VkSemaphore sema, VkCommandBuffer buffer) const {
+		// The submit infor strcuture contains a list of
+		// command buffers and semaphores to be submitted to a queue
+		// If you want to submit multiple command buffers, pass an array
+		VkSubmitInfo submitInfo = {};
+		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+		submitInfo.waitSemaphoreCount = sema ? 1 : 0;
+		submitInfo.pWaitSemaphores = &sema;
+		submitInfo.commandBufferCount = 1;
+		submitInfo.pCommandBuffers = &buffer;
+
+		// Submit to the graphics queue
+		VkResult err = vkQueueSubmit(get(), 1, &submitInfo, VK_NULL_HANDLE);
+    if (err) throw err;
+  }
+
+  void waitIdle() const {  
+		VkResult err = vkQueueWaitIdle(get());
+    if (err) throw err;
+  }
+
 };
 
 } // vku
