@@ -88,7 +88,7 @@ public:
 
 	void prepare()
 	{
-    vku::device dev(device, physicalDevice);
+    vku::device dev(device, instance.physicalDevice());
 
 		VulkanExampleBase::prepare();
 
@@ -142,7 +142,7 @@ public:
 
 	virtual void render()
 	{
-    vku::device dev(device, physicalDevice);
+    vku::device dev(device, instance.physicalDevice());
 
 		if (!prepared)
 			return;

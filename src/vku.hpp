@@ -117,15 +117,38 @@ public:
   instance() : resource((VkInstance)nullptr) {
   }
 
-  /// queue that does not own its pointer
+  /// instance that does not own its pointer
   instance(VkInstance value) : resource(value, nullptr) {
   }
 
-  /// queue that does owns (and creates) its pointer
+  /// instance that does owns (and creates) its pointer
   instance(const char *name) : resource((VkDevice)nullptr) {
+	  // Physical device
+	  uint32_t gpuCount = 0;
+	  // Get number of available physical devices
+	  VkResult err = vkEnumeratePhysicalDevices(get(), &gpuCount, nullptr);
+    if (err) throw err;
+
+    if (gpuCount == 0) {
+      throw(std::runtime_error("no Vulkan devices found"));
+    }
+
+	  // Enumerate devices
+	  std::vector<VkPhysicalDevice> physicalDevices(gpuCount);
+	  err = vkEnumeratePhysicalDevices(get(), &gpuCount, physicalDevices.data());
+    if (err) throw err;
+
+	  // Note : 
+	  // This example will always use the first physical device reported, 
+	  // change the vector index if you have multiple Vulkan devices installed 
+	  // and want to use another one
+	  physicalDevice_ = physicalDevices[0];
   }
+
+  VkPhysicalDevice physicalDevice() const { return physicalDevice_; }
 public:
   bool enableValidation = false;
+  VkPhysicalDevice physicalDevice_;
 };
 
 class device {

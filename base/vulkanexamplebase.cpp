@@ -8,51 +8,6 @@
 
 #include "vulkanexamplebase.h"
 
-VkResult VulkanExampleBase::createInstance(bool enableValidation)
-{
-	this->enableValidation = enableValidation;
-
-	/*VkApplicationInfo appInfo = {};
-	appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-	appInfo.pApplicationName = name.c_str();
-	appInfo.pEngineName = name.c_str();
-	// Temporary workaround for drivers not supporting SDK 1.0.3 upon launch
-	// todo : Use VK_API_VERSION 
-	appInfo.apiVersion = VK_MAKE_VERSION(1, 0, 2);
-
-	std::vector<const char*> enabledExtensions = { VK_KHR_SURFACE_EXTENSION_NAME };
-
-#ifdef _WIN32
-	enabledExtensions.push_back(VK_KHR_WIN32_SURFACE_EXTENSION_NAME);
-#else
-	// todo : linux/android
-	enabledExtensions.push_back(VK_KHR_XCB_SURFACE_EXTENSION_NAME);
-#endif
-
-	// todo : check if all extensions are present
-
-	VkInstanceCreateInfo instanceCreateInfo = {};
-	instanceCreateInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-	instanceCreateInfo.pNext = NULL;
-	instanceCreateInfo.pApplicationInfo = &appInfo;
-	if (enabledExtensions.size() > 0)
-	{
-		if (enableValidation)
-		{
-			enabledExtensions.push_back(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);
-		}
-		instanceCreateInfo.enabledExtensionCount = (uint32_t)enabledExtensions.size();
-		instanceCreateInfo.ppEnabledExtensionNames = enabledExtensions.data();
-	}
-	if (enableValidation)
-	{
-		//instanceCreateInfo.enabledLayerCount = vkDebug::validationLayerCount; // todo : change validation layer names!
-		//instanceCreateInfo.ppEnabledLayerNames = vkDebug::validationLayerNames;
-	}
-	return vkCreateInstance(&instanceCreateInfo, nullptr, &instance);*/
-  return VkResult::VK_SUCCESS;
-}
-
 VkResult VulkanExampleBase::createDevice(VkDeviceQueueCreateInfo requestedQueues, bool enableValidation)
 {
 	std::vector<const char*> enabledExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
@@ -75,7 +30,7 @@ VkResult VulkanExampleBase::createDevice(VkDeviceQueueCreateInfo requestedQueues
 		//deviceCreateInfo.ppEnabledLayerNames = vkDebug::validationLayerNames;
 	}
 
-	return vkCreateDevice(physicalDevice, &deviceCreateInfo, nullptr, &device);
+	return vkCreateDevice(instance.physicalDevice(), &deviceCreateInfo, nullptr, &device);
 }
 
 bool VulkanExampleBase::checkCommandBuffers()
@@ -203,7 +158,7 @@ void VulkanExampleBase::prepare()
 	// Recreate setup command buffer for derived class
 	createSetupCommandBuffer();
 	// Create a simple texture loader class 
-	//textureLoader = new vkTools::VulkanTextureLoader(physicalDevice, device, queue, cmdPool);
+	//textureLoader = new vkTools::VulkanTextureLoader(instance.physicalDevice(), device, queue, cmdPool);
 }
 
 VkPipelineShaderStageCreateInfo VulkanExampleBase::loadShader(const char * fileName, VkShaderStageFlagBits stage)
@@ -439,35 +394,15 @@ void VulkanExampleBase::initVulkan(bool enableValidation)
 
   instance = vku::instance("vku");
 
-	// Physical device
-	uint32_t gpuCount = 0;
-	// Get number of available physical devices
-	err = vkEnumeratePhysicalDevices(instance, &gpuCount, nullptr);
-	assert(!err);		
-	assert(gpuCount > 0);
-	// Enumerate devices
-	std::vector<VkPhysicalDevice> physicalDevices(gpuCount);
-	err = vkEnumeratePhysicalDevices(instance, &gpuCount, physicalDevices.data());
-	if (err)
-	{
-		vkTools::exitFatal("Could not enumerate phyiscal devices : \n" + vkTools::errorString(err), "Fatal error");
-	}
-
-	// Note : 
-	// This example will always use the first physical device reported, 
-	// change the vector index if you have multiple Vulkan devices installed 
-	// and want to use another one
-	physicalDevice = physicalDevices[0];
-
 	// Find a queue that supports graphics operations
 	uint32_t graphicsQueueIndex = 0;
 	uint32_t queueCount;
-	vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &queueCount, NULL);
+	vkGetPhysicalDeviceQueueFamilyProperties(instance.physicalDevice(), &queueCount, NULL);
 	assert(queueCount >= 1);
 
 	std::vector<VkQueueFamilyProperties> queueProps;
 	queueProps.resize(queueCount);
-	vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &queueCount, queueProps.data());
+	vkGetPhysicalDeviceQueueFamilyProperties(instance.physicalDevice(), &queueCount, queueProps.data());
 
 	for (graphicsQueueIndex = 0; graphicsQueueIndex < queueCount; graphicsQueueIndex++)
 	{
@@ -488,16 +423,16 @@ void VulkanExampleBase::initVulkan(bool enableValidation)
 	assert(!err);
 
 	// Gather physical device memory properties
-	vkGetPhysicalDeviceMemoryProperties(physicalDevice, &deviceMemoryProperties);
+	vkGetPhysicalDeviceMemoryProperties(instance.physicalDevice(), &deviceMemoryProperties);
 
 	// Get the graphics queue
 	vkGetDeviceQueue(device, graphicsQueueIndex, 0, &queue);
 
 	// Find a suitable depth format
-	VkBool32 validDepthFormat = vkTools::getSupportedDepthFormat(physicalDevice, &depthFormat);
+	VkBool32 validDepthFormat = vkTools::getSupportedDepthFormat(instance.physicalDevice(), &depthFormat);
 	assert(validDepthFormat);
 
-	swapChain.init(instance, physicalDevice, device);
+	swapChain.init(instance, instance.physicalDevice(), device);
 }
 
 #ifdef _WIN32 

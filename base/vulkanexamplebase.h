@@ -53,7 +53,7 @@ protected:
 	//VkInstance instance;
   vku::instance instance;
 	// Physical device (GPU) that Vulkan will ise
-	VkPhysicalDevice physicalDevice;
+	//VkPhysicalDevice physicalDevice;
 	// Stores all available memory (type) properties for the physical device
 	VkPhysicalDeviceMemoryProperties deviceMemoryProperties;
 	// Logical device, application's view of the physical device (GPU)
