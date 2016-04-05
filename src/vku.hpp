@@ -551,10 +551,23 @@ public:
 private:
   VkPipelineShaderStageCreateInfo loadShader(const char * fileName, VkShaderStageFlagBits stage)
   {
+    std::ifstream input(fileName, std::ios::binary);
+    auto &b = std::istreambuf_iterator<char>(input);
+    auto &e = std::istreambuf_iterator<char>();
+    std::vector<char> buf(b, e);
+
+		VkShaderModuleCreateInfo moduleCreateInfo = {};
+		moduleCreateInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+		moduleCreateInfo.codeSize = buf.size();
+		moduleCreateInfo.pCode = (uint32_t*)buf.data();
+		moduleCreateInfo.flags = 0;
+		VkShaderModule shaderModule;
+		VkResult err = vkCreateShaderModule(dev_, &moduleCreateInfo, NULL, &shaderModule);
+
 	  VkPipelineShaderStageCreateInfo shaderStage = {};
 	  shaderStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
 	  shaderStage.stage = stage;
-	  shaderStage.module = vkTools::loadShader(fileName, dev_, stage);
+	  shaderStage.module = shaderModule;
 	  shaderStage.pName = "main"; // todo : make param
 	  assert(shaderStage.module != NULL);
 	  shaderModules.push_back(shaderStage.module);
