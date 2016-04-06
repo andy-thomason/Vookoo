@@ -21,6 +21,40 @@
 
 namespace vku {
 
+class error : public std::runtime_error {
+  const char *what(VkResult err) {
+    switch (err) {
+      case VK_SUCCESS: return "VK_SUCCESS";
+      case VK_NOT_READY: return "VK_NOT_READY";
+      case VK_TIMEOUT: return "VK_TIMEOUT";
+      case VK_EVENT_SET: return "VK_EVENT_SET";
+      case VK_EVENT_RESET: return "VK_EVENT_RESET";
+      case VK_INCOMPLETE: return "VK_INCOMPLETE";
+      case VK_ERROR_OUT_OF_HOST_MEMORY: return "VK_ERROR_OUT_OF_HOST_MEMORY";
+      case VK_ERROR_OUT_OF_DEVICE_MEMORY: return "VK_ERROR_OUT_OF_DEVICE_MEMORY";
+      case VK_ERROR_INITIALIZATION_FAILED: return "VK_ERROR_INITIALIZATION_FAILED";
+      case VK_ERROR_DEVICE_LOST: return "VK_ERROR_DEVICE_LOST";
+      case VK_ERROR_MEMORY_MAP_FAILED: return "VK_ERROR_MEMORY_MAP_FAILED";
+      case VK_ERROR_LAYER_NOT_PRESENT: return "VK_ERROR_LAYER_NOT_PRESENT";
+      case VK_ERROR_EXTENSION_NOT_PRESENT: return "VK_ERROR_EXTENSION_NOT_PRESENT";
+      case VK_ERROR_FEATURE_NOT_PRESENT: return "VK_ERROR_FEATURE_NOT_PRESENT";
+      case VK_ERROR_INCOMPATIBLE_DRIVER: return "VK_ERROR_INCOMPATIBLE_DRIVER";
+      case VK_ERROR_TOO_MANY_OBJECTS: return "VK_ERROR_TOO_MANY_OBJECTS";
+      case VK_ERROR_FORMAT_NOT_SUPPORTED: return "VK_ERROR_FORMAT_NOT_SUPPORTED";
+      case VK_ERROR_SURFACE_LOST_KHR: return "VK_ERROR_SURFACE_LOST_KHR";
+      case VK_ERROR_NATIVE_WINDOW_IN_USE_KHR: return "VK_ERROR_NATIVE_WINDOW_IN_USE_KHR";
+      case VK_SUBOPTIMAL_KHR: return "VK_SUBOPTIMAL_KHR";
+      case VK_ERROR_OUT_OF_DATE_KHR: return "VK_ERROR_OUT_OF_DATE_KHR";
+      case VK_ERROR_INCOMPATIBLE_DISPLAY_KHR: return "VK_ERROR_INCOMPATIBLE_DISPLAY_KHR";
+      case VK_ERROR_VALIDATION_FAILED_EXT: return "VK_ERROR_VALIDATION_FAILED_EXT";
+      default: return "UNKNOWN ERROR";
+    }
+  }
+public:
+  error(VkResult err) : std::runtime_error(what(err)) {
+  }
+};
+
 template <class VulkanType> VulkanType create(VkDevice dev) {}
 template <class VulkanType> void destroy(VkDevice dev, VulkanType value) {}
 
@@ -157,7 +191,7 @@ public:
 	  uint32_t gpuCount = 0;
 	  // Get number of available physical devices
 	  VkResult err = vkEnumeratePhysicalDevices(get(), &gpuCount, nullptr);
-    if (err) throw err;
+    if (err) throw error(err);
 
     if (gpuCount == 0) {
       throw(std::runtime_error("no Vulkan devices found"));
@@ -166,7 +200,7 @@ public:
 	  // Enumerate devices
 	  std::vector<VkPhysicalDevice> physicalDevices(gpuCount);
 	  err = vkEnumeratePhysicalDevices(get(), &gpuCount, physicalDevices.data());
-    if (err) throw err;
+    if (err) throw error(err);
 
 	  // Note : 
 	  // This example will always use the first physical device reported, 
@@ -220,7 +254,7 @@ public:
 	  }
 
 	  err = vkCreateDevice(physicalDevice_, &deviceCreateInfo, nullptr, &dev_);
-    if (err) throw err;
+    if (err) throw error(err);
 
 	  // Get the graphics queue
 	  vkGetDeviceQueue(dev_, graphicsQueueIndex, 0, &queue_);
@@ -253,7 +287,7 @@ public:
 		bufInfo.size = size;
 		bufInfo.usage = usage;
 		VkResult err = vkCreateBuffer(dev, &bufInfo, nullptr, &buf_);
-    if (err) throw err;
+    if (err) throw error(err);
 
     ownsBuffer = true;
 
@@ -266,7 +300,7 @@ public:
 		memAlloc.memoryTypeIndex = dev.getMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
 
  		err = vkAllocateMemory(dev, &memAlloc, nullptr, &mem);
-    if (err) throw err;
+    if (err) throw error(err);
 
 		if (init) {
 		  void *dest = map();
@@ -304,7 +338,7 @@ public:
   void *map() {
     void *dest = nullptr;
     VkResult err = vkMapMemory(dev, mem, 0, size(), 0, &dest);
-    if (err) throw err;
+    if (err) throw error(err);
     return dest;
   }
 
@@ -314,7 +348,7 @@ public:
 
   void bind() {
 		VkResult err = vkBindBufferMemory(dev, buf_, mem, 0);
-    if (err) throw err;
+    if (err) throw error(err);
   }
 
   size_t size() const {
@@ -415,7 +449,7 @@ public:
 		descriptorPoolInfo.maxSets = 2;
 
 		VkResult err = vkCreateDescriptorPool(dev_, &descriptorPoolInfo, nullptr, &pool_);
-    if (err) throw err;
+    if (err) throw error(err);
 
     ownsResource_ = true;
   }
@@ -433,7 +467,7 @@ public:
 		allocInfo.pSetLayouts = layout;
 
 		VkResult err = vkAllocateDescriptorSets(dev_, &allocInfo, descriptorSets);
-    if (err) throw err;
+    if (err) throw error(err);
 
 		// Binding 0 : Uniform buffer
 		writeDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -497,7 +531,7 @@ public:
 		descriptorLayout.pBindings = &layoutBinding;
 
 		VkResult err = vkCreateDescriptorSetLayout(device, &descriptorLayout, NULL, &descriptorSetLayout);
-		if (err) throw err;
+		if (err) throw error(err);
 
 		// Create the pipeline layout that is used to generate the rendering pipelines that
 		// are based on this descriptor set layout
@@ -510,7 +544,7 @@ public:
 		pPipelineLayoutCreateInfo.pSetLayouts = &descriptorSetLayout;
 
 		err = vkCreatePipelineLayout(device, &pPipelineLayoutCreateInfo, nullptr, &pipelineLayout);
-		if (err) throw err;
+		if (err) throw error(err);
 
 		VkGraphicsPipelineCreateInfo pipelineCreateInfo = {};
 
@@ -624,7 +658,7 @@ public:
 
 		// Create rendering pipeline
 		err = vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineCreateInfo, nullptr, &pipe_);
-		if (err) throw err;
+		if (err) throw error(err);
 
     ownsData = true;
   }
@@ -658,7 +692,7 @@ public:
 
     descriptorSet = nullptr;
 		VkResult err = vkAllocateDescriptorSets(dev_, &allocInfo, &descriptorSet);
-		if (err) throw err;
+		if (err) throw error(err);
   }
 
   void updateDescriptorSets(buffer &uniformVS) {
@@ -696,7 +730,7 @@ private:
 		moduleCreateInfo.flags = 0;
 		VkShaderModule shaderModule;
 		VkResult err = vkCreateShaderModule(dev_, &moduleCreateInfo, NULL, &shaderModule);
-    if (err) throw err;
+    if (err) throw error(err);
 
 	  VkPipelineShaderStageCreateInfo shaderStage = {};
 	  shaderStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -729,7 +763,7 @@ private:
 
 		VkShaderModule shaderModule;
 		VkResult err = vkCreateShaderModule(dev_, &moduleCreateInfo, NULL, &shaderModule);
-    if (err) throw err;
+    if (err) throw error(err);
 
 	  VkPipelineShaderStageCreateInfo shaderStage = {};
 	  shaderStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -925,7 +959,7 @@ template<> VkSemaphore create<VkSemaphore>(VkDevice dev) {
 
   VkSemaphore res = nullptr;
 	VkResult err = vkCreateSemaphore(dev, &info, nullptr, &res);
-	if (err) throw err;
+	if (err) throw error(err);
   return res;
 }
 
@@ -970,12 +1004,12 @@ public:
 
 		// Submit to the graphics queue
 		VkResult err = vkQueueSubmit(get(), 1, &submitInfo, VK_NULL_HANDLE);
-    if (err) throw err;
+    if (err) throw error(err);
   }
 
   void waitIdle() const {  
 		VkResult err = vkQueueWaitIdle(get());
-    if (err) throw err;
+    if (err) throw error(err);
   }
 
 };

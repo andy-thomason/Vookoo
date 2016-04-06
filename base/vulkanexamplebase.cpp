@@ -365,8 +365,6 @@ VulkanExampleBase::~VulkanExampleBase()
 
 void VulkanExampleBase::initVulkan(bool enableValidation)
 {
-	VkResult err;
-
   instance = vku::instance("vku");
 
   device = instance.device();
