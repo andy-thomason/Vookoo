@@ -8,31 +8,6 @@
 
 #include "vulkanexamplebase.h"
 
-VkResult VulkanExampleBase::createDevice(VkDeviceQueueCreateInfo requestedQueues, bool enableValidation)
-{
-	std::vector<const char*> enabledExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
-
-	VkDeviceCreateInfo deviceCreateInfo = {};
-	deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-	deviceCreateInfo.pNext = NULL;
-	deviceCreateInfo.queueCreateInfoCount = 1;
-	deviceCreateInfo.pQueueCreateInfos = &requestedQueues;
-	deviceCreateInfo.pEnabledFeatures = NULL;
-
-	if (enabledExtensions.size() > 0)
-	{
-		deviceCreateInfo.enabledExtensionCount = (uint32_t)enabledExtensions.size();
-		deviceCreateInfo.ppEnabledExtensionNames = enabledExtensions.data();
-	}
-	if (enableValidation)
-	{
-		//deviceCreateInfo.enabledLayerCount = vkDebug::validationLayerCount; // todo : validation layer names
-		//deviceCreateInfo.ppEnabledLayerNames = vkDebug::validationLayerNames;
-	}
-
-	return vkCreateDevice(instance.physicalDevice(), &deviceCreateInfo, nullptr, &device);
-}
-
 bool VulkanExampleBase::checkCommandBuffers()
 {
 	for (auto& cmdBuffer : drawCmdBuffers)
@@ -394,39 +369,8 @@ void VulkanExampleBase::initVulkan(bool enableValidation)
 
   instance = vku::instance("vku");
 
-	// Find a queue that supports graphics operations
-	uint32_t graphicsQueueIndex = 0;
-	uint32_t queueCount;
-	vkGetPhysicalDeviceQueueFamilyProperties(instance.physicalDevice(), &queueCount, NULL);
-	assert(queueCount >= 1);
-
-	std::vector<VkQueueFamilyProperties> queueProps;
-	queueProps.resize(queueCount);
-	vkGetPhysicalDeviceQueueFamilyProperties(instance.physicalDevice(), &queueCount, queueProps.data());
-
-	for (graphicsQueueIndex = 0; graphicsQueueIndex < queueCount; graphicsQueueIndex++)
-	{
-		if (queueProps[graphicsQueueIndex].queueFlags & VK_QUEUE_GRAPHICS_BIT)
-			break;
-	}
-	assert(graphicsQueueIndex < queueCount);
-
-	// Vulkan device
-	std::array<float, 1> queuePriorities = { 0.0f };
-	VkDeviceQueueCreateInfo queueCreateInfo = {};
-	queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-	queueCreateInfo.queueFamilyIndex = graphicsQueueIndex;
-	queueCreateInfo.queueCount = 1;
-	queueCreateInfo.pQueuePriorities = queuePriorities.data();
-
-	err = createDevice(queueCreateInfo, enableValidation);
-	assert(!err);
-
-	// Gather physical device memory properties
-	vkGetPhysicalDeviceMemoryProperties(instance.physicalDevice(), &deviceMemoryProperties);
-
-	// Get the graphics queue
-	vkGetDeviceQueue(device, graphicsQueueIndex, 0, &queue);
+  device = instance.device();
+  queue = instance.queue();
 
 	// Find a suitable depth format
 	VkBool32 validDepthFormat = vkTools::getSupportedDepthFormat(instance.physicalDevice(), &depthFormat);
@@ -765,6 +709,7 @@ void VulkanExampleBase::viewChanged()
 
 VkBool32 VulkanExampleBase::getMemoryType(uint32_t typeBits, VkFlags properties, uint32_t * typeIndex)
 {
+	vkGetPhysicalDeviceMemoryProperties(instance.physicalDevice(), &deviceMemoryProperties);
 	for (uint32_t i = 0; i < 32; i++)
 	{
 		if ((typeBits & 1) == 1)

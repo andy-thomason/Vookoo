@@ -14,6 +14,7 @@
 
 #include <cstring>
 #include <vector>
+#include <array>
 #include <fstream>
 
 // derived from https://github.com/SaschaWillems/Vulkan
@@ -112,6 +113,35 @@ template<> void destroy<VkInstance>(VkDevice dev, VkInstance inst) {
   vkDestroyInstance(inst, nullptr);
 }
 
+class device {
+public:
+  device(VkDevice dev, VkPhysicalDevice physicalDevice) : dev(dev), physicalDevice(physicalDevice) {
+  }
+
+  uint32_t getMemoryType(uint32_t typeBits, VkFlags properties) {
+    VkPhysicalDeviceMemoryProperties deviceMemoryProperties;
+  	vkGetPhysicalDeviceMemoryProperties(physicalDevice, &deviceMemoryProperties);
+
+	  for (uint32_t i = 0; i < 32; i++) {
+		  if (typeBits & (1<<i)) {
+			  if ((deviceMemoryProperties.memoryTypes[i].propertyFlags & properties) == properties) {
+				  return i;
+			  }
+		  }
+	  }
+	  return ~(uint32_t)0;
+  }
+
+  operator VkDevice() const { return dev; }
+
+  void waitIdle() const {
+    vkDeviceWaitIdle(dev);
+  }
+public:
+  VkDevice dev;
+  VkPhysicalDevice physicalDevice;
+};
+
 class instance : public resource<VkInstance> {
 public:
   instance() : resource((VkInstance)nullptr) {
@@ -143,41 +173,68 @@ public:
 	  // change the vector index if you have multiple Vulkan devices installed 
 	  // and want to use another one
 	  physicalDevice_ = physicalDevices[0];
+
+	  // Find a queue that supports graphics operations
+	  uint32_t graphicsQueueIndex = 0;
+	  uint32_t queueCount;
+	  vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice(), &queueCount, NULL);
+	  //assert(queueCount >= 1);
+
+	  std::vector<VkQueueFamilyProperties> queueProps;
+	  queueProps.resize(queueCount);
+	  vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice(), &queueCount, queueProps.data());
+
+	  for (graphicsQueueIndex = 0; graphicsQueueIndex < queueCount; graphicsQueueIndex++)
+	  {
+		  if (queueProps[graphicsQueueIndex].queueFlags & VK_QUEUE_GRAPHICS_BIT)
+			  break;
+	  }
+	  //assert(graphicsQueueIndex < queueCount);
+
+	  // Vulkan device
+	  std::array<float, 1> queuePriorities = { 0.0f };
+	  VkDeviceQueueCreateInfo queueCreateInfo = {};
+	  queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+	  queueCreateInfo.queueFamilyIndex = graphicsQueueIndex;
+	  queueCreateInfo.queueCount = 1;
+	  queueCreateInfo.pQueuePriorities = queuePriorities.data();
+
+	  std::vector<const char*> enabledExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
+
+	  VkDeviceCreateInfo deviceCreateInfo = {};
+	  deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+	  deviceCreateInfo.pNext = NULL;
+	  deviceCreateInfo.queueCreateInfoCount = 1;
+	  deviceCreateInfo.pQueueCreateInfos = &queueCreateInfo;
+	  deviceCreateInfo.pEnabledFeatures = NULL;
+
+	  if (enabledExtensions.size() > 0)
+	  {
+		  deviceCreateInfo.enabledExtensionCount = (uint32_t)enabledExtensions.size();
+		  deviceCreateInfo.ppEnabledExtensionNames = enabledExtensions.data();
+	  }
+	  if (enableValidation)
+	  {
+		  //deviceCreateInfo.enabledLayerCount = vkDebug::validationLayerCount; // todo : validation layer names
+		  //deviceCreateInfo.ppEnabledLayerNames = vkDebug::validationLayerNames;
+	  }
+
+	  err = vkCreateDevice(physicalDevice_, &deviceCreateInfo, nullptr, &dev_);
+    if (err) throw err;
+
+	  // Get the graphics queue
+	  vkGetDeviceQueue(dev_, graphicsQueueIndex, 0, &queue_);
   }
 
   VkPhysicalDevice physicalDevice() const { return physicalDevice_; }
+
+  vku::device device() const { return vku::device(dev_, physicalDevice_); }
+  VkQueue queue() const { return queue_; }
 public:
   bool enableValidation = false;
   VkPhysicalDevice physicalDevice_;
-};
-
-class device {
-public:
-  device(VkDevice dev, VkPhysicalDevice physicalDevice) : dev(dev), physicalDevice(physicalDevice) {
-  }
-
-  uint32_t getMemoryType(uint32_t typeBits, VkFlags properties) {
-    VkPhysicalDeviceMemoryProperties deviceMemoryProperties;
-  	vkGetPhysicalDeviceMemoryProperties(physicalDevice, &deviceMemoryProperties);
-
-	  for (uint32_t i = 0; i < 32; i++) {
-		  if (typeBits & (1<<i)) {
-			  if ((deviceMemoryProperties.memoryTypes[i].propertyFlags & properties) == properties) {
-				  return i;
-			  }
-		  }
-	  }
-	  return ~(uint32_t)0;
-  }
-
-  operator VkDevice() const { return dev; }
-
-  void waitIdle() const {
-    vkDeviceWaitIdle(dev);
-  }
-public:
-  VkDevice dev;
-  VkPhysicalDevice physicalDevice;
+  VkDevice dev_;
+  VkQueue queue_;
 };
 
 class buffer {
