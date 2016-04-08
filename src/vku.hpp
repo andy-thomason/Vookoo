@@ -311,7 +311,7 @@ public:
   }
 
   /// semaphore that does owns (and creates) its pointer
-  swapChain(const vku::device dev, uint32_t width, uint32_t height, VkSurfaceKHR surface) : resource(dev) {
+  swapChain(const vku::device dev, uint32_t width, uint32_t height, VkSurfaceKHR surface, VkCommandBuffer buf) : resource(dev) {
 	  VkResult err;
 	  VkSwapchainKHR oldSwapchain = *this;
 
@@ -402,12 +402,18 @@ public:
 	  err = vkCreateSwapchainKHR(dev, &swapchainCI, nullptr, &res);
 	  if (err) throw error(err);
     set(res, true);
+
+    build_images(buf);
   }
+
+  void build_images(VkCommandBuffer buf);
 
   swapChain &operator=(swapChain &&rhs) {
     (resource&)(*this) = (resource&&)rhs;
     width_ = rhs.width_;
     height_ = rhs.height_;
+    swapchainImages = std::move(rhs.swapchainImages);
+    swapchainViews = std::move(rhs.swapchainViews);
     return *this;
   }
 
@@ -426,9 +432,29 @@ public:
 
   uint32_t width() const { return width_; }
   uint32_t height() const { return height_; }
+
+  size_t imageCount() { return swapchainImages.size(); }
+  VkImage image(size_t i) { return swapchainImages[i]; }
+  VkImageView view(size_t i) { return swapchainViews[i]; }
 private:
   uint32_t width_;
   uint32_t height_;
+	//VkFormat colorFormat;
+	//VkColorSpaceKHR colorSpace;
+
+  std::vector<VkImage> swapchainImages;
+  std::vector<VkImageView> swapchainViews;
+
+	//VkImage* swapchainImages;
+
+	//VkSwapchainKHR swapChain = VK_NULL_HANDLE;
+  //vku::swapChain swapChain;
+
+	//uint32_t imageCount;
+	//SwapChainBuffer* buffers;
+
+	// Index of the deteced graphics and presenting device queue
+	//uint32_t queueNodeIndex = UINT32_MAX;
 };
 
 class buffer {
@@ -1109,8 +1135,160 @@ public:
     );
   }
 
+	// Create an image memory barrier for changing the layout of
+	// an image and put it into an active command buffer
+	// See chapter 11.4 "Image Layout" for details
+	//todo : rename
+	void setImageLayout(VkImage image, VkImageAspectFlags aspectMask, VkImageLayout oldImageLayout, VkImageLayout newImageLayout)
+	{
+		// Create an image barrier object
+	  VkImageMemoryBarrier imageMemoryBarrier = {};
+	  imageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+	  imageMemoryBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	  imageMemoryBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+
+		imageMemoryBarrier.oldLayout = oldImageLayout;
+		imageMemoryBarrier.newLayout = newImageLayout;
+		imageMemoryBarrier.image = image;
+		imageMemoryBarrier.subresourceRange.aspectMask = aspectMask;
+		imageMemoryBarrier.subresourceRange.baseMipLevel = 0;
+		imageMemoryBarrier.subresourceRange.levelCount = 1;
+		imageMemoryBarrier.subresourceRange.layerCount = 1;
+
+		// Source layouts (old)
+
+		// Undefined layout
+		// Only allowed as initial layout!
+		// Make sure any writes to the image have been finished
+		if (oldImageLayout == VK_IMAGE_LAYOUT_UNDEFINED)
+		{
+			imageMemoryBarrier.srcAccessMask = VK_ACCESS_HOST_WRITE_BIT | VK_ACCESS_TRANSFER_WRITE_BIT;
+		}
+
+		// Old layout is color attachment
+		// Make sure any writes to the color buffer have been finished
+		if (oldImageLayout == VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL) 
+		{
+			imageMemoryBarrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+		}
+
+		// Old layout is transfer source
+		// Make sure any reads from the image have been finished
+		if (oldImageLayout == VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL)
+		{
+			imageMemoryBarrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+		}
+
+		// Old layout is shader read (sampler, input attachment)
+		// Make sure any shader reads from the image have been finished
+		if (oldImageLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
+		{
+			imageMemoryBarrier.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+		}
+
+		// Target layouts (new)
+
+		// New layout is transfer destination (copy, blit)
+		// Make sure any copyies to the image have been finished
+		if (newImageLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL)
+		{
+			imageMemoryBarrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+		}
+
+		// New layout is transfer source (copy, blit)
+		// Make sure any reads from and writes to the image have been finished
+		if (newImageLayout == VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL)
+		{
+			imageMemoryBarrier.srcAccessMask = imageMemoryBarrier.srcAccessMask | VK_ACCESS_TRANSFER_READ_BIT;
+			imageMemoryBarrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+		}
+
+		// New layout is color attachment
+		// Make sure any writes to the color buffer hav been finished
+		if (newImageLayout == VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL)
+		{
+			imageMemoryBarrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+			imageMemoryBarrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+		}
+
+		// New layout is depth attachment
+		// Make sure any writes to depth/stencil buffer have been finished
+		if (newImageLayout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL) 
+		{
+			imageMemoryBarrier.dstAccessMask = imageMemoryBarrier.dstAccessMask | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+		}
+
+		// New layout is shader read (sampler, input attachment)
+		// Make sure any writes to the image have been finished
+		if (newImageLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
+		{
+			imageMemoryBarrier.srcAccessMask = VK_ACCESS_HOST_WRITE_BIT | VK_ACCESS_TRANSFER_WRITE_BIT;
+			imageMemoryBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+		}
+
+
+		// Put barrier on top
+		VkPipelineStageFlags srcStageFlags = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+		VkPipelineStageFlags destStageFlags = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+
+		// Put barrier inside setup command buffer
+		vkCmdPipelineBarrier(
+			get(), 
+			srcStageFlags, 
+			destStageFlags, 
+			0, 
+			0, nullptr,
+			0, nullptr,
+			1, &imageMemoryBarrier);
+	}
 private:
 };
+
+inline void swapChain::build_images(VkCommandBuffer buf) {
+  VkDevice d = dev();
+  vku::cmdBuffer cb(buf, d);
+
+  uint32_t imageCount = 0;
+	VkResult err = vkGetSwapchainImagesKHR(dev(), get(), &imageCount, NULL);
+	if (err) throw error(err);
+
+  swapchainImages.resize(imageCount);
+  swapchainViews.resize(imageCount);
+	err = vkGetSwapchainImagesKHR(dev(), *this, &imageCount, swapchainImages.data());
+	if (err) throw error(err);
+
+	for (uint32_t i = 0; i < imageCount; i++) {
+		VkImageViewCreateInfo colorAttachmentView = {};
+		colorAttachmentView.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+		colorAttachmentView.pNext = NULL;
+		colorAttachmentView.format = VK_FORMAT_B8G8R8A8_UNORM;
+		colorAttachmentView.components = {
+			VK_COMPONENT_SWIZZLE_R,
+			VK_COMPONENT_SWIZZLE_G,
+			VK_COMPONENT_SWIZZLE_B,
+			VK_COMPONENT_SWIZZLE_A
+		};
+		colorAttachmentView.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		colorAttachmentView.subresourceRange.baseMipLevel = 0;
+		colorAttachmentView.subresourceRange.levelCount = 1;
+		colorAttachmentView.subresourceRange.baseArrayLayer = 0;
+		colorAttachmentView.subresourceRange.layerCount = 1;
+		colorAttachmentView.viewType = VK_IMAGE_VIEW_TYPE_2D;
+		colorAttachmentView.flags = 0;
+
+
+    cb.setImageLayout(
+			image(i), 
+			VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, 
+			VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+
+		colorAttachmentView.image = image(i);
+
+		err = vkCreateImageView(dev(), &colorAttachmentView, nullptr, &swapchainViews[i]);
+  	if (err) throw error(err);
+  }
+}
+
 
 template<> VkSemaphore create<VkSemaphore>(VkDevice dev) {
 	VkSemaphoreCreateInfo info = {};

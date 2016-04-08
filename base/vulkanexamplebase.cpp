@@ -29,7 +29,7 @@ void VulkanExampleBase::createCommandBuffers()
 	// so for static usage withouth having to rebuild 
 	// them each frame, we use one per frame buffer
 
-	drawCmdBuffers.resize(swapChain.imageCount);
+	drawCmdBuffers.resize(swapChain.imageCount());
 
 	VkCommandBufferAllocateInfo cmdBufAllocateInfo = 
 		vkTools::initializers::commandBufferAllocateInfo(
@@ -806,10 +806,10 @@ void VulkanExampleBase::setupFrameBuffer()
 	frameBufferCreateInfo.layers = 1;
 
 	// Create frame buffers for every swap chain image
-	frameBuffers.resize(swapChain.imageCount);
+	frameBuffers.resize(swapChain.imageCount());
 	for (uint32_t i = 0; i < frameBuffers.size(); i++)
 	{
-		attachments[0] = swapChain.buffers[i].view;
+		attachments[0] = swapChain.view(i);
 		VkResult err = vkCreateFramebuffer(device, &frameBufferCreateInfo, nullptr, &frameBuffers[i]);
 		assert(!err);
 	}

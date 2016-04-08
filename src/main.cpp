@@ -64,7 +64,7 @@ public:
 
     vku::cmdBuffer postPresent(postPresentCmdBuffer);
     postPresent.beginCommandBuffer();
-    postPresent.pipelineBarrier(swapChain.buffers[currentBuffer].image);
+    postPresent.pipelineBarrier(swapChain.image(currentBuffer));
     postPresent.endCommandBuffer();
 
     theQueue.submit(nullptr, postPresentCmdBuffer);
@@ -137,7 +137,7 @@ public:
       cmdbuf.bindIndexBuffer(index_buffer);
       cmdbuf.drawIndexed((uint32_t)num_indices, 1, 0, 0, 1);
 
-      cmdbuf.end(swapChain.buffers[i].image);
+      cmdbuf.end(swapChain.image(i));
 		}
 
 		prepared = true;

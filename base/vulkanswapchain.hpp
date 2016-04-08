@@ -70,18 +70,25 @@ private:
 	PFN_vkAcquireNextImageKHR fpAcquireNextImageKHR;
 	PFN_vkQueuePresentKHR fpQueuePresentKHR;
 public:
-	VkFormat colorFormat;
-	VkColorSpaceKHR colorSpace;
+  vku::swapChain swapChain;
+	VkFormat colorFormat = VK_FORMAT_B8G8R8A8_UNORM;;
+	VkColorSpaceKHR colorSpace = VK_COLORSPACE_SRGB_NONLINEAR_KHR;
+
+
+  /*
 	VkImage* swapchainImages;
 
 	//VkSwapchainKHR swapChain = VK_NULL_HANDLE;
-  vku::swapChain swapChain;
 
 	uint32_t imageCount;
-	SwapChainBuffer* buffers;
+	SwapChainBuffer* buffers;*/
 
 	// Index of the deteced graphics and presenting device queue
 	uint32_t queueNodeIndex = UINT32_MAX;
+
+  size_t imageCount() { return swapChain.imageCount(); }
+  VkImageView view(size_t i) { return swapChain.view(i); }
+  VkImage image(size_t i) { return swapChain.image(i); }
 
 	// wip naming
 	void initSwapChain(
@@ -191,7 +198,7 @@ public:
 		queueNodeIndex = graphicsQueueNodeIndex;
 
 		// Get list of supported formats
-		uint32_t formatCount;
+		/*uint32_t formatCount;
 		err = fpGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, surface, &formatCount, NULL);
 		assert(!err);
 
@@ -211,7 +218,7 @@ public:
 			assert(formatCount >= 1);
 			colorFormat = surfFormats[0].format;
 		}
-		colorSpace = surfFormats[0].colorSpace;
+		colorSpace = surfFormats[0].colorSpace;*/
 	}
 
 	void init(VkInstance instance, VkPhysicalDevice physicalDevice, VkDevice device)
@@ -232,7 +239,7 @@ public:
 
 	void setup(VkCommandBuffer cmdBuffer, uint32_t *width, uint32_t *height)
 	{
-		VkResult err;
+		//VkResult err;
 		/*VkSwapchainKHR oldSwapchain = swapChain;
 
 		// Get physical device surface properties and formats
@@ -324,7 +331,7 @@ public:
 
     swapChain = vku::swapChain(swapChain2);*/
 
-    swapChain = vku::swapChain(vku::device(device, physicalDevice), *width, *height, surface);
+    swapChain = vku::swapChain(vku::device(device, physicalDevice), *width, *height, surface, cmdBuffer);
     *width = swapChain.width();
     *height = swapChain.height();
 
@@ -337,50 +344,6 @@ public:
 			fpDestroySwapchainKHR(device, oldSwapchain, nullptr);
 		}*/
 
-		err = fpGetSwapchainImagesKHR(device, swapChain, &imageCount, NULL);
-		assert(!err);
-
-		swapchainImages = (VkImage*)malloc(imageCount * sizeof(VkImage));
-		assert(swapchainImages);
-		err = fpGetSwapchainImagesKHR(device, swapChain, &imageCount, swapchainImages);
-		assert(!err);
-
-		buffers = (SwapChainBuffer*)malloc(sizeof(SwapChainBuffer)*imageCount);
-		assert(buffers);
-		//buffers.resize(imageCount);
-		for (uint32_t i = 0; i < imageCount; i++)
-		{
-			VkImageViewCreateInfo colorAttachmentView = {};
-			colorAttachmentView.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-			colorAttachmentView.pNext = NULL;
-			colorAttachmentView.format = colorFormat;
-			colorAttachmentView.components = {
-				VK_COMPONENT_SWIZZLE_R,
-				VK_COMPONENT_SWIZZLE_G,
-				VK_COMPONENT_SWIZZLE_B,
-				VK_COMPONENT_SWIZZLE_A
-			};
-			colorAttachmentView.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-			colorAttachmentView.subresourceRange.baseMipLevel = 0;
-			colorAttachmentView.subresourceRange.levelCount = 1;
-			colorAttachmentView.subresourceRange.baseArrayLayer = 0;
-			colorAttachmentView.subresourceRange.layerCount = 1;
-			colorAttachmentView.viewType = VK_IMAGE_VIEW_TYPE_2D;
-			colorAttachmentView.flags = 0;
-
-			buffers[i].image = swapchainImages[i];
-
-			vkTools::setImageLayout(
-				cmdBuffer, 
-				buffers[i].image, 
-				VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, 
-				VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
-
-			colorAttachmentView.image = buffers[i].image;
-
-			err = vkCreateImageView(device, &colorAttachmentView, nullptr, &buffers[i].view);
-			assert(!err);
-		}
 	}
 
 	// Acquires the next image in the swap chain
@@ -398,10 +361,10 @@ public:
 
 	void cleanup()
 	{
-		for (uint32_t i = 0; i < imageCount; i++)
+		/*for (uint32_t i = 0; i < this->; i++)
 		{
 			vkDestroyImageView(device, buffers[i].view, nullptr);
-		}
+		}*/
 		//fpDestroySwapchainKHR(device, swapChain, nullptr);
     swapChain.clear();
 		vkDestroySurfaceKHR(instance, surface, nullptr);
