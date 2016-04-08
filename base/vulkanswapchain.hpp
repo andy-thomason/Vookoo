@@ -74,7 +74,8 @@ public:
 	VkColorSpaceKHR colorSpace;
 	VkImage* swapchainImages;
 
-	VkSwapchainKHR swapChain = VK_NULL_HANDLE;
+	//VkSwapchainKHR swapChain = VK_NULL_HANDLE;
+  vku::swapChain swapChain;
 
 	uint32_t imageCount;
 	SwapChainBuffer* buffers;
@@ -232,7 +233,7 @@ public:
 	void setup(VkCommandBuffer cmdBuffer, uint32_t *width, uint32_t *height)
 	{
 		VkResult err;
-		VkSwapchainKHR oldSwapchain = swapChain;
+		/*VkSwapchainKHR oldSwapchain = swapChain;
 
 		// Get physical device surface properties and formats
 		VkSurfaceCapabilitiesKHR surfCaps;
@@ -317,17 +318,24 @@ public:
 		swapchainCI.clipped = true;
 		swapchainCI.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
 
-		err = fpCreateSwapchainKHR(device, &swapchainCI, nullptr, &swapChain);
+    VkSwapchainKHR swapChain2;
+		err = fpCreateSwapchainKHR(device, &swapchainCI, nullptr, &swapChain2);
 		assert(!err);
+
+    swapChain = vku::swapChain(swapChain2);*/
+
+    swapChain = vku::swapChain(vku::device(device, physicalDevice), *width, *height, surface);
+    *width = swapChain.width();
+    *height = swapChain.height();
 
 		// If we just re-created an existing swapchain, we should destroy the old
 		// swapchain at this point.
 		// Note: destroying the swapchain also cleans up all its associated
 		// presentable images once the platform is done with them.
-		if (oldSwapchain != VK_NULL_HANDLE) 
+		/*if (oldSwapchain != VK_NULL_HANDLE) 
 		{ 
 			fpDestroySwapchainKHR(device, oldSwapchain, nullptr);
-		}
+		}*/
 
 		err = fpGetSwapchainImagesKHR(device, swapChain, &imageCount, NULL);
 		assert(!err);
@@ -384,13 +392,8 @@ public:
 	// Present the current image to the queue
 	VkResult queuePresent(VkQueue queue, uint32_t currentBuffer)
 	{
-		VkPresentInfoKHR presentInfo = {};
-		presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
-		presentInfo.pNext = NULL;
-		presentInfo.swapchainCount = 1;
-		presentInfo.pSwapchains = &swapChain;
-		presentInfo.pImageIndices = &currentBuffer;
-		return fpQueuePresentKHR(queue, &presentInfo);
+    swapChain.present(queue, currentBuffer);
+    return VK_SUCCESS;
 	}
 
 	void cleanup()
@@ -399,7 +402,8 @@ public:
 		{
 			vkDestroyImageView(device, buffers[i].view, nullptr);
 		}
-		fpDestroySwapchainKHR(device, swapChain, nullptr);
+		//fpDestroySwapchainKHR(device, swapChain, nullptr);
+    swapChain.clear();
 		vkDestroySurfaceKHR(instance, surface, nullptr);
 	}
 

@@ -54,6 +54,9 @@ public:
 
     theQueue.submit(sema, drawCmdBuffers[currentBuffer]);
 
+    //instance.present(currentBuffer);
+
+
 		// Present the current buffer to the swap chain
 		// This will display the image
 		err = swapChain.queuePresent(queue, currentBuffer);
