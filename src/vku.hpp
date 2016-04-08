@@ -288,6 +288,31 @@ public:
 	  vkGetDeviceQueue(dev_, graphicsQueueIndex, 0, &queue_);
   }
 
+  VkSurfaceKHR createSurface(void *connection, void *window) {
+    VkSurfaceKHR result = nullptr;
+		// Create surface depending on OS
+    #if defined(_WIN32)
+		  VkWin32SurfaceCreateInfoKHR surfaceCreateInfo = {};
+		  surfaceCreateInfo.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
+		  surfaceCreateInfo.hinstance = (HINSTANCE)connection;
+		  surfaceCreateInfo.hwnd = (HWND)window;
+		  VkResult err = vkCreateWin32SurfaceKHR(get(), &surfaceCreateInfo, nullptr, &result);
+    #elif defined(__ANDROID__)
+		  VkAndroidSurfaceCreateInfoKHR surfaceCreateInfo = {};
+		  surfaceCreateInfo.sType = VK_STRUCTURE_TYPE_ANDROID_SURFACE_CREATE_INFO_KHR;
+		  surfaceCreateInfo.window = window;
+		  VkResult err = vkCreateAndroidSurfaceKHR(get(), &surfaceCreateInfo, NULL, &result);
+    #else
+		  VkXcbSurfaceCreateInfoKHR surfaceCreateInfo = {};
+		  surfaceCreateInfo.sType = VK_STRUCTURE_TYPE_XCB_SURFACE_CREATE_INFO_KHR;
+		  surfaceCreateInfo.connection = connection;
+		  surfaceCreateInfo.window = window;
+		  VkResult err = vkCreateXcbSurfaceKHR(get(), &surfaceCreateInfo, nullptr, &result);
+    #endif
+    if (err) throw error(err);
+    return result;
+  }
+
   VkPhysicalDevice physicalDevice() const { return physicalDevice_; }
 
   vku::device device() const { return vku::device(dev_, physicalDevice_); }
@@ -436,6 +461,13 @@ public:
   size_t imageCount() { return swapchainImages.size(); }
   VkImage image(size_t i) { return swapchainImages[i]; }
   VkImageView view(size_t i) { return swapchainViews[i]; }
+
+  uint32_t acquireNextImage(VkSemaphore presentCompleteSemaphore) {
+    uint32_t currentBuffer = 0;
+		VkResult err = vkAcquireNextImageKHR(dev(), get(), UINT64_MAX, presentCompleteSemaphore, (VkFence)nullptr, &currentBuffer);
+    if (err) throw error(err);
+    return currentBuffer;
+  }
 private:
   uint32_t width_;
   uint32_t height_;
@@ -444,17 +476,6 @@ private:
 
   std::vector<VkImage> swapchainImages;
   std::vector<VkImageView> swapchainViews;
-
-	//VkImage* swapchainImages;
-
-	//VkSwapchainKHR swapChain = VK_NULL_HANDLE;
-  //vku::swapChain swapChain;
-
-	//uint32_t imageCount;
-	//SwapChainBuffer* buffers;
-
-	// Index of the deteced graphics and presenting device queue
-	//uint32_t queueNodeIndex = UINT32_MAX;
 };
 
 class buffer {

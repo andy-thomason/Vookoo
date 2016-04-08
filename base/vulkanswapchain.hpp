@@ -60,7 +60,7 @@ private:
 	VkPhysicalDevice physicalDevice;
 	VkSurfaceKHR surface;
 	// Function pointers
-	PFN_vkGetPhysicalDeviceSurfaceSupportKHR fpGetPhysicalDeviceSurfaceSupportKHR;
+	/*PFN_vkGetPhysicalDeviceSurfaceSupportKHR fpGetPhysicalDeviceSurfaceSupportKHR;
 	PFN_vkGetPhysicalDeviceSurfaceCapabilitiesKHR fpGetPhysicalDeviceSurfaceCapabilitiesKHR; 
 	PFN_vkGetPhysicalDeviceSurfaceFormatsKHR fpGetPhysicalDeviceSurfaceFormatsKHR;
 	PFN_vkGetPhysicalDeviceSurfacePresentModesKHR fpGetPhysicalDeviceSurfacePresentModesKHR;
@@ -68,7 +68,7 @@ private:
 	PFN_vkDestroySwapchainKHR fpDestroySwapchainKHR;
 	PFN_vkGetSwapchainImagesKHR fpGetSwapchainImagesKHR;
 	PFN_vkAcquireNextImageKHR fpAcquireNextImageKHR;
-	PFN_vkQueuePresentKHR fpQueuePresentKHR;
+	PFN_vkQueuePresentKHR fpQueuePresentKHR;*/
 public:
   vku::swapChain swapChain;
 	VkFormat colorFormat = VK_FORMAT_B8G8R8A8_UNORM;;
@@ -84,10 +84,10 @@ public:
 	// wip naming
 	void initSwapChain(
 #ifdef _WIN32
-		void* platformHandle, void* platformWindow
+		void* connection, void* window
 #else
 #ifdef __ANDROID__
-		ANativeWindow* window
+		void *connection, ANativeWindow* window
 #else
 		xcb_connection_t* connection, xcb_window_t window
 #endif
@@ -99,27 +99,8 @@ public:
 
 		VkResult err;
 
-		// Create surface depending on OS
-#ifdef _WIN32
-		VkWin32SurfaceCreateInfoKHR surfaceCreateInfo = {};
-		surfaceCreateInfo.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
-		surfaceCreateInfo.hinstance = (HINSTANCE)platformHandle;
-		surfaceCreateInfo.hwnd = (HWND)platformWindow;
-		err = vkCreateWin32SurfaceKHR(instance, &surfaceCreateInfo, nullptr, &surface);
-#else
-#ifdef __ANDROID__
-		VkAndroidSurfaceCreateInfoKHR surfaceCreateInfo = {};
-		surfaceCreateInfo.sType = VK_STRUCTURE_TYPE_ANDROID_SURFACE_CREATE_INFO_KHR;
-		surfaceCreateInfo.window = window;
-		err = vkCreateAndroidSurfaceKHR(instance, &surfaceCreateInfo, NULL, &surface);
-#else
-		VkXcbSurfaceCreateInfoKHR surfaceCreateInfo = {};
-		surfaceCreateInfo.sType = VK_STRUCTURE_TYPE_XCB_SURFACE_CREATE_INFO_KHR;
-		surfaceCreateInfo.connection = connection;
-		surfaceCreateInfo.window = window;
-		err = vkCreateXcbSurfaceKHR(instance, &surfaceCreateInfo, nullptr, &surface);
-#endif
-#endif
+    vku::instance inst(instance);
+    surface = inst.createSurface((void*)connection, (void*)window);
 
 		uint32_t i;
 
@@ -134,7 +115,7 @@ public:
 		VkBool32* supportsPresent = (VkBool32 *)malloc(queueCount * sizeof(VkBool32));
 		for (i = 0; i < queueCount; i++) 
 		{
-			fpGetPhysicalDeviceSurfaceSupportKHR(physicalDevice, i,
+			vkGetPhysicalDeviceSurfaceSupportKHR(physicalDevice, i,
 				surface,
 				&supportsPresent[i]);
 		}
@@ -217,7 +198,7 @@ public:
 		this->instance = instance;
 		this->physicalDevice = physicalDevice;
 		this->device = device;
-		GET_INSTANCE_PROC_ADDR(instance, GetPhysicalDeviceSurfaceSupportKHR);
+		/*GET_INSTANCE_PROC_ADDR(instance, GetPhysicalDeviceSurfaceSupportKHR);
 		GET_INSTANCE_PROC_ADDR(instance, GetPhysicalDeviceSurfaceCapabilitiesKHR);
 		GET_INSTANCE_PROC_ADDR(instance, GetPhysicalDeviceSurfaceFormatsKHR);
 		GET_INSTANCE_PROC_ADDR(instance, GetPhysicalDeviceSurfacePresentModesKHR);
@@ -225,7 +206,7 @@ public:
 		GET_DEVICE_PROC_ADDR(device, DestroySwapchainKHR);
 		GET_DEVICE_PROC_ADDR(device, GetSwapchainImagesKHR);
 		GET_DEVICE_PROC_ADDR(device, AcquireNextImageKHR);
-		GET_DEVICE_PROC_ADDR(device, QueuePresentKHR);
+		GET_DEVICE_PROC_ADDR(device, QueuePresentKHR);*/
 	}
 
 	void setup(VkCommandBuffer cmdBuffer, uint32_t *width, uint32_t *height)
@@ -238,7 +219,8 @@ public:
 	// Acquires the next image in the swap chain
 	VkResult acquireNextImage(VkSemaphore presentCompleteSemaphore, uint32_t *currentBuffer)
 	{
-		return fpAcquireNextImageKHR(device, swapChain, UINT64_MAX, presentCompleteSemaphore, (VkFence)nullptr, currentBuffer);
+    *currentBuffer = swapChain.acquireNextImage(presentCompleteSemaphore);
+    return VK_SUCCESS;
 	}
 
 	// Present the current image to the queue
