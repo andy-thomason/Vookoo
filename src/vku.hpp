@@ -59,8 +59,6 @@ template <class VulkanType> VulkanType create(VkDevice dev) {}
 template <class VulkanType> void destroy(VkDevice dev, VulkanType value) {}
 
 
-
-
 template <class VulkanType>
 class resource {
 public:
@@ -165,6 +163,31 @@ public:
 	  }
 	  return ~(uint32_t)0;
   }
+
+	VkFormat getSupportedDepthFormat()
+	{
+		// Since all depth formats may be optional, we need to find a suitable depth format to use
+		// Start with the highest precision packed format
+		static const VkFormat depthFormats[] = { 
+			VK_FORMAT_D32_SFLOAT_S8_UINT, 
+			VK_FORMAT_D32_SFLOAT,
+			VK_FORMAT_D24_UNORM_S8_UINT, 
+			VK_FORMAT_D16_UNORM_S8_UINT, 
+			VK_FORMAT_D16_UNORM
+		};
+
+		for (size_t i = 0; i != sizeof(depthFormats)/sizeof(depthFormats[0]); ++i) {
+      VkFormat format = depthFormats[i];
+			VkFormatProperties formatProps;
+			vkGetPhysicalDeviceFormatProperties(physicalDevice, format, &formatProps);
+			// Format must support depth stencil attachment for optimal tiling
+			if (formatProps.optimalTilingFeatures & VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT) {
+				return format;
+			}
+		}
+
+		return VK_FORMAT_UNDEFINED;
+	}
 
   operator VkDevice() const { return dev; }
 

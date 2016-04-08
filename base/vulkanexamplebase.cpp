@@ -136,7 +136,7 @@ void VulkanExampleBase::prepare()
 	//textureLoader = new vkTools::VulkanTextureLoader(instance.physicalDevice(), device, queue, cmdPool);
 }
 
-VkPipelineShaderStageCreateInfo VulkanExampleBase::loadShader(const char * fileName, VkShaderStageFlagBits stage)
+/*VkPipelineShaderStageCreateInfo VulkanExampleBase::loadShader(const char * fileName, VkShaderStageFlagBits stage)
 {
 	VkPipelineShaderStageCreateInfo shaderStage = {};
 	shaderStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -158,7 +158,7 @@ VkPipelineShaderStageCreateInfo VulkanExampleBase::loadShaderGLSL(const char * f
 	assert(shaderStage.module != NULL);
 	shaderModules.push_back(shaderStage.module);
 	return shaderStage;
-}
+}*/
 
 VkBool32 VulkanExampleBase::createBuffer(
 	VkBufferUsageFlags usage, 
@@ -367,12 +367,13 @@ void VulkanExampleBase::initVulkan(bool enableValidation)
 {
   instance = vku::instance("vku");
 
-  device = instance.device();
+  vku::device dev = instance.device();
+  device = dev;
   queue = instance.queue();
 
 	// Find a suitable depth format
-	VkBool32 validDepthFormat = vkTools::getSupportedDepthFormat(instance.physicalDevice(), &depthFormat);
-	assert(validDepthFormat);
+	depthFormat = dev.getSupportedDepthFormat();
+	assert(depthFormat != VK_FORMAT_UNDEFINED);
 
 	swapChain.init(instance, instance.physicalDevice(), device);
 }

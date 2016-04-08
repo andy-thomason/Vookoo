@@ -74,7 +74,7 @@ namespace vkTools
 		}
 	}
 
-	VkBool32 getSupportedDepthFormat(VkPhysicalDevice physicalDevice, VkFormat *depthFormat)
+	/*VkBool32 getSupportedDepthFormat(VkPhysicalDevice physicalDevice, VkFormat *depthFormat)
 	{
 		// Since all depth formats may be optional, we need to find a suitable depth format to use
 		// Start with the highest precision packed format
@@ -99,7 +99,7 @@ namespace vkTools
 		}
 
 		return false;
-	}
+	}*/
 
 	// Create an image memory barrier for changing the layout of
 	// an image and put it into an active command buffer
@@ -215,7 +215,7 @@ namespace vkTools
 		exit(1);
 	}
 
-	std::string readTextFile(const char *fileName)
+	/*std::string readTextFile(const char *fileName)
 	{
 		std::string fileContent;
 		std::ifstream fileStream(fileName, std::ios::in);
@@ -307,7 +307,7 @@ namespace vkTools
 		assert(!err);
 
 		return shaderModule;
-	}
+	}*/
 
 	VkImageMemoryBarrier prePresentBarrier(VkImage presentImage)
 	{
