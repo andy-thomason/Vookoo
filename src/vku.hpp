@@ -193,6 +193,73 @@ public:
 		return VK_FORMAT_UNDEFINED;
 	}
 
+  // todo: get two queues
+  uint32_t getGraphicsQueueNodeIndex(VkSurfaceKHR surface) {
+		// Get queue properties
+    uint32_t queueCount;
+		vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice_, &queueCount, NULL);
+
+    std::vector<VkQueueFamilyProperties> queueProps(queueCount);
+		vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice_, &queueCount, queueProps.data());
+
+		// Iterate over each queue to learn whether it supports presenting:
+    std::vector<VkBool32> supportsPresent(queueCount);
+		for (uint32_t i = 0; i < queueCount; i++)  {
+			vkGetPhysicalDeviceSurfaceSupportKHR(physicalDevice_, i, surface, &supportsPresent[i]);
+		}
+
+		// Search for a graphics and a present queue in the array of queue
+		// families, try to find one that supports both
+		uint32_t graphicsQueueNodeIndex = UINT32_MAX;
+		uint32_t presentQueueNodeIndex = UINT32_MAX;
+		for (uint32_t i = 0; i < queueCount; i++) 
+		{
+			if ((queueProps[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) != 0) 
+			{
+				if (graphicsQueueNodeIndex == UINT32_MAX) 
+				{
+					graphicsQueueNodeIndex = i;
+				}
+
+				if (supportsPresent[i] == VK_TRUE) 
+				{
+          return i;
+				}
+			}
+		}
+
+		/*if (presentQueueNodeIndex == UINT32_MAX) 
+		{	
+			// If there's no queue that supports both present and graphics
+			// try to find a separate present queue
+			for (uint32_t i = 0; i < queueCount; ++i) 
+			{
+				if (supportsPresent[i] == VK_TRUE) 
+				{
+					presentQueueNodeIndex = i;
+					break;
+				}
+			}
+		}*/
+    return ~(uint32_t)0;
+  }
+
+  std::pair<VkFormat, VkColorSpaceKHR> getSurfaceFormat(VkSurfaceKHR surface) {
+		// Get list of supported formats
+		uint32_t formatCount = 0;
+		VkResult err = vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice_, surface, &formatCount, NULL);
+    if (err) throw error(err);
+
+		std::vector<VkSurfaceFormatKHR> surfFormats(formatCount);
+		err = vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice_, surface, &formatCount, surfFormats.data());
+    if (err) throw error(err);
+
+    return formatCount == 0 || surfFormats[0].format == VK_FORMAT_UNDEFINED ?
+      std::pair<VkFormat, VkColorSpaceKHR>(VK_FORMAT_B8G8R8A8_UNORM, VK_COLORSPACE_SRGB_NONLINEAR_KHR) :
+      std::pair<VkFormat, VkColorSpaceKHR>(surfFormats[0].format, surfFormats[0].colorSpace)
+    ;
+  }
+
   operator VkDevice() const { return dev; }
   VkPhysicalDevice physicalDevice() const { return physicalDevice_; }
 

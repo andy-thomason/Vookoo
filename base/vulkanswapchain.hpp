@@ -94,103 +94,19 @@ public:
 #endif
 	)
 	{
-		uint32_t queueCount;
-		VkQueueFamilyProperties *queueProps;
+		//uint32_t queueCount;
+		//VkQueueFamilyProperties *queueProps;
+    vku::device dev(device, physicalDevice);
 
-		VkResult err;
+		//VkResult err;
 
     vku::instance inst(instance);
     surface = inst.createSurface((void*)connection, (void*)window);
-
-		uint32_t i;
-
-		// Get queue properties
-		vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &queueCount, NULL);
-
-		queueProps = (VkQueueFamilyProperties *)malloc(queueCount * sizeof(VkQueueFamilyProperties));
-		vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &queueCount, queueProps);
-		assert(queueCount >= 1);
-
-		// Iterate over each queue to learn whether it supports presenting:
-		VkBool32* supportsPresent = (VkBool32 *)malloc(queueCount * sizeof(VkBool32));
-		for (i = 0; i < queueCount; i++) 
-		{
-			vkGetPhysicalDeviceSurfaceSupportKHR(physicalDevice, i,
-				surface,
-				&supportsPresent[i]);
-		}
-
-		// Search for a graphics and a present queue in the array of queue
-		// families, try to find one that supports both
-		uint32_t graphicsQueueNodeIndex = UINT32_MAX;
-		uint32_t presentQueueNodeIndex = UINT32_MAX;
-		for (i = 0; i < queueCount; i++) 
-		{
-			if ((queueProps[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) != 0) 
-			{
-				if (graphicsQueueNodeIndex == UINT32_MAX) 
-				{
-					graphicsQueueNodeIndex = i;
-				}
-
-				if (supportsPresent[i] == VK_TRUE) 
-				{
-					graphicsQueueNodeIndex = i;
-					presentQueueNodeIndex = i;
-					break;
-				}
-			}
-		}
-		if (presentQueueNodeIndex == UINT32_MAX) 
-		{	
-			// If there's no queue that supports both present and graphics
-			// try to find a separate present queue
-			for (uint32_t i = 0; i < queueCount; ++i) 
-			{
-				if (supportsPresent[i] == VK_TRUE) 
-				{
-					presentQueueNodeIndex = i;
-					break;
-				}
-			}
-		}
-		free(supportsPresent);
-
-		// Generate error if could not find both a graphics and a present queue
-		if (graphicsQueueNodeIndex == UINT32_MAX || presentQueueNodeIndex == UINT32_MAX) 
-		{
-			// todo : error message
-		}
-
-		if (graphicsQueueNodeIndex != presentQueueNodeIndex) 
-		{
-			// todo : error message
-		}
-
-		queueNodeIndex = graphicsQueueNodeIndex;
-
-		// Get list of supported formats
-		/*uint32_t formatCount;
-		err = fpGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, surface, &formatCount, NULL);
-		assert(!err);
-
-		VkSurfaceFormatKHR *surfFormats = (VkSurfaceFormatKHR *)malloc(formatCount * sizeof(VkSurfaceFormatKHR));
-		err = fpGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, surface, &formatCount, surfFormats);
-		assert(!err);
-
-		// If the format list includes just one entry of VK_FORMAT_UNDEFINED,
-		// the surface has no preferred format.  Otherwise, at least one
-		// supported format will be returned.
-		if (formatCount == 1 && surfFormats[0].format == VK_FORMAT_UNDEFINED)
-		{
-			colorFormat = VK_FORMAT_B8G8R8A8_UNORM;
-		}
-		else
-		{
-			assert(formatCount >= 1);
-			colorFormat = surfFormats[0].format;
-		}
-		colorSpace = surfFormats[0].colorSpace;*/
+    queueNodeIndex = dev.getGraphicsQueueNodeIndex(surface);
+    if (queueNodeIndex == ~(uint32_t)0) throw(std::runtime_error("no graphics and present queue available"));
+    auto sf = dev.getSurfaceFormat(surface);
+    colorFormat = sf.first;
+    colorSpace = sf.second;
 	}
 
 	void init(VkInstance instance, VkPhysicalDevice physicalDevice, VkDevice device)
@@ -233,7 +149,7 @@ public:
 	void cleanup()
 	{
     swapChain.clear();
-		vkDestroySurfaceKHR(instance, surface, nullptr);
+		//vkDestroySurfaceKHR(instance, surface, nullptr);
 	}
 
 };
