@@ -56,20 +56,15 @@ void VulkanExampleBase::destroyCommandBuffers()
 
 void VulkanExampleBase::createSetupCommandBuffer()
 {
-	if (setupCmdBuffer != VK_NULL_HANDLE)
+	/*if (setupCmdBuffer != VK_NULL_HANDLE)
 	{
 		vkFreeCommandBuffers(device, cmdPool, 1, &setupCmdBuffer);
 		setupCmdBuffer = VK_NULL_HANDLE; // todo : check if still necessary
-	}
+	}*/
 
-	VkCommandBufferAllocateInfo cmdBufAllocateInfo =
-		vkTools::initializers::commandBufferAllocateInfo(
-			cmdPool,
-			VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-			1);
-
-	VkResult vkRes = vkAllocateCommandBuffers(device, &cmdBufAllocateInfo, &setupCmdBuffer);
-	assert(!vkRes);
+  setupCmdBuffer = vku::cmdBuffer(device, cmdPool);
+	//VkResult vkRes = vkAllocateCommandBuffers(device, &cmdBufAllocateInfo, &setupCmdBuffer);
+	//assert(!vkRes);
 
 	// todo : Command buffer is also started here, better put somewhere else
 	// todo : Check if necessaray at all...
@@ -77,7 +72,7 @@ void VulkanExampleBase::createSetupCommandBuffer()
 	cmdBufInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 	// todo : check null handles, flags?
 
-	vkRes = vkBeginCommandBuffer(setupCmdBuffer, &cmdBufInfo);
+	VkResult vkRes = vkBeginCommandBuffer(setupCmdBuffer, &cmdBufInfo);
 	assert(!vkRes);
 }
 
@@ -92,9 +87,10 @@ void VulkanExampleBase::flushSetupCommandBuffer()
 	assert(!err);
 
 	VkSubmitInfo submitInfo = {};
+  VkCommandBuffer cb = setupCmdBuffer;
 	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 	submitInfo.commandBufferCount = 1;
-	submitInfo.pCommandBuffers = &setupCmdBuffer;
+	submitInfo.pCommandBuffers = &cb;
 
 	err = vkQueueSubmit(queue, 1, &submitInfo, VK_NULL_HANDLE);
 	assert(!err);
@@ -102,8 +98,8 @@ void VulkanExampleBase::flushSetupCommandBuffer()
 	err = vkQueueWaitIdle(queue);
 	assert(!err);
 
-	vkFreeCommandBuffers(device, cmdPool, 1, &setupCmdBuffer);
-	setupCmdBuffer = VK_NULL_HANDLE; // todo : check if still necessary
+	//vkFreeCommandBuffers(device, cmdPool, 1, &setupCmdBuffer);
+	//setupCmdBuffer = VK_NULL_HANDLE; // todo : check if still necessary
 }
 
 void VulkanExampleBase::createPipelineCache()
@@ -141,7 +137,6 @@ void VulkanExampleBase::prepare()
   swapChain = vku::swapChain(vku::device(device, instance.physicalDevice()), width, height, surface, setupCmdBuffer);
   width = swapChain.width();
   height = swapChain.height();
-	//swapChain.setup(setupCmdBuffer, &width, &height);
 
 	createCommandBuffers();
 	setupDepthStencil();
@@ -319,11 +314,11 @@ VulkanExampleBase::~VulkanExampleBase()
 	// Clean up Vulkan resources
 	swapChain.clear();
 	//vkDestroyDescriptorPool(device, descriptorPool, nullptr);
-	if (setupCmdBuffer != VK_NULL_HANDLE) 
+	/*if (setupCmdBuffer != VK_NULL_HANDLE) 
 	{
 		vkFreeCommandBuffers(device, cmdPool, 1, &setupCmdBuffer);
 
-	}
+	}*/
 	destroyCommandBuffers();
 	vkDestroyRenderPass(device, renderPass, nullptr);
 	for (uint32_t i = 0; i < frameBuffers.size(); i++)

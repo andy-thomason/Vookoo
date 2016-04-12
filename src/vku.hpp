@@ -1063,6 +1063,11 @@ private:
   bool ownsData = false;
 };
 
+// todo: make this work!
+template <> void destroy(VkDevice dev, VkCommandBuffer value) {
+  //vkFreeCommandBuffers(dev, pool_, 1, &value);
+}
+
 class cmdBuffer : public resource<VkCommandBuffer> {
 public:
   /// command buffer that does not own its pointer
@@ -1070,7 +1075,15 @@ public:
   }
 
   /// command buffer that does owns (and creates) its pointer
-  cmdBuffer(VkDevice dev) : resource(dev) {
+  cmdBuffer(VkDevice dev, VkCommandPool cmdPool, VkCommandBufferLevel level = VK_COMMAND_BUFFER_LEVEL_PRIMARY) : resource(dev) {
+    VkCommandBuffer res = nullptr;
+	  VkCommandBufferAllocateInfo commandBufferAllocateInfo = {};
+	  commandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+	  commandBufferAllocateInfo.commandPool = cmdPool;
+	  commandBufferAllocateInfo.level = level;
+	  commandBufferAllocateInfo.commandBufferCount = 1;
+	  VkResult vkRes = vkAllocateCommandBuffers(dev, &commandBufferAllocateInfo, &res);
+    set(res, true);
   }
 
   void begin(VkRenderPass renderPass, VkFramebuffer framebuffer, int width, int height) {
@@ -1336,6 +1349,7 @@ public:
 			1, &imageMemoryBarrier);
 	}
 private:
+  VkCommandPool pool_ = nullptr;
 };
 
 inline void swapChain::build_images(VkCommandBuffer buf) {

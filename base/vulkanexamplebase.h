@@ -68,7 +68,8 @@ protected:
 	// Command buffer pool
 	VkCommandPool cmdPool;
 	// Command buffer used for setup
-	VkCommandBuffer setupCmdBuffer = VK_NULL_HANDLE;
+	//VkCommandBuffer setupCmdBuffer = VK_NULL_HANDLE;
+  vku::cmdBuffer setupCmdBuffer;
 	// Command buffer for submitting a post present barrier
 	VkCommandBuffer postPresentCmdBuffer = VK_NULL_HANDLE;
 	// Command buffers used for rendering
