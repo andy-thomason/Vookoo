@@ -71,9 +71,11 @@ protected:
 	//VkCommandBuffer setupCmdBuffer = VK_NULL_HANDLE;
   vku::cmdBuffer setupCmdBuffer;
 	// Command buffer for submitting a post present barrier
-	VkCommandBuffer postPresentCmdBuffer = VK_NULL_HANDLE;
+  vku::cmdBuffer postPresentCmdBuffer;
+	//VkCommandBuffer postPresentCmdBuffer = VK_NULL_HANDLE;
 	// Command buffers used for rendering
-	std::vector<VkCommandBuffer> drawCmdBuffers;
+	//std::vector<vku::cmdBuffer> drawCmdBuffers;
+  vku::cmdBuffer drawCmdBuffers[2];
 	// Global render pass for frame buffer writes
 	VkRenderPass renderPass;
 	// List of available frame buffers (same as number of swap chain images)

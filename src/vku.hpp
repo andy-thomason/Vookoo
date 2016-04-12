@@ -68,8 +68,14 @@ public:
   resource(VulkanType value, VkDevice dev = nullptr) : value_(value), ownsResource(false), dev_(dev) {
   }
 
-  resource(VkDevice dev = nullptr) : value_(create<VulkanType>(dev)), ownsResource(true), dev_(dev) {
+  resource(VkDevice dev) : value_(create<VulkanType>(dev)), ownsResource(true), dev_(dev) {
   }
+
+  /*resource(const resource &rhs) : value_(rhs.value_), ownsResource(false), dev_(rhs.dev_) {
+  }*/
+
+  /*resource(resource &rhs) : value_(rhs.value_), ownsResource(false), dev_(rhs.dev_) {
+  }*/
 
   void operator=(resource &&rhs) {
     if (value_ && ownsResource) destroy<VulkanType>(dev_, value_);
@@ -1070,8 +1076,11 @@ template <> void destroy(VkDevice dev, VkCommandBuffer value) {
 
 class cmdBuffer : public resource<VkCommandBuffer> {
 public:
+  cmdBuffer() : resource(nullptr, nullptr) {
+  }
+
   /// command buffer that does not own its pointer
-  cmdBuffer(VkCommandBuffer value = nullptr, VkDevice dev = nullptr) : resource(value, dev) {
+  cmdBuffer(VkCommandBuffer value, VkDevice dev) : resource(value, dev) {
   }
 
   /// command buffer that does owns (and creates) its pointer
@@ -1086,27 +1095,27 @@ public:
     set(res, true);
   }
 
-  void begin(VkRenderPass renderPass, VkFramebuffer framebuffer, int width, int height) {
+  void begin(VkRenderPass renderPass, VkFramebuffer framebuffer, int width, int height) const {
     beginCommandBuffer();
     beginRenderPass(renderPass, framebuffer, 0, 0, width, height);
     setViewport(0, 0, (float)width, (float)height);
     setScissor(0, 0, width, height);
   }
 
-  void end(VkImage image) {
+  void end(VkImage image) const {
     endRenderPass();
     addPresentationBarrier(image);
     endCommandBuffer();
   }
 
-  void beginCommandBuffer() {
+  void beginCommandBuffer() const {
 		VkCommandBufferBeginInfo cmdBufInfo = {};
 		cmdBufInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 		cmdBufInfo.pNext = NULL;
-    vkBeginCommandBuffer(*this, &cmdBufInfo);
+    vkBeginCommandBuffer(get(), &cmdBufInfo);
   }
 
-  void beginRenderPass(VkRenderPass renderPass, VkFramebuffer framebuffer, int x = 0, int y = 0, int width = 256, int height = 256) {
+  void beginRenderPass(VkRenderPass renderPass, VkFramebuffer framebuffer, int x = 0, int y = 0, int width = 256, int height = 256) const {
 		VkClearValue clearValues[2];
 		clearValues[0].color = { { 0.025f, 0.025f, 0.025f, 1.0f } };
 		clearValues[1].depthStencil = { 1.0f, 0 };
@@ -1123,10 +1132,10 @@ public:
 		renderPassBeginInfo.clearValueCount = 2;
 		renderPassBeginInfo.pClearValues = clearValues;
 
-    vkCmdBeginRenderPass(*this, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+    vkCmdBeginRenderPass(get(), &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
   }
 
-  void setViewport(float x=0, float y=0, float width=256, float height=256, float minDepth=0, float maxDepth=1) {
+  void setViewport(float x=0, float y=0, float width=256, float height=256, float minDepth=0, float maxDepth=1) const {
 		// Update dynamic viewport state
 		VkViewport viewport = {};
 		viewport.x = x;
@@ -1135,48 +1144,48 @@ public:
 		viewport.height = height;
 		viewport.minDepth = minDepth;
 		viewport.maxDepth = maxDepth;
-		vkCmdSetViewport(*this, 0, 1, &viewport);
+		vkCmdSetViewport(get(), 0, 1, &viewport);
   }
 
-  void setScissor(int x=0, int y=0, int width=256, int height=256) {
+  void setScissor(int x=0, int y=0, int width=256, int height=256) const {
 		// Update dynamic scissor state
 		VkRect2D scissor = {};
 		scissor.offset.x = x;
 		scissor.offset.y = y;
 		scissor.extent.width = width;
 		scissor.extent.height = height;
-		vkCmdSetScissor(*this, 0, 1, &scissor);
+		vkCmdSetScissor(get(), 0, 1, &scissor);
   }
 
-  void bindPipeline(pipeline &pipe) {
+  void bindPipeline(pipeline &pipe) const {
 		// Bind descriptor sets describing shader binding points
-		vkCmdBindDescriptorSets(*this, VK_PIPELINE_BIND_POINT_GRAPHICS, pipe.layout(), 0, 1, pipe.descriptorSets(), 0, NULL);
+		vkCmdBindDescriptorSets(get(), VK_PIPELINE_BIND_POINT_GRAPHICS, pipe.layout(), 0, 1, pipe.descriptorSets(), 0, NULL);
 
 		// Bind the rendering pipeline (including the shaders)
-		vkCmdBindPipeline(*this, VK_PIPELINE_BIND_POINT_GRAPHICS, pipe.pipe());
+		vkCmdBindPipeline(get(), VK_PIPELINE_BIND_POINT_GRAPHICS, pipe.pipe());
   }
 
-  void bindVertexBuffer(buffer &buf, int bindId) {
+  void bindVertexBuffer(buffer &buf, int bindId) const {
 		VkDeviceSize offsets[] = { 0 };
     VkBuffer bufs[] = { buf.buf() };
-		vkCmdBindVertexBuffers(*this, bindId, 1, bufs, offsets);
+		vkCmdBindVertexBuffers(get(), bindId, 1, bufs, offsets);
   }
 
-  void bindIndexBuffer(buffer &buf) {
+  void bindIndexBuffer(buffer &buf) const {
 		// Bind triangle indices
-		vkCmdBindIndexBuffer(*this, buf.buf(), 0, VK_INDEX_TYPE_UINT32);
+		vkCmdBindIndexBuffer(get(), buf.buf(), 0, VK_INDEX_TYPE_UINT32);
   }
 
-  void drawIndexed(uint32_t indexCount, uint32_t instanceCount, uint32_t firstIndex, int32_t vertexOffset, uint32_t firstInstance) {
+  void drawIndexed(uint32_t indexCount, uint32_t instanceCount, uint32_t firstIndex, int32_t vertexOffset, uint32_t firstInstance) const {
 		// Draw indexed triangle
-		vkCmdDrawIndexed(*this, indexCount, instanceCount, firstIndex, vertexOffset, firstInstance);
+		vkCmdDrawIndexed(get(), indexCount, instanceCount, firstIndex, vertexOffset, firstInstance);
   }
 
-  void endRenderPass() {
-    vkCmdEndRenderPass(*this);
+  void endRenderPass() const {
+    vkCmdEndRenderPass(get());
   }
 
-  void addPresentationBarrier(VkImage image) {
+  void addPresentationBarrier(VkImage image) const {
 		// Add a present memory barrier to the end of the command buffer
 		// This will transform the frame buffer color attachment to a
 		// new layout for presenting it to the windowing system integration 
@@ -1194,7 +1203,7 @@ public:
 
 		VkImageMemoryBarrier *pMemoryBarrier = &prePresentBarrier;
 		vkCmdPipelineBarrier(
-			*this, 
+			get(), 
 			VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 
 			VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 
 			0,
@@ -1203,11 +1212,11 @@ public:
 			1, &prePresentBarrier);
   }
 
-  void endCommandBuffer() {
-    vkEndCommandBuffer(*this);
+  void endCommandBuffer() const {
+    vkEndCommandBuffer(get());
   }
 
-  void pipelineBarrier(VkImage image) {
+  void pipelineBarrier(VkImage image) const {
 		// Add a post present image memory barrier
 		// This will transform the frame buffer color attachment back
 		// to it's initial layout after it has been presented to the
@@ -1232,7 +1241,7 @@ public:
 
 		// Put post present barrier into command buffer
 		vkCmdPipelineBarrier(
-			*this,
+			get(),
 			VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
 			VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
 			0,
@@ -1246,8 +1255,7 @@ public:
 	// an image and put it into an active command buffer
 	// See chapter 11.4 "Image Layout" for details
 	//todo : rename
-	void setImageLayout(VkImage image, VkImageAspectFlags aspectMask, VkImageLayout oldImageLayout, VkImageLayout newImageLayout)
-	{
+	void setImageLayout(VkImage image, VkImageAspectFlags aspectMask, VkImageLayout oldImageLayout, VkImageLayout newImageLayout) const {
 		// Create an image barrier object
 	  VkImageMemoryBarrier imageMemoryBarrier = {};
 	  imageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
@@ -1354,6 +1362,12 @@ public:
     pool_ = rhs.pool_;
     return *this;
   }
+
+  /*cmdBuffer &operator=(const cmdBuffer &rhs) {
+    set(rhs.get(), false);
+    pool_ = rhs.pool_;
+    return *this;
+  }*/
 private:
   VkCommandPool pool_ = nullptr;
 };

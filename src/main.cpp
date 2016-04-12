@@ -57,10 +57,9 @@ public:
 		// This will display the image
     swapChain.present(queue, currentBuffer);
 
-    vku::cmdBuffer postPresent(postPresentCmdBuffer);
-    postPresent.beginCommandBuffer();
-    postPresent.pipelineBarrier(swapChain.image(currentBuffer));
-    postPresent.endCommandBuffer();
+    postPresentCmdBuffer.beginCommandBuffer();
+    postPresentCmdBuffer.pipelineBarrier(swapChain.image(currentBuffer));
+    postPresentCmdBuffer.endCommandBuffer();
 
     theQueue.submit(nullptr, postPresentCmdBuffer);
 
@@ -122,9 +121,8 @@ public:
     pipe.allocateDescriptorSets(descPool);
     pipe.updateDescriptorSets(uniform_buffer);
 
-		for (int32_t i = 0; i < drawCmdBuffers.size(); ++i)
-		{
-      vku::cmdBuffer cmdbuf(drawCmdBuffers[i]);
+		for (int32_t i = 0; i < swapChain.imageCount(); ++i) {
+      const vku::cmdBuffer &cmdbuf = drawCmdBuffers[i];
       cmdbuf.begin(renderPass, frameBuffers[i], width, height);
 
       cmdbuf.bindPipeline(pipe);

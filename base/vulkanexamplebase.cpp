@@ -29,29 +29,19 @@ void VulkanExampleBase::createCommandBuffers()
 	// so for static usage withouth having to rebuild 
 	// them each frame, we use one per frame buffer
 
-	drawCmdBuffers.resize(swapChain.imageCount());
+	//drawCmdBuffers.resize(swapChain.imageCount());
 
-	VkCommandBufferAllocateInfo cmdBufAllocateInfo = 
-		vkTools::initializers::commandBufferAllocateInfo(
-			cmdPool,
-			VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-			(uint32_t)drawCmdBuffers.size());
+  for (size_t i = 0; i != swapChain.imageCount(); ++i) {
+    drawCmdBuffers[i] = vku::cmdBuffer(device, cmdPool);
+  }
 
-	VkResult vkRes = vkAllocateCommandBuffers(device, &cmdBufAllocateInfo, drawCmdBuffers.data());
-	assert(!vkRes);
-
-	// Create one command buffer for submitting the
-	// post present image memory barrier
-	cmdBufAllocateInfo.commandBufferCount = 1;
-
-	vkRes = vkAllocateCommandBuffers(device, &cmdBufAllocateInfo, &postPresentCmdBuffer);
-	assert(!vkRes);
+  postPresentCmdBuffer = vku::cmdBuffer(device, cmdPool);
 }
 
 void VulkanExampleBase::destroyCommandBuffers()
 {
-	vkFreeCommandBuffers(device, cmdPool, (uint32_t)drawCmdBuffers.size(), drawCmdBuffers.data());
-	vkFreeCommandBuffers(device, cmdPool, 1, &postPresentCmdBuffer);
+	//vkFreeCommandBuffers(device, cmdPool, (uint32_t)drawCmdBuffers.size(), drawCmdBuffers.data());
+	//vkFreeCommandBuffers(device, cmdPool, 1, &postPresentCmdBuffer);
 }
 
 void VulkanExampleBase::flushSetupCommandBuffer()
@@ -253,10 +243,12 @@ void VulkanExampleBase::submitPostPresentBarrier(VkImage image)
 	vkRes = vkEndCommandBuffer(postPresentCmdBuffer);
 	assert(!vkRes);
 
+
 	VkSubmitInfo submitInfo = {};
+  VkCommandBuffer ppcb = postPresentCmdBuffer;
 	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 	submitInfo.commandBufferCount = 1;
-	submitInfo.pCommandBuffers = &postPresentCmdBuffer;
+	submitInfo.pCommandBuffers = &ppcb;
 
 	vkRes = vkQueueSubmit(queue, 1, &submitInfo, VK_NULL_HANDLE);
 	assert(!vkRes);
