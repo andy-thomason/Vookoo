@@ -135,7 +135,10 @@ void VulkanExampleBase::prepare()
 	assert(!vkRes);
 	createSetupCommandBuffer();
 
-	swapChain.setup(setupCmdBuffer, &width, &height);
+  swapChain.swapChain = vku::swapChain(vku::device(device, instance.physicalDevice()), width, height, swapChain.swapChain.surface, setupCmdBuffer);
+  width = swapChain.swapChain.width();
+  height = swapChain.swapChain.height();
+	//swapChain.setup(setupCmdBuffer, &width, &height);
 
 	createCommandBuffers();
 	setupDepthStencil();
