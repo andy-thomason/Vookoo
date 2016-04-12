@@ -67,7 +67,7 @@ public:
   //VkImage image(size_t i) { return swapChain.image(i); }
 
 	// wip naming
-	void initSwapChain(
+	void initSwapChainX(
 #ifdef _WIN32
 		void* connection, void* window
 #else
@@ -110,12 +110,12 @@ public:
 		GET_DEVICE_PROC_ADDR(device, QueuePresentKHR);*/
 	}
 
-	void setup(VkCommandBuffer cmdBuffer, uint32_t *width, uint32_t *height)
+	/*void setup(VkCommandBuffer cmdBuffer, uint32_t *width, uint32_t *height)
 	{
     swapChain = vku::swapChain(vku::device(device, physicalDevice), *width, *height, swapChain.surface, cmdBuffer);
     *width = swapChain.width();
     *height = swapChain.height();
-	}
+	}*/
 
 	// Acquires the next image in the swap chain
 	VkResult acquireNextImage(VkSemaphore presentCompleteSemaphore, uint32_t *currentBuffer)

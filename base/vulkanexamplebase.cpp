@@ -116,11 +116,25 @@ void VulkanExampleBase::createPipelineCache()
 
 void VulkanExampleBase::prepare()
 {
-#ifdef _WIN32
+	//uint32_t queueCount;
+	//VkQueueFamilyProperties *queueProps;
+
+  vku::device dev(device, instance.physicalDevice());
+
+	//VkResult err;
+
+  swapChain.swapChain.surface = instance.createSurface((void*)windowInstance, (void*)window);
+  swapChain.swapChain.queueNodeIndex = dev.getGraphicsQueueNodeIndex(swapChain.swapChain.surface);
+  if (swapChain.swapChain.queueNodeIndex == ~(uint32_t)0) throw(std::runtime_error("no graphics and present queue available"));
+  auto sf = dev.getSurfaceFormat(swapChain.swapChain.surface);
+  swapChain.swapChain.colorFormat = sf.first;
+  swapChain.swapChain.colorSpace = sf.second;
+
+/*#ifdef _WIN32
 	swapChain.initSwapChain(windowInstance, window);
 #else
 	swapChain.initSwapChain(connection, window);
-#endif
+#endif*/
 
 	if (enableValidation)
 	{
