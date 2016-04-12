@@ -74,9 +74,6 @@ public:
   /*resource(const resource &rhs) : value_(rhs.value_), ownsResource(false), dev_(rhs.dev_) {
   }*/
 
-  /*resource(resource &rhs) : value_(rhs.value_), ownsResource(false), dev_(rhs.dev_) {
-  }*/
-
   void operator=(resource &&rhs) {
     if (value_ && ownsResource) destroy<VulkanType>(dev_, value_);
     value_ = rhs.value_;

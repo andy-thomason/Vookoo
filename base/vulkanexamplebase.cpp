@@ -8,68 +8,6 @@
 
 #include "vulkanexamplebase.h"
 
-bool VulkanExampleBase::checkCommandBuffers()
-{
-	for (auto& cmdBuffer : drawCmdBuffers)
-	{
-		if (cmdBuffer == VK_NULL_HANDLE)
-		{
-			return false;
-		}
-	}
-	return true;
-}
-
-void VulkanExampleBase::createCommandBuffers()
-{
-	// Create one command buffer per frame buffer 
-	// in the swap chain
-	// Command buffers store a reference to the 
-	// frame buffer inside their render pass info
-	// so for static usage withouth having to rebuild 
-	// them each frame, we use one per frame buffer
-
-	//drawCmdBuffers.resize(swapChain.imageCount());
-
-  for (size_t i = 0; i != swapChain.imageCount(); ++i) {
-    drawCmdBuffers[i] = vku::cmdBuffer(device, cmdPool);
-  }
-
-  postPresentCmdBuffer = vku::cmdBuffer(device, cmdPool);
-}
-
-void VulkanExampleBase::destroyCommandBuffers()
-{
-	//vkFreeCommandBuffers(device, cmdPool, (uint32_t)drawCmdBuffers.size(), drawCmdBuffers.data());
-	//vkFreeCommandBuffers(device, cmdPool, 1, &postPresentCmdBuffer);
-}
-
-void VulkanExampleBase::flushSetupCommandBuffer()
-{
-	VkResult err;
-
-	if (setupCmdBuffer == VK_NULL_HANDLE)
-		return;
-
-	err = vkEndCommandBuffer(setupCmdBuffer);
-	assert(!err);
-
-	VkSubmitInfo submitInfo = {};
-  VkCommandBuffer cb = setupCmdBuffer;
-	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-	submitInfo.commandBufferCount = 1;
-	submitInfo.pCommandBuffers = &cb;
-
-	err = vkQueueSubmit(queue, 1, &submitInfo, VK_NULL_HANDLE);
-	assert(!err);
-
-	err = vkQueueWaitIdle(queue);
-	assert(!err);
-
-	//vkFreeCommandBuffers(device, cmdPool, 1, &setupCmdBuffer);
-	//setupCmdBuffer = VK_NULL_HANDLE; // todo : check if still necessary
-}
-
 void VulkanExampleBase::createPipelineCache()
 {
 	VkPipelineCacheCreateInfo pipelineCacheCreateInfo = {};
@@ -108,12 +46,24 @@ void VulkanExampleBase::prepare()
   width = swapChain.width();
   height = swapChain.height();
 
-	createCommandBuffers();
+  assert(swapChain.imageCount() <= 2);
+
+  for (size_t i = 0; i != swapChain.imageCount(); ++i) {
+    drawCmdBuffers[i] = vku::cmdBuffer(device, cmdPool);
+  }
+
+  postPresentCmdBuffer = vku::cmdBuffer(device, cmdPool);
+
 	setupDepthStencil();
 	setupRenderPass();
 	createPipelineCache();
 	setupFrameBuffer();
-	flushSetupCommandBuffer();
+
+  setupCmdBuffer.endCommandBuffer();
+  vku::queue q(queue, device);
+  q.submit(nullptr, setupCmdBuffer);
+  q.waitIdle();
+
 	// Recreate setup command buffer for derived class
 
   setupCmdBuffer = vku::cmdBuffer(device, cmdPool);
@@ -294,7 +244,7 @@ VulkanExampleBase::~VulkanExampleBase()
 		vkFreeCommandBuffers(device, cmdPool, 1, &setupCmdBuffer);
 
 	}*/
-	destroyCommandBuffers();
+	//destroyCommandBuffers();
 	vkDestroyRenderPass(device, renderPass, nullptr);
 	for (uint32_t i = 0; i < frameBuffers.size(); i++)
 	{
