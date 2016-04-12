@@ -47,10 +47,10 @@
     }                                                                   \
 }
 
-typedef struct _SwapChainBuffers {
+/*typedef struct _SwapChainBuffers {
 	VkImage image;
 	VkImageView view;
-} SwapChainBuffer;
+} SwapChainBuffer*/
 
 class VulkanSwapChain
 {
@@ -71,11 +71,6 @@ private:
 	PFN_vkQueuePresentKHR fpQueuePresentKHR;*/
 public:
   vku::swapChain swapChain;
-	VkFormat colorFormat = VK_FORMAT_B8G8R8A8_UNORM;;
-	VkColorSpaceKHR colorSpace = VK_COLORSPACE_SRGB_NONLINEAR_KHR;
-
-	// Index of the deteced graphics and presenting device queue
-	uint32_t queueNodeIndex = UINT32_MAX;
 
   size_t imageCount() { return swapChain.imageCount(); }
   VkImageView view(size_t i) { return swapChain.view(i); }
@@ -102,11 +97,11 @@ public:
 
     vku::instance inst(instance);
     surface = inst.createSurface((void*)connection, (void*)window);
-    queueNodeIndex = dev.getGraphicsQueueNodeIndex(surface);
-    if (queueNodeIndex == ~(uint32_t)0) throw(std::runtime_error("no graphics and present queue available"));
+    swapChain.queueNodeIndex = dev.getGraphicsQueueNodeIndex(surface);
+    if (swapChain.queueNodeIndex == ~(uint32_t)0) throw(std::runtime_error("no graphics and present queue available"));
     auto sf = dev.getSurfaceFormat(surface);
-    colorFormat = sf.first;
-    colorSpace = sf.second;
+    swapChain.colorFormat = sf.first;
+    swapChain.colorSpace = sf.second;
 	}
 
 	void init(VkInstance instance, VkPhysicalDevice physicalDevice, VkDevice device)

@@ -29,7 +29,7 @@ void VulkanExampleBase::createCommandBuffers()
 	// so for static usage withouth having to rebuild 
 	// them each frame, we use one per frame buffer
 
-	drawCmdBuffers.resize(swapChain.imageCount());
+	drawCmdBuffers.resize(swapChain.swapChain.imageCount());
 
 	VkCommandBufferAllocateInfo cmdBufAllocateInfo = 
 		vkTools::initializers::commandBufferAllocateInfo(
@@ -322,7 +322,7 @@ VulkanExampleBase::VulkanExampleBase(bool enableValidation)
 VulkanExampleBase::~VulkanExampleBase()
 {
 	// Clean up Vulkan resources
-	swapChain.cleanup();
+	swapChain.swapChain.clear();
 	//vkDestroyDescriptorPool(device, descriptorPool, nullptr);
 	if (setupCmdBuffer != VK_NULL_HANDLE) 
 	{
@@ -728,7 +728,7 @@ void VulkanExampleBase::createCommandPool()
 {
 	VkCommandPoolCreateInfo cmdPoolInfo = {};
 	cmdPoolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-	cmdPoolInfo.queueFamilyIndex = swapChain.queueNodeIndex;
+	cmdPoolInfo.queueFamilyIndex = swapChain.swapChain.queueNodeIndex;
 	cmdPoolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
 	VkResult vkRes = vkCreateCommandPool(device, &cmdPoolInfo, nullptr, &cmdPool);
 	assert(!vkRes);
