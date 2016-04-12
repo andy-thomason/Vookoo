@@ -495,6 +495,8 @@ public:
 	  if (err) throw error(err);
     set(res, true);
 
+    surface_ = surface;
+
     build_images(buf);
   }
 
@@ -536,13 +538,14 @@ public:
     return currentBuffer;
   }
 
-	VkFormat colorFormat = VK_FORMAT_B8G8R8A8_UNORM;;
-	VkColorSpaceKHR colorSpace = VK_COLORSPACE_SRGB_NONLINEAR_KHR;
-	uint32_t queueNodeIndex = UINT32_MAX;
-  VkSurfaceKHR surface;
 private:
   uint32_t width_;
   uint32_t height_;
+
+	VkFormat colorFormat_ = VK_FORMAT_B8G8R8A8_UNORM;;
+	VkColorSpaceKHR colorSpace_ = VK_COLORSPACE_SRGB_NONLINEAR_KHR;
+	uint32_t queueNodeIndex_ = UINT32_MAX;
+  VkSurfaceKHR surface_ = nullptr;
 
   std::vector<VkImage> swapchainImages;
   std::vector<VkImageView> swapchainViews;

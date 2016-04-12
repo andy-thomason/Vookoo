@@ -118,12 +118,12 @@ void VulkanExampleBase::prepare()
 {
   vku::device dev(device, instance.physicalDevice());
 
-  swapChain.surface = instance.createSurface((void*)windowInstance, (void*)window);
-  swapChain.queueNodeIndex = dev.getGraphicsQueueNodeIndex(swapChain.surface);
-  if (swapChain.queueNodeIndex == ~(uint32_t)0) throw(std::runtime_error("no graphics and present queue available"));
-  auto sf = dev.getSurfaceFormat(swapChain.surface);
-  swapChain.colorFormat = sf.first;
-  swapChain.colorSpace = sf.second;
+  VkSurfaceKHR surface = instance.createSurface((void*)windowInstance, (void*)window);
+  uint32_t queueNodeIndex = dev.getGraphicsQueueNodeIndex(surface);
+  if (queueNodeIndex == ~(uint32_t)0) throw(std::runtime_error("no graphics and present queue available"));
+  auto sf = dev.getSurfaceFormat(surface);
+  //swapChain.colorFormat = sf.first;
+  //swapChain.colorSpace = sf.second;
 
 	if (enableValidation)
 	{
@@ -132,13 +132,13 @@ void VulkanExampleBase::prepare()
 
 	VkCommandPoolCreateInfo cmdPoolInfo = {};
 	cmdPoolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-	cmdPoolInfo.queueFamilyIndex = swapChain.queueNodeIndex;
+	cmdPoolInfo.queueFamilyIndex = queueNodeIndex;
 	cmdPoolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
 	VkResult vkRes = vkCreateCommandPool(device, &cmdPoolInfo, nullptr, &cmdPool);
 	assert(!vkRes);
 	createSetupCommandBuffer();
 
-  swapChain = vku::swapChain(vku::device(device, instance.physicalDevice()), width, height, swapChain.surface, setupCmdBuffer);
+  swapChain = vku::swapChain(vku::device(device, instance.physicalDevice()), width, height, surface, setupCmdBuffer);
   width = swapChain.width();
   height = swapChain.height();
 	//swapChain.setup(setupCmdBuffer, &width, &height);
