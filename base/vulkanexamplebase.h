@@ -120,9 +120,10 @@ public:
 	std::string title = "Vulkan Example";
 	std::string name = "vulkanExample";
 
-	struct 
+	struct ds
 	{
-		VkImage image;
+    ds() {}
+    vku::image image;
 		VkDeviceMemory mem;
 		VkImageView view;
 	} depthStencil;

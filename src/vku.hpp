@@ -1441,8 +1441,8 @@ public:
   }
 };
 
-template<> VkQueue create<VkQueue>(VkDevice dev) { return nullptr; }
-template<> void destroy<VkQueue>(VkDevice dev, VkQueue queue_) { }
+//template<> VkQueue create<VkQueue>(VkDevice dev) { return nullptr; }
+//template<> void destroy<VkQueue>(VkDevice dev, VkQueue queue_) { }
 
 class queue : public resource<VkQueue> {
 public:
@@ -1475,6 +1475,37 @@ public:
     if (err) throw error(err);
   }
 
+};
+
+class image : public resource<VkImage> {
+public:
+  /// image that does not own its pointer
+  image(VkImage value = nullptr, VkDevice dev = nullptr) : resource(value, dev) {
+  }
+
+  /// image that does owns (and creates) its pointer
+  image(VkDevice dev, uint32_t width, uint32_t height, VkFormat format=VK_FORMAT_R8G8B8_UNORM, VkImageType type=VK_IMAGE_TYPE_2D, VkImageUsageFlags usage=0) : resource(nullptr, dev) {
+	  VkImageCreateInfo image = {};
+	  image.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+	  image.pNext = NULL;
+	  image.imageType = type;
+	  image.format = format;
+	  image.extent = { width, height, 1 };
+	  image.mipLevels = 1;
+	  image.arrayLayers = 1;
+	  image.samples = VK_SAMPLE_COUNT_1_BIT;
+	  image.tiling = VK_IMAGE_TILING_OPTIMAL;
+	  image.usage = usage;
+	  image.flags = 0;
+
+    VkImage result = nullptr;
+	  VkResult err = vkCreateImage(dev, &image, nullptr, &result);
+    if (err) throw error(err);
+
+    set(result, true);
+  }
+
+public:
 };
 
 } // vku
