@@ -196,7 +196,6 @@ int main(const int argc, const char *argv[])
 #else
 	vulkanExample->setupWindow();
 #endif
-	//vulkanExample->initSwapchain();
 	vulkanExample->prepare();
 	vulkanExample->renderLoop();
 	delete(vulkanExample);
