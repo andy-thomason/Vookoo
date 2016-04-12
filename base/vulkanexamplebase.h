@@ -189,7 +189,7 @@ public:
 	// May be necessary during runtime if options are toggled 
 	void destroyCommandBuffers();
 	// Create command buffer for setup commands
-	void createSetupCommandBuffer();
+	//void createSetupCommandBuffer();
 	// Finalize setup command bufferm submit it to the queue and remove it
 	void flushSetupCommandBuffer();
 

@@ -54,28 +54,6 @@ void VulkanExampleBase::destroyCommandBuffers()
 	vkFreeCommandBuffers(device, cmdPool, 1, &postPresentCmdBuffer);
 }
 
-void VulkanExampleBase::createSetupCommandBuffer()
-{
-	/*if (setupCmdBuffer != VK_NULL_HANDLE)
-	{
-		vkFreeCommandBuffers(device, cmdPool, 1, &setupCmdBuffer);
-		setupCmdBuffer = VK_NULL_HANDLE; // todo : check if still necessary
-	}*/
-
-  setupCmdBuffer = vku::cmdBuffer(device, cmdPool);
-	//VkResult vkRes = vkAllocateCommandBuffers(device, &cmdBufAllocateInfo, &setupCmdBuffer);
-	//assert(!vkRes);
-
-	// todo : Command buffer is also started here, better put somewhere else
-	// todo : Check if necessaray at all...
-	VkCommandBufferBeginInfo cmdBufInfo = {};
-	cmdBufInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-	// todo : check null handles, flags?
-
-	VkResult vkRes = vkBeginCommandBuffer(setupCmdBuffer, &cmdBufInfo);
-	assert(!vkRes);
-}
-
 void VulkanExampleBase::flushSetupCommandBuffer()
 {
 	VkResult err;
@@ -132,7 +110,9 @@ void VulkanExampleBase::prepare()
 	cmdPoolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
 	VkResult vkRes = vkCreateCommandPool(device, &cmdPoolInfo, nullptr, &cmdPool);
 	assert(!vkRes);
-	createSetupCommandBuffer();
+
+  setupCmdBuffer = vku::cmdBuffer(device, cmdPool);
+  setupCmdBuffer.beginCommandBuffer();
 
   swapChain = vku::swapChain(vku::device(device, instance.physicalDevice()), width, height, surface, setupCmdBuffer);
   width = swapChain.width();
@@ -145,7 +125,10 @@ void VulkanExampleBase::prepare()
 	setupFrameBuffer();
 	flushSetupCommandBuffer();
 	// Recreate setup command buffer for derived class
-	createSetupCommandBuffer();
+
+  setupCmdBuffer = vku::cmdBuffer(device, cmdPool);
+  setupCmdBuffer.beginCommandBuffer();
+
 	// Create a simple texture loader class 
 	//textureLoader = new vkTools::VulkanTextureLoader(instance.physicalDevice(), device, queue, cmdPool);
 }

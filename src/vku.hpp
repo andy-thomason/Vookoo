@@ -1348,6 +1348,12 @@ public:
 			0, nullptr,
 			1, &imageMemoryBarrier);
 	}
+
+  cmdBuffer &operator=(cmdBuffer &&rhs) {
+    (resource&)(*this) = (resource&&)rhs;
+    pool_ = rhs.pool_;
+    return *this;
+  }
 private:
   VkCommandPool pool_ = nullptr;
 };
