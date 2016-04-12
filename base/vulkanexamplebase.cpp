@@ -29,7 +29,7 @@ void VulkanExampleBase::createCommandBuffers()
 	// so for static usage withouth having to rebuild 
 	// them each frame, we use one per frame buffer
 
-	drawCmdBuffers.resize(swapChain.swapChain.imageCount());
+	drawCmdBuffers.resize(swapChain.imageCount());
 
 	VkCommandBufferAllocateInfo cmdBufAllocateInfo = 
 		vkTools::initializers::commandBufferAllocateInfo(
@@ -116,25 +116,14 @@ void VulkanExampleBase::createPipelineCache()
 
 void VulkanExampleBase::prepare()
 {
-	//uint32_t queueCount;
-	//VkQueueFamilyProperties *queueProps;
-
   vku::device dev(device, instance.physicalDevice());
 
-	//VkResult err;
-
-  swapChain.swapChain.surface = instance.createSurface((void*)windowInstance, (void*)window);
-  swapChain.swapChain.queueNodeIndex = dev.getGraphicsQueueNodeIndex(swapChain.swapChain.surface);
-  if (swapChain.swapChain.queueNodeIndex == ~(uint32_t)0) throw(std::runtime_error("no graphics and present queue available"));
-  auto sf = dev.getSurfaceFormat(swapChain.swapChain.surface);
-  swapChain.swapChain.colorFormat = sf.first;
-  swapChain.swapChain.colorSpace = sf.second;
-
-/*#ifdef _WIN32
-	swapChain.initSwapChain(windowInstance, window);
-#else
-	swapChain.initSwapChain(connection, window);
-#endif*/
+  swapChain.surface = instance.createSurface((void*)windowInstance, (void*)window);
+  swapChain.queueNodeIndex = dev.getGraphicsQueueNodeIndex(swapChain.surface);
+  if (swapChain.queueNodeIndex == ~(uint32_t)0) throw(std::runtime_error("no graphics and present queue available"));
+  auto sf = dev.getSurfaceFormat(swapChain.surface);
+  swapChain.colorFormat = sf.first;
+  swapChain.colorSpace = sf.second;
 
 	if (enableValidation)
 	{
@@ -143,15 +132,15 @@ void VulkanExampleBase::prepare()
 
 	VkCommandPoolCreateInfo cmdPoolInfo = {};
 	cmdPoolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-	cmdPoolInfo.queueFamilyIndex = swapChain.swapChain.queueNodeIndex;
+	cmdPoolInfo.queueFamilyIndex = swapChain.queueNodeIndex;
 	cmdPoolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
 	VkResult vkRes = vkCreateCommandPool(device, &cmdPoolInfo, nullptr, &cmdPool);
 	assert(!vkRes);
 	createSetupCommandBuffer();
 
-  swapChain.swapChain = vku::swapChain(vku::device(device, instance.physicalDevice()), width, height, swapChain.swapChain.surface, setupCmdBuffer);
-  width = swapChain.swapChain.width();
-  height = swapChain.swapChain.height();
+  swapChain = vku::swapChain(vku::device(device, instance.physicalDevice()), width, height, swapChain.surface, setupCmdBuffer);
+  width = swapChain.width();
+  height = swapChain.height();
 	//swapChain.setup(setupCmdBuffer, &width, &height);
 
 	createCommandBuffers();
@@ -352,7 +341,7 @@ VulkanExampleBase::VulkanExampleBase(bool enableValidation)
 VulkanExampleBase::~VulkanExampleBase()
 {
 	// Clean up Vulkan resources
-	swapChain.swapChain.clear();
+	swapChain.clear();
 	//vkDestroyDescriptorPool(device, descriptorPool, nullptr);
 	if (setupCmdBuffer != VK_NULL_HANDLE) 
 	{
@@ -404,8 +393,6 @@ void VulkanExampleBase::initVulkan(bool enableValidation)
 	// Find a suitable depth format
 	depthFormat = dev.getSupportedDepthFormat();
 	assert(depthFormat != VK_FORMAT_UNDEFINED);
-
-	swapChain.init(instance, instance.physicalDevice(), device);
 }
 
 #ifdef _WIN32 
@@ -826,10 +813,10 @@ void VulkanExampleBase::setupFrameBuffer()
 	frameBufferCreateInfo.layers = 1;
 
 	// Create frame buffers for every swap chain image
-	frameBuffers.resize(swapChain.swapChain.imageCount());
+	frameBuffers.resize(swapChain.imageCount());
 	for (uint32_t i = 0; i < frameBuffers.size(); i++)
 	{
-		attachments[0] = swapChain. swapChain.view(i);
+		attachments[0] = swapChain.view(i);
 		VkResult err = vkCreateFramebuffer(device, &frameBufferCreateInfo, nullptr, &frameBuffers[i]);
 		assert(!err);
 	}

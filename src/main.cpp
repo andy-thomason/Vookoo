@@ -49,22 +49,17 @@ public:
     vku::queue theQueue(queue);
 
 		// Get next image in the swap chain (back/front buffer)
-		VkResult err = swapChain.acquireNextImage(sema, &currentBuffer);
-		assert(!err);
+    currentBuffer = swapChain.acquireNextImage(sema);
 
     theQueue.submit(sema, drawCmdBuffers[currentBuffer]);
 
-    //instance.present(currentBuffer);
-
-
 		// Present the current buffer to the swap chain
 		// This will display the image
-		err = swapChain.queuePresent(queue, currentBuffer);
-		assert(!err);
+    swapChain.present(queue, currentBuffer);
 
     vku::cmdBuffer postPresent(postPresentCmdBuffer);
     postPresent.beginCommandBuffer();
-    postPresent.pipelineBarrier(swapChain.swapChain.image(currentBuffer));
+    postPresent.pipelineBarrier(swapChain.image(currentBuffer));
     postPresent.endCommandBuffer();
 
     theQueue.submit(nullptr, postPresentCmdBuffer);
@@ -137,7 +132,7 @@ public:
       cmdbuf.bindIndexBuffer(index_buffer);
       cmdbuf.drawIndexed((uint32_t)num_indices, 1, 0, 0, 1);
 
-      cmdbuf.end(swapChain.swapChain.image(i));
+      cmdbuf.end(swapChain.image(i));
 		}
 
 		prepared = true;

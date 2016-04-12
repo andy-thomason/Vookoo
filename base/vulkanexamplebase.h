@@ -86,7 +86,7 @@ protected:
 	// Pipeline cache object
 	VkPipelineCache pipelineCache;
 	// Wraps the swap chain to present images (framebuffers) to the windowing system
-	VulkanSwapChain swapChain;
+	vku::swapChain swapChain;
 	// Simple texture loader
 	//vkTools::VulkanTextureLoader *textureLoader = nullptr;
 public: 
