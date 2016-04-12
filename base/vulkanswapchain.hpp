@@ -59,22 +59,12 @@ private:
 	VkDevice device;
 	VkPhysicalDevice physicalDevice;
 	VkSurfaceKHR surface;
-	// Function pointers
-	/*PFN_vkGetPhysicalDeviceSurfaceSupportKHR fpGetPhysicalDeviceSurfaceSupportKHR;
-	PFN_vkGetPhysicalDeviceSurfaceCapabilitiesKHR fpGetPhysicalDeviceSurfaceCapabilitiesKHR; 
-	PFN_vkGetPhysicalDeviceSurfaceFormatsKHR fpGetPhysicalDeviceSurfaceFormatsKHR;
-	PFN_vkGetPhysicalDeviceSurfacePresentModesKHR fpGetPhysicalDeviceSurfacePresentModesKHR;
-	PFN_vkCreateSwapchainKHR fpCreateSwapchainKHR;
-	PFN_vkDestroySwapchainKHR fpDestroySwapchainKHR;
-	PFN_vkGetSwapchainImagesKHR fpGetSwapchainImagesKHR;
-	PFN_vkAcquireNextImageKHR fpAcquireNextImageKHR;
-	PFN_vkQueuePresentKHR fpQueuePresentKHR;*/
 public:
   vku::swapChain swapChain;
 
-  size_t imageCount() { return swapChain.imageCount(); }
-  VkImageView view(size_t i) { return swapChain.view(i); }
-  VkImage image(size_t i) { return swapChain.image(i); }
+  //size_t imageCount() { return swapChain.imageCount(); }
+  //VkImageView view(size_t i) { return swapChain.view(i); }
+  //VkImage image(size_t i) { return swapChain.image(i); }
 
 	// wip naming
 	void initSwapChain(
