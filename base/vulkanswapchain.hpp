@@ -58,7 +58,7 @@ private:
 	VkInstance instance;
 	VkDevice device;
 	VkPhysicalDevice physicalDevice;
-	VkSurfaceKHR surface;
+	//VkSurfaceKHR surface;
 public:
   vku::swapChain swapChain;
 
@@ -86,10 +86,10 @@ public:
 		//VkResult err;
 
     vku::instance inst(instance);
-    surface = inst.createSurface((void*)connection, (void*)window);
-    swapChain.queueNodeIndex = dev.getGraphicsQueueNodeIndex(surface);
+    swapChain.surface = inst.createSurface((void*)connection, (void*)window);
+    swapChain.queueNodeIndex = dev.getGraphicsQueueNodeIndex(swapChain.surface);
     if (swapChain.queueNodeIndex == ~(uint32_t)0) throw(std::runtime_error("no graphics and present queue available"));
-    auto sf = dev.getSurfaceFormat(surface);
+    auto sf = dev.getSurfaceFormat(swapChain.surface);
     swapChain.colorFormat = sf.first;
     swapChain.colorSpace = sf.second;
 	}
@@ -112,7 +112,7 @@ public:
 
 	void setup(VkCommandBuffer cmdBuffer, uint32_t *width, uint32_t *height)
 	{
-    swapChain = vku::swapChain(vku::device(device, physicalDevice), *width, *height, surface, cmdBuffer);
+    swapChain = vku::swapChain(vku::device(device, physicalDevice), *width, *height, swapChain.surface, cmdBuffer);
     *width = swapChain.width();
     *height = swapChain.height();
 	}

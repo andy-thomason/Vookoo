@@ -539,6 +539,7 @@ public:
 	VkFormat colorFormat = VK_FORMAT_B8G8R8A8_UNORM;;
 	VkColorSpaceKHR colorSpace = VK_COLORSPACE_SRGB_NONLINEAR_KHR;
 	uint32_t queueNodeIndex = UINT32_MAX;
+  VkSurfaceKHR surface;
 private:
   uint32_t width_;
   uint32_t height_;

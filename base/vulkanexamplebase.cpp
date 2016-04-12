@@ -116,14 +116,27 @@ void VulkanExampleBase::createPipelineCache()
 
 void VulkanExampleBase::prepare()
 {
+#ifdef _WIN32
+	swapChain.initSwapChain(windowInstance, window);
+#else
+	swapChain.initSwapChain(connection, window);
+#endif
+
 	if (enableValidation)
 	{
 		//vkDebug::setupDebugging(instance, VK_DEBUG_REPORT_ERROR_BIT_EXT | VK_DEBUG_REPORT_WARNING_BIT_EXT, NULL);
 	}
 
-	createCommandPool();
+	VkCommandPoolCreateInfo cmdPoolInfo = {};
+	cmdPoolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+	cmdPoolInfo.queueFamilyIndex = swapChain.swapChain.queueNodeIndex;
+	cmdPoolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+	VkResult vkRes = vkCreateCommandPool(device, &cmdPoolInfo, nullptr, &cmdPool);
+	assert(!vkRes);
 	createSetupCommandBuffer();
-	setupSwapChain();
+
+	swapChain.setup(setupCmdBuffer, &width, &height);
+
 	createCommandBuffers();
 	setupDepthStencil();
 	setupRenderPass();
@@ -724,16 +737,6 @@ VkBool32 VulkanExampleBase::getMemoryType(uint32_t typeBits, VkFlags properties,
 	return false;
 }
 
-void VulkanExampleBase::createCommandPool()
-{
-	VkCommandPoolCreateInfo cmdPoolInfo = {};
-	cmdPoolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-	cmdPoolInfo.queueFamilyIndex = swapChain.swapChain.queueNodeIndex;
-	cmdPoolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-	VkResult vkRes = vkCreateCommandPool(device, &cmdPoolInfo, nullptr, &cmdPool);
-	assert(!vkRes);
-}
-
 void VulkanExampleBase::setupDepthStencil()
 {
 	VkImageCreateInfo image = {};
@@ -809,7 +812,7 @@ void VulkanExampleBase::setupFrameBuffer()
 	frameBuffers.resize(swapChain.swapChain.imageCount());
 	for (uint32_t i = 0; i < frameBuffers.size(); i++)
 	{
-		attachments[0] = swapChain.swapChain.view(i);
+		attachments[0] = swapChain. swapChain.view(i);
 		VkResult err = vkCreateFramebuffer(device, &frameBufferCreateInfo, nullptr, &frameBuffers[i]);
 		assert(!err);
 	}
@@ -872,18 +875,5 @@ void VulkanExampleBase::setupRenderPass()
 	assert(!err);
 }
 
-void VulkanExampleBase::initSwapchain()
-{
-#ifdef _WIN32
-	swapChain.initSwapChain(windowInstance, window);
-#else
-	swapChain.initSwapChain(connection, window);
-#endif
-}
-
-void VulkanExampleBase::setupSwapChain()
-{
-	swapChain.setup(setupCmdBuffer, &width, &height);
-}
 
 
