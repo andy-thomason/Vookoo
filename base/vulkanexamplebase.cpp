@@ -723,6 +723,15 @@ void VulkanExampleBase::setupFrameBuffer()
 
 void VulkanExampleBase::setupRenderPass()
 {
+  vku::renderPassLayout layout;
+
+  uint32_t color = layout.addAttachment(colorformat);
+  uint32_t depth = layout.addAttachment(depthFormat);
+  layout.addSubpass(color, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, depth, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+
+  renderPass = layout.create(device);
+
+  /*
 	VkAttachmentDescription attachments[2];
 	attachments[0].format = colorformat;
 	attachments[0].samples = VK_SAMPLE_COUNT_1_BIT;
@@ -775,7 +784,7 @@ void VulkanExampleBase::setupRenderPass()
 	VkResult err;
 
 	err = vkCreateRenderPass(device, &renderPassInfo, nullptr, &renderPass);
-	assert(!err);
+	assert(!err);*/
 }
 
 
