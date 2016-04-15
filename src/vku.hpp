@@ -541,6 +541,96 @@ public:
     return currentBuffer;
   }
 
+  #if 0
+  void setupDepthStencil()
+  {
+    depthStencil.image = vku::image(device, width, height, depthFormat, VK_IMAGE_TYPE_2D, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT);
+
+	  /*VkImageCreateInfo image = {};
+	  image.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+	  image.pNext = NULL;
+	  image.imageType = VK_IMAGE_TYPE_2D;
+	  image.format = depthFormat;
+	  image.extent = { width, height, 1 };
+	  image.mipLevels = 1;
+	  image.arrayLayers = 1;
+	  image.samples = VK_SAMPLE_COUNT_1_BIT;
+	  image.tiling = VK_IMAGE_TILING_OPTIMAL;
+	  image.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+	  image.flags = 0;*/
+
+	  VkMemoryAllocateInfo mem_alloc = {};
+	  mem_alloc.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+	  mem_alloc.pNext = NULL;
+	  mem_alloc.allocationSize = 0;
+	  mem_alloc.memoryTypeIndex = 0;
+
+	  VkImageViewCreateInfo depthStencilView = {};
+	  depthStencilView.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+	  depthStencilView.pNext = NULL;
+	  depthStencilView.viewType = VK_IMAGE_VIEW_TYPE_2D;
+	  depthStencilView.format = depthFormat;
+	  depthStencilView.flags = 0;
+	  depthStencilView.subresourceRange = {};
+	  depthStencilView.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+	  depthStencilView.subresourceRange.baseMipLevel = 0;
+	  depthStencilView.subresourceRange.levelCount = 1;
+	  depthStencilView.subresourceRange.baseArrayLayer = 0;
+	  depthStencilView.subresourceRange.layerCount = 1;
+
+	  VkMemoryRequirements memReqs;
+	  VkResult err;
+
+	  //err = vkCreateImage(device, &image, nullptr, &depthStencil.image);
+	  //assert(!err);
+
+	  vkGetImageMemoryRequirements(device, depthStencil.image, &memReqs);
+	  mem_alloc.allocationSize = memReqs.size;
+	  getMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &mem_alloc.memoryTypeIndex);
+	  err = vkAllocateMemory(device, &mem_alloc, nullptr, &depthStencil.mem);
+	  assert(!err);
+
+	  err = vkBindImageMemory(device, depthStencil.image, depthStencil.mem, 0);
+	  assert(!err);
+	  vkTools::setImageLayout(setupCmdBuffer, depthStencil.image, VK_IMAGE_ASPECT_DEPTH_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+
+	  depthStencilView.image = depthStencil.image;
+	  err = vkCreateImageView(device, &depthStencilView, nullptr, &depthStencil.view);
+	  assert(!err);
+  }
+  #endif
+
+
+  void setupFrameBuffer(VkRenderPass renderPass, VkImageView depthStencilView) {
+	  VkImageView attachments[2];
+
+    renderPass_ = renderPass;
+
+	  // Depth/Stencil attachment is the same for all frame buffers
+	  attachments[1] = depthStencilView;
+
+	  VkFramebufferCreateInfo frameBufferCreateInfo = {};
+	  frameBufferCreateInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+	  frameBufferCreateInfo.pNext = NULL;
+	  frameBufferCreateInfo.renderPass = renderPass;
+	  frameBufferCreateInfo.attachmentCount = 2;
+	  frameBufferCreateInfo.pAttachments = attachments;
+	  frameBufferCreateInfo.width = width_;
+	  frameBufferCreateInfo.height = height_;
+	  frameBufferCreateInfo.layers = 1;
+
+	  // Create frame buffers for every swap chain image
+	  frameBuffers_.resize(swapchainViews.size());
+	  for (uint32_t i = 0; i < frameBuffers_.size(); i++)
+	  {
+		  attachments[0] = swapchainViews[i];
+		  VkResult err = vkCreateFramebuffer(dev(), &frameBufferCreateInfo, nullptr, &frameBuffers_[i]);
+	  }
+  }
+
+  VkFramebuffer frameBuffer(size_t i) const { return frameBuffers_[i]; }
+  VkRenderPass renderPass() const { return renderPass_; }
+
 private:
   uint32_t width_;
   uint32_t height_;
@@ -549,9 +639,11 @@ private:
 	VkColorSpaceKHR colorSpace_ = VK_COLORSPACE_SRGB_NONLINEAR_KHR;
 	uint32_t queueNodeIndex_ = UINT32_MAX;
   VkSurfaceKHR surface_ = nullptr;
+  VkRenderPass renderPass_;
 
   std::vector<VkImage> swapchainImages;
   std::vector<VkImageView> swapchainViews;
+  std::vector<VkFramebuffer> frameBuffers_;
 };
 
 class buffer {
