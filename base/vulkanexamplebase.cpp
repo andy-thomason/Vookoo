@@ -56,15 +56,9 @@ void VulkanExampleBase::prepare()
 
 	setupDepthStencil();
 
-  vku::renderPassLayout layout;
-  uint32_t color = layout.addAttachment(colorformat);
-  uint32_t depth = layout.addAttachment(depthFormat);
-  layout.addSubpass(color, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, depth, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
-  renderPass = layout.create(device);
-
 	createPipelineCache();
 
-  swapChain.setupFrameBuffer(renderPass, depthStencil.view);
+  swapChain.setupFrameBuffer(depthStencil.view, depthFormat);
 
   setupCmdBuffer.endCommandBuffer();
   vku::queue q(queue, device);
@@ -252,7 +246,7 @@ VulkanExampleBase::~VulkanExampleBase()
 
 	}*/
 	//destroyCommandBuffers();
-	vkDestroyRenderPass(device, renderPass, nullptr);
+	//vkDestroyRenderPass(device, swapChain.renderPass(), nullptr);
 	/*for (uint32_t i = 0; i < frameBuffers.size(); i++)
 	{
 		vkDestroyFramebuffer(device, frameBuffers[i], nullptr);
@@ -701,29 +695,3 @@ void VulkanExampleBase::setupDepthStencil()
 	assert(!err);
 }
 
-void VulkanExampleBase::setupFrameBuffer()
-{
-	VkImageView attachments[2];
-
-	// Depth/Stencil attachment is the same for all frame buffers
-	attachments[1] = depthStencil.view;
-
-	VkFramebufferCreateInfo frameBufferCreateInfo = {};
-	frameBufferCreateInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-	frameBufferCreateInfo.pNext = NULL;
-	frameBufferCreateInfo.renderPass = renderPass;
-	frameBufferCreateInfo.attachmentCount = 2;
-	frameBufferCreateInfo.pAttachments = attachments;
-	frameBufferCreateInfo.width = width;
-	frameBufferCreateInfo.height = height;
-	frameBufferCreateInfo.layers = 1;
-
-	// Create frame buffers for every swap chain image
-	/*frameBuffers.resize(swapChain.imageCount());
-	for (uint32_t i = 0; i < frameBuffers.size(); i++)
-	{
-		attachments[0] = swapChain.view(i);
-		VkResult err = vkCreateFramebuffer(device, &frameBufferCreateInfo, nullptr, &frameBuffers[i]);
-		assert(!err);
-	}*/
-}

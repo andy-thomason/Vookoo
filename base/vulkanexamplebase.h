@@ -77,7 +77,7 @@ protected:
 	//std::vector<vku::cmdBuffer> drawCmdBuffers;
   vku::cmdBuffer drawCmdBuffers[2];
 	// Global render pass for frame buffer writes
-	VkRenderPass renderPass;
+	//VkRenderPass renderPass;
 	// List of available frame buffers (same as number of swap chain images)
 	//std::vector<VkFramebuffer>frameBuffers;
 	// Active frame buffer index

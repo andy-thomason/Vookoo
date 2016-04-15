@@ -114,7 +114,7 @@ public:
 		
 		updateUniformBuffers();
 
-    pipe = vku::pipeline(device, renderPass, vertexInputState.get(), pipelineCache);
+    pipe = vku::pipeline(device, swapChain.renderPass(), vertexInputState.get(), pipelineCache);
 
     descPool = vku::descriptorPool(device);
 
@@ -123,7 +123,7 @@ public:
 
 		for (int32_t i = 0; i < swapChain.imageCount(); ++i) {
       const vku::cmdBuffer &cmdbuf = drawCmdBuffers[i];
-      cmdbuf.begin(renderPass, swapChain.frameBuffer(i), width, height);
+      cmdbuf.begin(swapChain.renderPass(), swapChain.frameBuffer(i), width, height);
 
       cmdbuf.bindPipeline(pipe);
       cmdbuf.bindVertexBuffer(vertex_buffer, VERTEX_BUFFER_BIND_ID);

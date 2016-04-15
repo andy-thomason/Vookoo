@@ -399,6 +399,68 @@ template<> void destroy<VkSwapchainKHR>(VkDevice dev, VkSwapchainKHR chain) {
   vkDestroySwapchainKHR(dev, chain, nullptr);
 }
 
+class renderPassLayout {
+public:
+  uint32_t addAttachment(VkFormat format) {
+  	VkAttachmentDescription ad = {};
+	  ad.format = format;
+	  ad.samples = VK_SAMPLE_COUNT_1_BIT;
+	  ad.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+	  ad.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+	  ad.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+	  ad.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+	  ad.initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+	  ad.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    uint32_t res = (uint32_t)attachments.size();
+    attachments.push_back(ad);
+    return res;
+  }
+
+  void addSubpass(uint32_t colorAttachment, VkImageLayout colorLayout, uint32_t depthAttachment, VkImageLayout depthLayout) {
+    subpass s = {};
+    s.num_color = 1;
+	  s.color[0].attachment = 0;
+	  s.color[0].layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+	  s.depth.attachment = 1;
+	  s.depth.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+	  s.desc.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+    subpasses.push_back(s);
+  }
+
+  VkRenderPass create(VkDevice device) {
+    std::vector<VkSubpassDescription> descs;
+    for (size_t i = 0; i != subpasses.size(); ++i) {
+      subpass &s = subpasses[i];
+      s.desc.colorAttachmentCount = s.num_color;
+      s.desc.pColorAttachments = s.color;
+      s.desc.pDepthStencilAttachment = &s.depth;
+      descs.push_back(s.desc);
+    }
+
+	  VkRenderPassCreateInfo renderPassInfo = {};
+	  renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+	  renderPassInfo.attachmentCount = (uint32_t)attachments.size();
+	  renderPassInfo.pAttachments = attachments.data();
+	  renderPassInfo.subpassCount = (uint32_t)descs.size();
+	  renderPassInfo.pSubpasses = descs.data();
+
+    VkRenderPass renderPass = nullptr;
+	  VkResult err = vkCreateRenderPass(device, &renderPassInfo, nullptr, &renderPass);
+    return renderPass;
+  }
+
+private:
+  struct subpass {
+    uint32_t num_color;
+    VkAttachmentReference color[6];
+    VkAttachmentReference depth;
+    VkSubpassDescription desc;
+  };
+  std::vector<VkAttachmentDescription> attachments;
+  std::vector<subpass> subpasses;
+  std::vector<VkAttachmentReference> refs;
+};
+
 class swapChain : public resource<VkSwapchainKHR> {
 public:
   /// semaphore that does not own its pointer
@@ -601,10 +663,16 @@ public:
   #endif
 
 
-  void setupFrameBuffer(VkRenderPass renderPass, VkImageView depthStencilView) {
+  void setupFrameBuffer(VkImageView depthStencilView, VkFormat depthFormat) {
 	  VkImageView attachments[2];
 
-    renderPass_ = renderPass;
+    depthFormat_ = depthFormat;
+
+    vku::renderPassLayout layout;
+    uint32_t color = layout.addAttachment(colorFormat_);
+    uint32_t depth = layout.addAttachment(depthFormat);
+    layout.addSubpass(color, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, depth, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+    renderPass_ = layout.create(dev());
 
 	  // Depth/Stencil attachment is the same for all frame buffers
 	  attachments[1] = depthStencilView;
@@ -612,7 +680,7 @@ public:
 	  VkFramebufferCreateInfo frameBufferCreateInfo = {};
 	  frameBufferCreateInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
 	  frameBufferCreateInfo.pNext = NULL;
-	  frameBufferCreateInfo.renderPass = renderPass;
+	  frameBufferCreateInfo.renderPass = renderPass_;
 	  frameBufferCreateInfo.attachmentCount = 2;
 	  frameBufferCreateInfo.pAttachments = attachments;
 	  frameBufferCreateInfo.width = width_;
@@ -636,6 +704,7 @@ private:
   uint32_t height_;
 
 	VkFormat colorFormat_ = VK_FORMAT_B8G8R8A8_UNORM;;
+	VkFormat depthFormat_ = VK_FORMAT_B8G8R8A8_UNORM;;
 	VkColorSpaceKHR colorSpace_ = VK_COLORSPACE_SRGB_NONLINEAR_KHR;
 	uint32_t queueNodeIndex_ = UINT32_MAX;
   VkSurfaceKHR surface_ = nullptr;
@@ -1600,67 +1669,6 @@ public:
 public:
 };
 
-class renderPassLayout {
-public:
-  uint32_t addAttachment(VkFormat format) {
-  	VkAttachmentDescription ad = {};
-	  ad.format = format;
-	  ad.samples = VK_SAMPLE_COUNT_1_BIT;
-	  ad.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-	  ad.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-	  ad.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-	  ad.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-	  ad.initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-	  ad.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-    uint32_t res = (uint32_t)attachments.size();
-    attachments.push_back(ad);
-    return res;
-  }
-
-  void addSubpass(uint32_t colorAttachment, VkImageLayout colorLayout, uint32_t depthAttachment, VkImageLayout depthLayout) {
-    subpass s = {};
-    s.num_color = 1;
-	  s.color[0].attachment = 0;
-	  s.color[0].layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-	  s.depth.attachment = 1;
-	  s.depth.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-	  s.desc.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-    subpasses.push_back(s);
-  }
-
-  VkRenderPass create(VkDevice device) {
-    std::vector<VkSubpassDescription> descs;
-    for (size_t i = 0; i != subpasses.size(); ++i) {
-      subpass &s = subpasses[i];
-      s.desc.colorAttachmentCount = s.num_color;
-      s.desc.pColorAttachments = s.color;
-      s.desc.pDepthStencilAttachment = &s.depth;
-      descs.push_back(s.desc);
-    }
-
-	  VkRenderPassCreateInfo renderPassInfo = {};
-	  renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-	  renderPassInfo.attachmentCount = (uint32_t)attachments.size();
-	  renderPassInfo.pAttachments = attachments.data();
-	  renderPassInfo.subpassCount = (uint32_t)descs.size();
-	  renderPassInfo.pSubpasses = descs.data();
-
-    VkRenderPass renderPass = nullptr;
-	  VkResult err = vkCreateRenderPass(device, &renderPassInfo, nullptr, &renderPass);
-    return renderPass;
-  }
-
-private:
-  struct subpass {
-    uint32_t num_color;
-    VkAttachmentReference color[6];
-    VkAttachmentReference depth;
-    VkSubpassDescription desc;
-  };
-  std::vector<VkAttachmentDescription> attachments;
-  std::vector<subpass> subpasses;
-  std::vector<VkAttachmentReference> refs;
-};
 
 } // vku
 
