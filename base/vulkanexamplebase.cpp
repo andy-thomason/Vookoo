@@ -121,34 +121,8 @@ void VulkanExampleBase::renderLoop()
 // todo : comment
 void VulkanExampleBase::submitPostPresentBarrier(VkImage image)
 {
-	VkCommandBufferBeginInfo cmdBufInfo = {};
-	cmdBufInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-
-	VkResult vkRes = vkBeginCommandBuffer(postPresentCmdBuffer, &cmdBufInfo);
-	assert(!vkRes);
-
-	VkImageMemoryBarrier postPresentBarrier = {};
-	postPresentBarrier.srcAccessMask = 0;
-	postPresentBarrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-	postPresentBarrier.oldLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-	postPresentBarrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-	postPresentBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-	postPresentBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-	postPresentBarrier.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
-	postPresentBarrier.image = image;
-
-	vkCmdPipelineBarrier(
-		postPresentCmdBuffer,
-		VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
-		VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-		0,
-		0, NULL, // No memory barriers,
-		0, NULL, // No buffer barriers,
-		1, &postPresentBarrier);
-
-	vkRes = vkEndCommandBuffer(postPresentCmdBuffer);
-	assert(!vkRes);
-
+  postPresentCmdBuffer.addPostPresentationBarrier(image);
+  postPresentCmdBuffer.endCommandBuffer();
 
 	VkSubmitInfo submitInfo = {};
   VkCommandBuffer ppcb = postPresentCmdBuffer;
@@ -156,7 +130,7 @@ void VulkanExampleBase::submitPostPresentBarrier(VkImage image)
 	submitInfo.commandBufferCount = 1;
 	submitInfo.pCommandBuffers = &ppcb;
 
-	vkRes = vkQueueSubmit(queue, 1, &submitInfo, VK_NULL_HANDLE);
+	VkResult vkRes = vkQueueSubmit(queue, 1, &submitInfo, VK_NULL_HANDLE);
 	assert(!vkRes);
 
 	vkRes = vkQueueWaitIdle(queue);

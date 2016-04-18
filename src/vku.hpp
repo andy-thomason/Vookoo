@@ -1315,7 +1315,7 @@ public:
 
   void end(VkImage image) const {
     endRenderPass();
-    addPresentationBarrier(image);
+    addPrePresentationBarrier(image);
     endCommandBuffer();
   }
 
@@ -1396,7 +1396,8 @@ public:
     vkCmdEndRenderPass(get());
   }
 
-  void addPresentationBarrier(VkImage image) const {
+  /// change the layout of 
+  void addPrePresentationBarrier(VkImage image) const {
 		// Add a present memory barrier to the end of the command buffer
 		// This will transform the frame buffer color attachment to a
 		// new layout for presenting it to the windowing system integration 
@@ -1422,6 +1423,30 @@ public:
 			0, nullptr,
 			1, &prePresentBarrier);
   }
+
+  
+  void addPostPresentationBarrier(VkImage image) const {
+	  VkImageMemoryBarrier postPresentBarrier = {};
+	  postPresentBarrier.srcAccessMask = 0;
+	  postPresentBarrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+	  postPresentBarrier.oldLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+	  postPresentBarrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+	  postPresentBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	  postPresentBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	  postPresentBarrier.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
+	  postPresentBarrier.image = image;
+
+	  vkCmdPipelineBarrier(
+		  get(),
+		  VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+		  VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+		  0,
+		  0, NULL, // No memory barriers,
+		  0, NULL, // No buffer barriers,
+		  1, &postPresentBarrier
+    );
+  }
+
 
   void endCommandBuffer() const {
     vkEndCommandBuffer(get());
