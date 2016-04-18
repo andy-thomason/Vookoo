@@ -37,7 +37,7 @@
 
 #define deg_to_rad(deg) deg * float(3.14159 / 180)
 
-class VulkanExampleBase
+class VulkanExampleBase : public vku::window
 {
 private:	
 	// Set to true when example is created with enabled validation layers
@@ -47,110 +47,11 @@ private:
 	// Create logical Vulkan device based on physical device
 	VkResult createDevice(VkDeviceQueueCreateInfo requestedQueues, bool enableValidation);
 protected:
-	// Last frame time, measured using a high performance timer (if available)
-	float frameTimer = 1.0f;
-	// Vulkan instance, stores all per-application states
-	//VkInstance instance;
-  vku::instance instance;
-	// Physical device (GPU) that Vulkan will ise
-	//VkPhysicalDevice physicalDevice;
-	// Stores all available memory (type) properties for the physical device
-	//VkPhysicalDeviceMemoryProperties deviceMemoryProperties;
-	// Logical device, application's view of the physical device (GPU)
-	vku::device device;
-	// Handle to the device graphics queue that command buffers are submitted to
-	//VkQueue queue;
-  vku::queue queue;
-	// Color buffer format
-	VkFormat colorformat = VK_FORMAT_B8G8R8A8_UNORM;
-	// Depth buffer format
-	// Depth format is selected during Vulkan initialization
-	VkFormat depthFormat;
-	// Command buffer pool
-	//VkCommandPool cmdPool;
-  vku::commandPool cmdPool;
-	// Command buffer used for setup
-	//VkCommandBuffer setupCmdBuffer = VK_NULL_HANDLE;
-  vku::cmdBuffer setupCmdBuffer;
-	// Command buffer for submitting a post present barrier
-  vku::cmdBuffer postPresentCmdBuffer;
-	//VkCommandBuffer postPresentCmdBuffer = VK_NULL_HANDLE;
-	// Command buffers used for rendering
-	//std::vector<vku::cmdBuffer> drawCmdBuffers;
-  vku::cmdBuffer drawCmdBuffers[2];
-	// Global render pass for frame buffer writes
-	//VkRenderPass renderPass;
-	// List of available frame buffers (same as number of swap chain images)
-	//std::vector<VkFramebuffer>frameBuffers;
-	// Active frame buffer index
-	uint32_t currentBuffer = 0;
-	// Descriptor set pool
-	//VkDescriptorPool descriptorPool;
-	// List of shader modules created (stored for cleanup)
-	//std::vector<VkShaderModule> shaderModules;
-	// Pipeline cache object
-	vku::pipelineCache pipelineCache;
-	// Wraps the swap chain to present images (framebuffers) to the windowing system
-	vku::swapChain swapChain;
-	// Simple texture loader
-	//vkTools::VulkanTextureLoader *textureLoader = nullptr;
 public: 
-	bool prepared = false;
-	uint32_t width = 1280;
-	uint32_t height = 720;
 
-	VkClearColorValue defaultClearColor = { { 0.025f, 0.025f, 0.025f, 1.0f } };
-
-	float zoom = 0;
-
-	// Defines a frame rate independent timer value clamped from -1.0...1.0
-	// For use in animations, rotations, etc.
-	float timer = 0.0f;
-	// Multiplier for speeding up (or slowing down) the global timer
-	float timerSpeed = 0.25f;
-	
-	bool paused = false;
-
-	// Use to adjust mouse rotation speed
-	float rotationSpeed = 1.0f;
-	// Use to adjust mouse zoom speed
-	float zoomSpeed = 1.0f;
-
-	glm::vec3 rotation = glm::vec3();
-	glm::vec2 mousePos;
-
-	std::string title = "Vulkan Example";
-	std::string name = "vulkanExample";
-
-	/*struct ds
-	{
-    ds() {}
-    vku::image image;
-		VkDeviceMemory mem;
-		VkImageView view;
-	} depthStencil;*/
-
-  vku::image depthStencil;
-
-	// OS specific 
-#ifdef _WIN32
-	HWND window;
-	HINSTANCE windowInstance;
-#else
-	struct {
-		bool left = false;
-		bool right = false;
-	} mouseButtons;
-	bool quit;
-	xcb_connection_t *connection;
-	xcb_screen_t *screen;
-	xcb_window_t window;
-	xcb_intern_atom_reply_t *atom_wm_delete_window;
-#endif	
-
-	VulkanExampleBase(bool enableValidation);
-	VulkanExampleBase() : VulkanExampleBase(false) {};
-	~VulkanExampleBase();
+	//VulkanExampleBase(bool enableValidation);
+	//VulkanExampleBase() : VulkanExampleBase(false) {};
+	//~VulkanExampleBase();
 
 	// Setup the vulkan instance, enable required extensions and connect to the physical device (GPU)
 	void initVulkan(bool enableValidation);
@@ -204,7 +105,7 @@ public:
 	void createPipelineCache();
 
 	// Prepare commonly used Vulkan functions
-	void prepare();
+	//void prepare();
 
 	// Load a SPIR-V shader
 	VkPipelineShaderStageCreateInfo loadShader(const char* fileName, VkShaderStageFlagBits stage);

@@ -11,13 +11,12 @@
 // vulkan utilities.
 #include "vku.hpp"
 
-#include "../glm/glm.hpp"
 #include "../glm/gtc/matrix_transform.hpp"
-#include "../base/vulkanexamplebase.h"
-#include "../base/vulkanexamplebase.cpp"
-#include "../base/vulkantools.cpp"
 
-class VulkanExample : public VulkanExampleBase
+inline float deg_to_rad(float deg) { return deg * (3.1415927f / 180); }
+
+
+class VulkanExample : public vku::window
 {
 public:
 	struct {
@@ -34,7 +33,7 @@ public:
   vku::pipeline pipe;
   size_t num_indices;
 
-	VulkanExample() : VulkanExampleBase(false)
+	VulkanExample() : vku::window(false)
 	{
 		width = 1280;
 		height = 720;
@@ -84,7 +83,7 @@ public:
 
 	void prepare()
 	{
-		VulkanExampleBase::prepare();
+		window::prepare();
 
     // Vertices
 		struct Vertex { float pos[3]; float col[3]; };
