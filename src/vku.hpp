@@ -1708,6 +1708,7 @@ public:
 	  viewCreateInfo.subresourceRange.levelCount = 1;
 	  viewCreateInfo.subresourceRange.baseArrayLayer = 0;
 	  viewCreateInfo.subresourceRange.layerCount = 1;
+    viewCreateInfo.image = get();
 	  VkResult err = vkCreateImageView(dev(), &viewCreateInfo, nullptr, &view_);
     if (err) throw error(err);
   }
