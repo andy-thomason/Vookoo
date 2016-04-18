@@ -46,12 +46,11 @@ public:
 	void draw()
 	{
     vku::semaphore sema(device);
-    vku::queue theQueue(queue);
 
 		// Get next image in the swap chain (back/front buffer)
     currentBuffer = swapChain.acquireNextImage(sema);
 
-    theQueue.submit(sema, drawCmdBuffers[currentBuffer]);
+    queue.submit(sema, drawCmdBuffers[currentBuffer]);
 
 		// Present the current buffer to the swap chain
 		// This will display the image
@@ -61,9 +60,9 @@ public:
     postPresentCmdBuffer.pipelineBarrier(swapChain.image(currentBuffer));
     postPresentCmdBuffer.endCommandBuffer();
 
-    theQueue.submit(nullptr, postPresentCmdBuffer);
+    queue.submit(nullptr, postPresentCmdBuffer);
 
-    theQueue.waitIdle();
+    queue.waitIdle();
 	}
 
 	void updateUniformBuffers()

@@ -59,7 +59,8 @@ protected:
 	// Logical device, application's view of the physical device (GPU)
 	VkDevice device;
 	// Handle to the device graphics queue that command buffers are submitted to
-	VkQueue queue;
+	//VkQueue queue;
+  vku::queue queue;
 	// Color buffer format
 	VkFormat colorformat = VK_FORMAT_B8G8R8A8_UNORM;
 	// Depth buffer format

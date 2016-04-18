@@ -1425,7 +1425,7 @@ public:
   }
 
   
-  void addPostPresentationBarrier(VkImage image) const {
+  /*void addPostPresentationBarrier(VkImage image) const {
 	  VkImageMemoryBarrier postPresentBarrier = {};
 	  postPresentBarrier.srcAccessMask = 0;
 	  postPresentBarrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
@@ -1445,7 +1445,7 @@ public:
 		  0, NULL, // No buffer barriers,
 		  1, &postPresentBarrier
     );
-  }
+  }*/
 
 
   void endCommandBuffer() const {

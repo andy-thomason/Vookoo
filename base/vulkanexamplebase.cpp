@@ -119,7 +119,7 @@ void VulkanExampleBase::renderLoop()
 }
 
 // todo : comment
-void VulkanExampleBase::submitPostPresentBarrier(VkImage image)
+/*void VulkanExampleBase::submitPostPresentBarrier(VkImage image)
 {
   postPresentCmdBuffer.addPostPresentationBarrier(image);
   postPresentCmdBuffer.endCommandBuffer();
@@ -135,7 +135,7 @@ void VulkanExampleBase::submitPostPresentBarrier(VkImage image)
 
 	vkRes = vkQueueWaitIdle(queue);
 	assert(!vkRes);
-}
+}*/
 
 VulkanExampleBase::VulkanExampleBase(bool enableValidation)
 {
@@ -530,23 +530,3 @@ void VulkanExampleBase::viewChanged()
 {
 	// For overriding on derived class
 }
-
-/*VkBool32 VulkanExampleBase::getMemoryType(uint32_t typeBits, VkFlags properties, uint32_t * typeIndex)
-{
-	vkGetPhysicalDeviceMemoryProperties(instance.physicalDevice(), &deviceMemoryProperties);
-	for (uint32_t i = 0; i < 32; i++)
-	{
-		if ((typeBits & 1) == 1)
-		{
-			if ((deviceMemoryProperties.memoryTypes[i].propertyFlags & properties) == properties)
-			{
-				*typeIndex = i;
-				return true;
-			}
-		}
-		typeBits >>= 1;
-	}
-	return false;
-}*/
-
-
