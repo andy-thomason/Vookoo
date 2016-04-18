@@ -57,7 +57,7 @@ protected:
 	// Stores all available memory (type) properties for the physical device
 	//VkPhysicalDeviceMemoryProperties deviceMemoryProperties;
 	// Logical device, application's view of the physical device (GPU)
-	VkDevice device;
+	vku::device device;
 	// Handle to the device graphics queue that command buffers are submitted to
 	//VkQueue queue;
   vku::queue queue;

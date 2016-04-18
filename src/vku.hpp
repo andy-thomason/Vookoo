@@ -104,6 +104,9 @@ private:
 
 class device {
 public:
+  device() {
+  }
+
   device(VkDevice dev, VkPhysicalDevice physicalDevice_) : dev(dev), physicalDevice_(physicalDevice_) {
   }
 

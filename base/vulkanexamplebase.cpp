@@ -175,7 +175,8 @@ VulkanExampleBase::~VulkanExampleBase()
 
   cmdPool.clear();
 
-	vkDestroyDevice(device, nullptr); 
+	//vkDestroyDevice(device, nullptr); 
+  //device.clear();
 
 	if (enableValidation)
 	{
