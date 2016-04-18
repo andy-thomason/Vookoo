@@ -51,9 +51,8 @@ void VulkanExampleBase::prepare()
   swapChain.setupFrameBuffer(depthStencil.view(), depthFormat);
 
   setupCmdBuffer.endCommandBuffer();
-  vku::queue q(queue, device);
-  q.submit(nullptr, setupCmdBuffer);
-  q.waitIdle();
+  queue.submit(nullptr, setupCmdBuffer);
+  queue.waitIdle();
 
 	// Recreate setup command buffer for derived class
 
