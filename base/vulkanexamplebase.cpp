@@ -58,7 +58,7 @@ void VulkanExampleBase::prepare()
 
 	createPipelineCache();
 
-  swapChain.setupFrameBuffer(depthStencil.view, depthFormat);
+  swapChain.setupFrameBuffer(depthStencil.view(), depthFormat);
 
   setupCmdBuffer.endCommandBuffer();
   vku::queue q(queue, device);
@@ -256,9 +256,10 @@ VulkanExampleBase::~VulkanExampleBase()
 	{
 		vkDestroyShaderModule(device, shaderModule, nullptr);
 	}
-	vkDestroyImageView(device, depthStencil.view, nullptr);
+
+	//vkDestroyImageView(device, depthStencil.view(), nullptr);
 	//vkDestroyImage(device, depthStencil.image, nullptr);
-	vkFreeMemory(device, depthStencil.mem, nullptr);
+	//vkFreeMemory(device, depthStencil.mem(), nullptr);
 
 	vkDestroyPipelineCache(device, pipelineCache, nullptr);
 
@@ -640,20 +641,9 @@ VkBool32 VulkanExampleBase::getMemoryType(uint32_t typeBits, VkFlags properties,
 
 void VulkanExampleBase::setupDepthStencil()
 {
-  depthStencil.image = vku::image(device, width, height, depthFormat, VK_IMAGE_TYPE_2D, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT);
-
-	/*VkImageCreateInfo image = {};
-	image.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-	image.pNext = NULL;
-	image.imageType = VK_IMAGE_TYPE_2D;
-	image.format = depthFormat;
-	image.extent = { width, height, 1 };
-	image.mipLevels = 1;
-	image.arrayLayers = 1;
-	image.samples = VK_SAMPLE_COUNT_1_BIT;
-	image.tiling = VK_IMAGE_TILING_OPTIMAL;
-	image.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
-	image.flags = 0;*/
+  vku::device dev(device, instance.physicalDevice());
+  depthStencil = vku::image(device, width, height, depthFormat, VK_IMAGE_TYPE_2D, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT);
+  //depthStencil.allocate(dev);
 
 	VkMemoryAllocateInfo mem_alloc = {};
 	mem_alloc.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
@@ -680,18 +670,18 @@ void VulkanExampleBase::setupDepthStencil()
 	//err = vkCreateImage(device, &image, nullptr, &depthStencil.image);
 	//assert(!err);
 
-	vkGetImageMemoryRequirements(device, depthStencil.image, &memReqs);
+	vkGetImageMemoryRequirements(device, depthStencil, &memReqs);
 	mem_alloc.allocationSize = memReqs.size;
 	getMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &mem_alloc.memoryTypeIndex);
-	err = vkAllocateMemory(device, &mem_alloc, nullptr, &depthStencil.mem);
+	err = vkAllocateMemory(device, &mem_alloc, nullptr, &depthStencil.mem_);
 	assert(!err);
 
-	err = vkBindImageMemory(device, depthStencil.image, depthStencil.mem, 0);
+	err = vkBindImageMemory(device, depthStencil, depthStencil.mem_, 0);
 	assert(!err);
-	vkTools::setImageLayout(setupCmdBuffer, depthStencil.image, VK_IMAGE_ASPECT_DEPTH_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+	vkTools::setImageLayout(setupCmdBuffer, depthStencil, VK_IMAGE_ASPECT_DEPTH_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
 
-	depthStencilView.image = depthStencil.image;
-	err = vkCreateImageView(device, &depthStencilView, nullptr, &depthStencil.view);
+	depthStencilView.image = depthStencil;
+	err = vkCreateImageView(device, &depthStencilView, nullptr, &depthStencil.view_);
 	assert(!err);
 }
 

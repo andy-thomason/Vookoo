@@ -157,7 +157,7 @@ public:
   device(VkDevice dev, VkPhysicalDevice physicalDevice_) : dev(dev), physicalDevice_(physicalDevice_) {
   }
 
-  uint32_t getMemoryType(uint32_t typeBits, VkFlags properties) {
+  uint32_t getMemoryType(uint32_t typeBits, VkFlags properties) const {
     VkPhysicalDeviceMemoryProperties deviceMemoryProperties;
   	vkGetPhysicalDeviceMemoryProperties(physicalDevice_, &deviceMemoryProperties);
 
@@ -1664,9 +1664,66 @@ public:
     if (err) throw error(err);
 
     set(result, true);
+    format_ = format;
   }
 
+  /// allocate device memory
+  void allocate(const vku::device &device) {
+  	VkMemoryRequirements memReqs;
+	  vkGetImageMemoryRequirements(device, get(), &memReqs);
+
+	  VkMemoryAllocateInfo mem_alloc = {};
+	  mem_alloc.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+	  mem_alloc.allocationSize = memReqs.size;
+	  mem_alloc.memoryTypeIndex = device.getMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+	  VkResult err = vkAllocateMemory(device, &mem_alloc, nullptr, &mem_);
+    if (err) throw error(err);
+  }
+
+  /// bind device memory to the image object
+  void bindMemoryToImage() {
+  	VkResult err = vkBindImageMemory(dev(), get(), mem(), 0);
+    if (err) throw error(err);
+  }
+
+  void setImageLayout(const vku::cmdBuffer &cmdBuf, VkImageAspectFlags aspectMask, VkImageLayout oldImageLayout, VkImageLayout newImageLayout) {
+    cmdBuf.setImageLayout(get(), aspectMask, oldImageLayout, newImageLayout);
+  }
+
+  /// todo: generalise
+  void createView() {
+	  VkImageViewCreateInfo viewCreateInfo = {};
+	  viewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+	  viewCreateInfo.pNext = NULL;
+	  viewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+	  viewCreateInfo.format = format_;
+	  viewCreateInfo.flags = 0;
+	  viewCreateInfo.subresourceRange = {};
+	  viewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+	  viewCreateInfo.subresourceRange.baseMipLevel = 0;
+	  viewCreateInfo.subresourceRange.levelCount = 1;
+	  viewCreateInfo.subresourceRange.baseArrayLayer = 0;
+	  viewCreateInfo.subresourceRange.layerCount = 1;
+	  VkResult err = vkCreateImageView(dev(), &viewCreateInfo, nullptr, &view_);
+    if (err) throw error(err);
+  }
+
+  void destroy() {
+	  if (view()) vkDestroyImageView(dev(), view(), nullptr);
+	  if (mem()) vkFreeMemory(dev(), mem(), nullptr);
+	  if (get()) vkDestroyImage(dev(), get(), nullptr);
+    view_ = nullptr;
+    mem_ = nullptr;
+    set(nullptr, false);
+  }
+
+	VkDeviceMemory mem() const { return mem_; }
+	VkImageView view() const { return view_; }
+
+	VkDeviceMemory mem_ = nullptr;
+	VkImageView view_ = nullptr;
 public:
+  VkFormat format_ = VK_FORMAT_UNDEFINED;
 };
 
 
