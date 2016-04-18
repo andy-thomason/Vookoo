@@ -1,3 +1,4 @@
+#if 0
 /*
 * Assorted commonly used Vulkan helper functions
 *
@@ -796,3 +797,5 @@ VkPushConstantRange vkTools::initializers::pushConstantRange(
 	pushConstantRange.size = size;
 	return pushConstantRange;
 }
+
+#endif

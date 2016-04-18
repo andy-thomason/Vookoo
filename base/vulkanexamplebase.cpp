@@ -66,52 +66,6 @@ void VulkanExampleBase::prepare()
 	//textureLoader = new vkTools::VulkanTextureLoader(instance.physicalDevice(), device, queue, cmdPool);
 }
 
-/*VkBool32 VulkanExampleBase::createBuffer(
-	VkBufferUsageFlags usage, 
-	VkDeviceSize size, 
-	void * data, 
-	VkBuffer *buffer, 
-	VkDeviceMemory *memory)
-{
-	VkMemoryRequirements memReqs;
-	VkMemoryAllocateInfo memAlloc = vkTools::initializers::memoryAllocateInfo();
-	VkBufferCreateInfo bufferCreateInfo = vkTools::initializers::bufferCreateInfo(usage, size);
-
-	VkResult err = vkCreateBuffer(device, &bufferCreateInfo, nullptr, buffer);
-	assert(!err);
-	vkGetBufferMemoryRequirements(device, *buffer, &memReqs);
-	memAlloc.allocationSize = memReqs.size;
-	getMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, &memAlloc.memoryTypeIndex);
-	err = vkAllocateMemory(device, &memAlloc, nullptr, memory);
-	assert(!err);
-	if (data != nullptr)
-	{
-		void *mapped;
-		err = vkMapMemory(device, *memory, 0, size, 0, &mapped);
-		assert(!err);
-		memcpy(mapped, data, size);
-		vkUnmapMemory(device, *memory);
-	}
-	err = vkBindBufferMemory(device, *buffer, *memory, 0);
-	assert(!err);
-	return true;
-}*/
-
-/*VkBool32 VulkanExampleBase::createBuffer(VkBufferUsageFlags usage, VkDeviceSize size, void * data, VkBuffer * buffer, VkDeviceMemory * memory, VkDescriptorBufferInfo * descriptor)
-{
-	VkBool32 res = createBuffer(usage, size, data, buffer, memory);
-	if (res)
-	{
-		descriptor->offset = 0;
-		descriptor->buffer = *buffer;
-		descriptor->range = size;
-		return true;
-	}
-	else
-	{
-		return false;
-	}
-}*/
 
 void VulkanExampleBase::renderLoop()
 {
@@ -167,12 +121,21 @@ void VulkanExampleBase::renderLoop()
 // todo : comment
 void VulkanExampleBase::submitPostPresentBarrier(VkImage image)
 {
-	VkCommandBufferBeginInfo cmdBufInfo = vkTools::initializers::commandBufferBeginInfo();
+	VkCommandBufferBeginInfo cmdBufInfo = {};
+	cmdBufInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 
 	VkResult vkRes = vkBeginCommandBuffer(postPresentCmdBuffer, &cmdBufInfo);
 	assert(!vkRes);
 
-	VkImageMemoryBarrier postPresentBarrier = vkTools::postPresentBarrier(image);
+	VkImageMemoryBarrier postPresentBarrier = {};
+	postPresentBarrier.srcAccessMask = 0;
+	postPresentBarrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+	postPresentBarrier.oldLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+	postPresentBarrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+	postPresentBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	postPresentBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	postPresentBarrier.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
+	postPresentBarrier.image = image;
 
 	vkCmdPipelineBarrier(
 		postPresentCmdBuffer,
@@ -594,7 +557,7 @@ void VulkanExampleBase::viewChanged()
 	// For overriding on derived class
 }
 
-VkBool32 VulkanExampleBase::getMemoryType(uint32_t typeBits, VkFlags properties, uint32_t * typeIndex)
+/*VkBool32 VulkanExampleBase::getMemoryType(uint32_t typeBits, VkFlags properties, uint32_t * typeIndex)
 {
 	vkGetPhysicalDeviceMemoryProperties(instance.physicalDevice(), &deviceMemoryProperties);
 	for (uint32_t i = 0; i < 32; i++)
@@ -610,6 +573,6 @@ VkBool32 VulkanExampleBase::getMemoryType(uint32_t typeBits, VkFlags properties,
 		typeBits >>= 1;
 	}
 	return false;
-}
+}*/
 
 

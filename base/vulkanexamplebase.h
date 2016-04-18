@@ -28,10 +28,10 @@
 
 #include "../vulkan/vulkan.h"
 
-#include "vulkantools.h"
+//#include "vulkantools.h"
 #include "vulkandebug.h"
 
-#include "vulkanswapchain.hpp"
+//#include "vulkanswapchain.hpp"
 #include "vulkanTextureLoader.hpp"
 #include "vulkanMeshLoader.hpp"
 
@@ -55,7 +55,7 @@ protected:
 	// Physical device (GPU) that Vulkan will ise
 	//VkPhysicalDevice physicalDevice;
 	// Stores all available memory (type) properties for the physical device
-	VkPhysicalDeviceMemoryProperties deviceMemoryProperties;
+	//VkPhysicalDeviceMemoryProperties deviceMemoryProperties;
 	// Logical device, application's view of the physical device (GPU)
 	VkDevice device;
 	// Handle to the device graphics queue that command buffers are submitted to
