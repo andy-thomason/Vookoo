@@ -1256,6 +1256,35 @@ public:
   }
 };
 
+class pipelineCache : public resource<VkPipelineCache, pipelineCache> {
+public:
+  pipelineCache() : resource(nullptr, nullptr) {
+  }
+
+  /// descriptor pool that does not own its pointer
+  pipelineCache(VkPipelineCache value, VkDevice dev) : resource(value, dev) {
+  }
+
+  /// descriptor pool that does owns (and creates) its pointer
+  pipelineCache(VkDevice dev) : resource(dev) {
+	  VkPipelineCacheCreateInfo pipelineCacheCreateInfo = {};
+	  pipelineCacheCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO;
+    VkPipelineCache cache;
+	  VkResult err = vkCreatePipelineCache(dev, &pipelineCacheCreateInfo, nullptr, &cache);
+    if (err) throw error(err);
+    set(cache, true);
+  }
+
+  void destroy() {
+    if (get()) vkDestroyPipelineCache(dev(), get(), nullptr);
+  }
+
+  pipelineCache &operator=(pipelineCache &&rhs) {
+    (resource&)(*this) = (resource&&)rhs;
+    return *this;
+  }
+};
+
 class cmdBuffer : public resource<VkCommandBuffer, cmdBuffer> {
 public:
   cmdBuffer() : resource(nullptr, nullptr) {

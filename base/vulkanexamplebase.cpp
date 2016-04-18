@@ -8,14 +8,6 @@
 
 #include "vulkanexamplebase.h"
 
-void VulkanExampleBase::createPipelineCache()
-{
-	VkPipelineCacheCreateInfo pipelineCacheCreateInfo = {};
-	pipelineCacheCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO;
-	VkResult err = vkCreatePipelineCache(device, &pipelineCacheCreateInfo, nullptr, &pipelineCache);
-	assert(!err);
-}
-
 void VulkanExampleBase::prepare()
 {
   vku::device dev(device, instance.physicalDevice());
@@ -55,7 +47,8 @@ void VulkanExampleBase::prepare()
 	depthStencil.setImageLayout(setupCmdBuffer, VK_IMAGE_ASPECT_DEPTH_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
   depthStencil.createView();
 
-	createPipelineCache();
+  pipelineCache = vku::pipelineCache(device);
+	//createPipelineCache();
 
   swapChain.setupFrameBuffer(depthStencil.view(), depthFormat);
 
@@ -238,27 +231,11 @@ VulkanExampleBase::~VulkanExampleBase()
 {
 	// Clean up Vulkan resources
 	swapChain.clear();
-	//vkDestroyDescriptorPool(device, descriptorPool, nullptr);
-	/*if (setupCmdBuffer != VK_NULL_HANDLE) 
-	{
-		vkFreeCommandBuffers(device, cmdPool, 1, &setupCmdBuffer);
 
-	}*/
-	//destroyCommandBuffers();
-	//vkDestroyRenderPass(device, swapChain.renderPass(), nullptr);
-	/*for (uint32_t i = 0; i < frameBuffers.size(); i++)
-	{
-		vkDestroyFramebuffer(device, frameBuffers[i], nullptr);
-	}*/
+  cmdPool.clear();
 
-	for (auto& shaderModule : shaderModules)
-	{
-		vkDestroyShaderModule(device, shaderModule, nullptr);
-	}
+  pipelineCache.clear();
 
-	vkDestroyPipelineCache(device, pipelineCache, nullptr);
-
-	//vkDestroyCommandPool(device, cmdPool, nullptr);
   cmdPool.clear();
 
 	vkDestroyDevice(device, nullptr); 
@@ -268,7 +245,7 @@ VulkanExampleBase::~VulkanExampleBase()
 		//vkDebug::freeDebugCallback(instance);
 	}
 
-	//vkDestroyInstance(instance, nullptr);
+  instance.clear();
 
 #ifndef _WIN32
 	xcb_destroy_window(connection, window);

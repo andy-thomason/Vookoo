@@ -84,11 +84,11 @@ protected:
 	// Active frame buffer index
 	uint32_t currentBuffer = 0;
 	// Descriptor set pool
-	VkDescriptorPool descriptorPool;
+	//VkDescriptorPool descriptorPool;
 	// List of shader modules created (stored for cleanup)
-	std::vector<VkShaderModule> shaderModules;
+	//std::vector<VkShaderModule> shaderModules;
 	// Pipeline cache object
-	VkPipelineCache pipelineCache;
+	vku::pipelineCache pipelineCache;
 	// Wraps the swap chain to present images (framebuffers) to the windowing system
 	vku::swapChain swapChain;
 	// Simple texture loader
