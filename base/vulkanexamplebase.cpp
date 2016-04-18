@@ -10,12 +10,10 @@
 
 void VulkanExampleBase::prepare()
 {
-  vku::device dev(device, instance.physicalDevice());
-
   VkSurfaceKHR surface = instance.createSurface((void*)windowInstance, (void*)window);
-  uint32_t queueNodeIndex = dev.getGraphicsQueueNodeIndex(surface);
+  uint32_t queueNodeIndex = device.getGraphicsQueueNodeIndex(surface);
   if (queueNodeIndex == ~(uint32_t)0) throw(std::runtime_error("no graphics and present queue available"));
-  auto sf = dev.getSurfaceFormat(surface);
+  auto sf = device.getSurfaceFormat(surface);
   //swapChain.colorFormat = sf.first;
   //swapChain.colorSpace = sf.second;
 
@@ -29,7 +27,7 @@ void VulkanExampleBase::prepare()
   setupCmdBuffer = vku::cmdBuffer(device, cmdPool);
   setupCmdBuffer.beginCommandBuffer();
 
-  swapChain = vku::swapChain(vku::device(device, instance.physicalDevice()), width, height, surface, setupCmdBuffer);
+  swapChain = vku::swapChain(device, width, height, surface, setupCmdBuffer);
   width = swapChain.width();
   height = swapChain.height();
 
@@ -42,7 +40,7 @@ void VulkanExampleBase::prepare()
   postPresentCmdBuffer = vku::cmdBuffer(device, cmdPool);
 
   depthStencil = vku::image(device, width, height, depthFormat, VK_IMAGE_TYPE_2D, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT);
-  depthStencil.allocate(dev);
+  depthStencil.allocate(device);
   depthStencil.bindMemoryToImage();
 	depthStencil.setImageLayout(setupCmdBuffer, VK_IMAGE_ASPECT_DEPTH_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
   depthStencil.createView();
@@ -117,25 +115,6 @@ void VulkanExampleBase::renderLoop()
 }
 #endif
 }
-
-// todo : comment
-/*void VulkanExampleBase::submitPostPresentBarrier(VkImage image)
-{
-  postPresentCmdBuffer.addPostPresentationBarrier(image);
-  postPresentCmdBuffer.endCommandBuffer();
-
-	VkSubmitInfo submitInfo = {};
-  VkCommandBuffer ppcb = postPresentCmdBuffer;
-	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-	submitInfo.commandBufferCount = 1;
-	submitInfo.pCommandBuffers = &ppcb;
-
-	VkResult vkRes = vkQueueSubmit(queue, 1, &submitInfo, VK_NULL_HANDLE);
-	assert(!vkRes);
-
-	vkRes = vkQueueWaitIdle(queue);
-	assert(!vkRes);
-}*/
 
 VulkanExampleBase::VulkanExampleBase(bool enableValidation)
 {

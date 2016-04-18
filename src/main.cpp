@@ -84,8 +84,6 @@ public:
 
 	void prepare()
 	{
-    vku::device dev(device, instance.physicalDevice());
-
 		VulkanExampleBase::prepare();
 
     // Vertices
@@ -97,11 +95,11 @@ public:
 			{ { 0.0f, -1.0f, 0.0f }, { 0.0f, 0.0f, 1.0f} }
 		};
 
-    vertex_buffer = vku::buffer(dev, (void*)vertex_data, sizeof(vertex_data), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
+    vertex_buffer = vku::buffer(device, (void*)vertex_data, sizeof(vertex_data), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
 
 		// Indices
 		static const uint32_t index_data[] = { 0, 1, 2 };
-    index_buffer = vku::buffer(dev, (void*)index_data, sizeof(index_data), VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
+    index_buffer = vku::buffer(device, (void*)index_data, sizeof(index_data), VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
 		num_indices = 3;
 
     // Binding state
@@ -109,7 +107,7 @@ public:
     vertexInputState.attrib(0, VERTEX_BUFFER_BIND_ID, VK_FORMAT_R32G32B32_SFLOAT, 0);
     vertexInputState.attrib(1, VERTEX_BUFFER_BIND_ID, VK_FORMAT_R32G32B32_SFLOAT, sizeof(float) * 3);
 
-    uniform_buffer = vku::buffer(dev, (void*)nullptr, sizeof(uniform_data), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+    uniform_buffer = vku::buffer(device, (void*)nullptr, sizeof(uniform_data), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
 		
 		updateUniformBuffers();
 
@@ -137,16 +135,14 @@ public:
 
 	virtual void render()
 	{
-    vku::device dev(device, instance.physicalDevice());
-
 		if (!prepared)
 			return;
 
-		dev.waitIdle();
+		device.waitIdle();
 
 		draw();
 
-		dev.waitIdle();
+		device.waitIdle();
 	}
 
 	virtual void viewChanged()
