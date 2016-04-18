@@ -2007,6 +2007,7 @@ public:
 		    prepared = false;
 		    DestroyWindow(hWnd);
         map_window(hWnd, (window*)nullptr);
+        windowIsClosed_ = true;
 		    //PostQuitMessage(0);
 		    break;
 	    case WM_PAINT:
@@ -2275,9 +2276,15 @@ public:
   }
   #endif
   }
+
+  bool windowIsClosed() const {
+    return windowIsClosed_;
+  }
+
 public:
 	virtual void render() = 0;
 
+  bool windowIsClosed_ = false;
 	bool enableValidation = false;
 
 	// Last frame time, measured using a high performance timer (if available)

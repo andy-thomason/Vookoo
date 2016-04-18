@@ -148,6 +148,9 @@ int main(const int argc, const char *argv[]) {
   triangle_example my_example2;
 
 	while (vku::window::poll()) {
+    if (my_example.windowIsClosed() && my_example2.windowIsClosed()) {
+      break;
+    }
   }
 
 	return 0;
