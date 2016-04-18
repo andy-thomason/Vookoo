@@ -18,6 +18,8 @@
 #include <fstream>
 
 // derived from https://github.com/SaschaWillems/Vulkan
+//
+// Many thanks to Sascha, without who this would be a challenge!
 
 namespace vku {
 
@@ -55,6 +57,14 @@ public:
   }
 };
 
+/// This resource class is the base class of most of the vku wrappers.
+/// It wraps a single Vulkan interface plus related interfaces.
+/// The primary Vulkan interface is castable to a Vulkan handle of various kinds.
+///
+/// Exactly one resource object "owns" the resource. I considered using reference counting,
+/// but the overhead is pretty rotten, I may return to this later.
+/// A downside of this is that you cannot put these objects in vectors.
+///
 template <class VulkanType, class ParentClass>
 class resource {
 public:
@@ -67,9 +77,8 @@ public:
   resource(VkDevice dev) : dev_(dev), ownsResource(false) {
   }
 
-  /*resource(const resource &rhs) : value_(rhs.value_), ownsResource(false), dev_(rhs.dev_) {
-  }*/
-
+  // every resource is moveable transfering ownership of the
+  // object to the copy. The former owner loses ownership.
   void operator=(resource &&rhs) {
     clear();
     value_ = rhs.value_;
@@ -96,12 +105,15 @@ public:
     value_ = nullptr; ownsResource = false;
   }
 private:
+  // resources have a value, a device and an ownership flag.
   VulkanType value_ = nullptr;
-  bool ownsResource = false;
   VkDevice dev_ = nullptr;
+  bool ownsResource = false;
 };
 
 
+/// Device wrapper.
+/// This incorporates a VkDevice along with the physical device and a number of queues.
 class device {
 public:
   device() {
