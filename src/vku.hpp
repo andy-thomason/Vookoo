@@ -1225,6 +1225,37 @@ private:
   bool ownsData = false;
 };
 
+class commandPool : public resource<VkCommandPool, commandPool> {
+public:
+  commandPool() : resource(nullptr, nullptr) {
+  }
+
+  /// command pool that does not own its pointer
+  commandPool(VkCommandPool value, VkDevice dev) : resource(value, dev) {
+  }
+
+  /// command pool that does owns (and creates) its pointer
+  commandPool(VkDevice dev, uint32_t queueFamilyIndex) : resource(dev) {
+	  VkCommandPoolCreateInfo cmdPoolInfo = {};
+	  cmdPoolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+	  cmdPoolInfo.queueFamilyIndex = queueFamilyIndex;
+	  cmdPoolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+    VkCommandPool cmdPool;
+	  VkResult err = vkCreateCommandPool(dev, &cmdPoolInfo, nullptr, &cmdPool);
+    if (err) throw error(err);
+    set(cmdPool, true);
+  }
+
+  void destroy() {
+    if (get()) vkDestroyCommandPool(dev(), get(), nullptr);
+  }
+
+  commandPool &operator=(commandPool &&rhs) {
+    (resource&)(*this) = (resource&&)rhs;
+    return *this;
+  }
+};
+
 class cmdBuffer : public resource<VkCommandBuffer, cmdBuffer> {
 public:
   cmdBuffer() : resource(nullptr, nullptr) {

@@ -32,12 +32,7 @@ void VulkanExampleBase::prepare()
 		//vkDebug::setupDebugging(instance, VK_DEBUG_REPORT_ERROR_BIT_EXT | VK_DEBUG_REPORT_WARNING_BIT_EXT, NULL);
 	}
 
-	VkCommandPoolCreateInfo cmdPoolInfo = {};
-	cmdPoolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-	cmdPoolInfo.queueFamilyIndex = queueNodeIndex;
-	cmdPoolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-	VkResult vkRes = vkCreateCommandPool(device, &cmdPoolInfo, nullptr, &cmdPool);
-	assert(!vkRes);
+  cmdPool = vku::commandPool(device, queueNodeIndex);
 
   setupCmdBuffer = vku::cmdBuffer(device, cmdPool);
   setupCmdBuffer.beginCommandBuffer();
@@ -78,7 +73,7 @@ void VulkanExampleBase::prepare()
 	//textureLoader = new vkTools::VulkanTextureLoader(instance.physicalDevice(), device, queue, cmdPool);
 }
 
-VkBool32 VulkanExampleBase::createBuffer(
+/*VkBool32 VulkanExampleBase::createBuffer(
 	VkBufferUsageFlags usage, 
 	VkDeviceSize size, 
 	void * data, 
@@ -107,9 +102,9 @@ VkBool32 VulkanExampleBase::createBuffer(
 	err = vkBindBufferMemory(device, *buffer, *memory, 0);
 	assert(!err);
 	return true;
-}
+}*/
 
-VkBool32 VulkanExampleBase::createBuffer(VkBufferUsageFlags usage, VkDeviceSize size, void * data, VkBuffer * buffer, VkDeviceMemory * memory, VkDescriptorBufferInfo * descriptor)
+/*VkBool32 VulkanExampleBase::createBuffer(VkBufferUsageFlags usage, VkDeviceSize size, void * data, VkBuffer * buffer, VkDeviceMemory * memory, VkDescriptorBufferInfo * descriptor)
 {
 	VkBool32 res = createBuffer(usage, size, data, buffer, memory);
 	if (res)
@@ -123,7 +118,7 @@ VkBool32 VulkanExampleBase::createBuffer(VkBufferUsageFlags usage, VkDeviceSize 
 	{
 		return false;
 	}
-}
+}*/
 
 void VulkanExampleBase::renderLoop()
 {
@@ -263,7 +258,8 @@ VulkanExampleBase::~VulkanExampleBase()
 
 	vkDestroyPipelineCache(device, pipelineCache, nullptr);
 
-	vkDestroyCommandPool(device, cmdPool, nullptr);
+	//vkDestroyCommandPool(device, cmdPool, nullptr);
+  cmdPool.clear();
 
 	vkDestroyDevice(device, nullptr); 
 

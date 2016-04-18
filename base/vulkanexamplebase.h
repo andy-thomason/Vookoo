@@ -66,7 +66,8 @@ protected:
 	// Depth format is selected during Vulkan initialization
 	VkFormat depthFormat;
 	// Command buffer pool
-	VkCommandPool cmdPool;
+	//VkCommandPool cmdPool;
+  vku::commandPool cmdPool;
 	// Command buffer used for setup
 	//VkCommandBuffer setupCmdBuffer = VK_NULL_HANDLE;
   vku::cmdBuffer setupCmdBuffer;
