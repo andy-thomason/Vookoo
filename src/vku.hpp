@@ -55,11 +55,7 @@ public:
   }
 };
 
-template <class VulkanType> VulkanType create(VkDevice dev) { return nullptr; }
-template <class VulkanType> void destroy(VkDevice dev, VulkanType value) {}
-
-
-template <class VulkanType>
+template <class VulkanType, class ParentClass>
 class resource {
 public:
   resource() : value_(nullptr), ownsResource(false), dev_(nullptr) {
@@ -68,14 +64,14 @@ public:
   resource(VulkanType value, VkDevice dev = nullptr) : value_(value), ownsResource(false), dev_(dev) {
   }
 
-  resource(VkDevice dev) : value_(create<VulkanType>(dev)), ownsResource(true), dev_(dev) {
+  resource(VkDevice dev) : dev_(dev), ownsResource(false) {
   }
 
   /*resource(const resource &rhs) : value_(rhs.value_), ownsResource(false), dev_(rhs.dev_) {
   }*/
 
   void operator=(resource &&rhs) {
-    if (value_ && ownsResource) destroy<VulkanType>(dev_, value_);
+    clear();
     value_ = rhs.value_;
     dev_ = rhs.dev_;
     ownsResource = rhs.ownsResource;
@@ -84,7 +80,7 @@ public:
   }
 
   ~resource() {
-    if (value_ && ownsResource) destroy<VulkanType>(dev_, value_);
+    clear();
   }
 
   operator VulkanType() {
@@ -95,62 +91,16 @@ public:
   VkDevice dev() const { return dev_; }
   resource &set(VulkanType value, bool owns) { value_ = value; ownsResource = owns; return *this; }
 
-  void clear() { if (value_ && ownsResource) destroy<VulkanType>(dev_, value_); value_ = nullptr; ownsResource = false; }
+  void clear() {
+    if (value_ && ownsResource) ((ParentClass*)this)->destroy();
+    value_ = nullptr; ownsResource = false;
+  }
 private:
   VulkanType value_ = nullptr;
   bool ownsResource = false;
   VkDevice dev_ = nullptr;
 };
 
-template<> VkInstance create<VkInstance>(VkDevice dev) {
-  bool enableValidation = false;
-	VkApplicationInfo appInfo = {};
-	appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-	appInfo.pApplicationName = "vku";
-	appInfo.pEngineName = "vku";
-
-	// Temporary workaround for drivers not supporting SDK 1.0.3 upon launch
-	// todo : Use VK_API_VERSION 
-	appInfo.apiVersion = VK_MAKE_VERSION(1, 0, 2);
-
-	std::vector<const char*> enabledExtensions = { VK_KHR_SURFACE_EXTENSION_NAME };
-
-  #ifdef _WIN32
-    enabledExtensions.push_back(VK_KHR_WIN32_SURFACE_EXTENSION_NAME);
-  #else
-    // todo : linux/android
-    enabledExtensions.push_back(VK_KHR_XCB_SURFACE_EXTENSION_NAME);
-  #endif
-
-	// todo : check if all extensions are present
-
-	VkInstanceCreateInfo instanceCreateInfo = {};
-	instanceCreateInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-	instanceCreateInfo.pNext = NULL;
-	instanceCreateInfo.pApplicationInfo = &appInfo;
-	if (enabledExtensions.size() > 0)
-	{
-		if (enableValidation)
-		{
-			enabledExtensions.push_back(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);
-		}
-		instanceCreateInfo.enabledExtensionCount = (uint32_t)enabledExtensions.size();
-		instanceCreateInfo.ppEnabledExtensionNames = enabledExtensions.data();
-	}
-	if (enableValidation)
-	{
-		//instanceCreateInfo.enabledLayerCount = vkDebug::validationLayerCount; // todo : change validation layer names!
-		//instanceCreateInfo.ppEnabledLayerNames = vkDebug::validationLayerNames;
-	}
-
-  VkInstance inst = nullptr;
-	vkCreateInstance(&instanceCreateInfo, nullptr, &inst);
-  return inst;
-}
-
-template<> void destroy<VkInstance>(VkDevice dev, VkInstance inst) {
-  vkDestroyInstance(inst, nullptr);
-}
 
 class device {
 public:
@@ -274,7 +224,7 @@ public:
   VkPhysicalDevice physicalDevice_;
 };
 
-class instance : public resource<VkInstance> {
+class instance : public resource<VkInstance, instance> {
 public:
   instance() : resource((VkInstance)nullptr) {
   }
@@ -285,6 +235,50 @@ public:
 
   /// instance that does owns (and creates) its pointer
   instance(const char *name) : resource((VkDevice)nullptr) {
+    bool enableValidation = false;
+	  VkApplicationInfo appInfo = {};
+	  appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
+	  appInfo.pApplicationName = "vku";
+	  appInfo.pEngineName = "vku";
+
+	  // Temporary workaround for drivers not supporting SDK 1.0.3 upon launch
+	  // todo : Use VK_API_VERSION 
+	  appInfo.apiVersion = VK_MAKE_VERSION(1, 0, 2);
+
+	  std::vector<const char*> enabledExtensions = { VK_KHR_SURFACE_EXTENSION_NAME };
+
+    #ifdef _WIN32
+      enabledExtensions.push_back(VK_KHR_WIN32_SURFACE_EXTENSION_NAME);
+    #else
+      // todo : linux/android
+      enabledExtensions.push_back(VK_KHR_XCB_SURFACE_EXTENSION_NAME);
+    #endif
+
+	  // todo : check if all extensions are present
+
+	  VkInstanceCreateInfo instanceCreateInfo = {};
+	  instanceCreateInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+	  instanceCreateInfo.pNext = NULL;
+	  instanceCreateInfo.pApplicationInfo = &appInfo;
+	  if (enabledExtensions.size() > 0)
+	  {
+		  if (enableValidation)
+		  {
+			  enabledExtensions.push_back(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);
+		  }
+		  instanceCreateInfo.enabledExtensionCount = (uint32_t)enabledExtensions.size();
+		  instanceCreateInfo.ppEnabledExtensionNames = enabledExtensions.data();
+	  }
+	  if (enableValidation)
+	  {
+		  //instanceCreateInfo.enabledLayerCount = vkDebug::validationLayerCount; // todo : change validation layer names!
+		  //instanceCreateInfo.ppEnabledLayerNames = vkDebug::validationLayerNames;
+	  }
+
+    VkInstance inst = nullptr;
+	  vkCreateInstance(&instanceCreateInfo, nullptr, &inst);
+    set(inst, true);
+
 	  // Physical device
 	  uint32_t gpuCount = 0;
 	  // Get number of available physical devices
@@ -331,7 +325,7 @@ public:
 	  queueCreateInfo.queueCount = 1;
 	  queueCreateInfo.pQueuePriorities = queuePriorities.data();
 
-	  std::vector<const char*> enabledExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
+	  std::vector<const char*> enabledDeviceExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
 
 	  VkDeviceCreateInfo deviceCreateInfo = {};
 	  deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
@@ -342,8 +336,8 @@ public:
 
 	  if (enabledExtensions.size() > 0)
 	  {
-		  deviceCreateInfo.enabledExtensionCount = (uint32_t)enabledExtensions.size();
-		  deviceCreateInfo.ppEnabledExtensionNames = enabledExtensions.data();
+		  deviceCreateInfo.enabledExtensionCount = (uint32_t)enabledDeviceExtensions.size();
+		  deviceCreateInfo.ppEnabledExtensionNames = enabledDeviceExtensions.data();
 	  }
 	  if (enableValidation)
 	  {
@@ -383,6 +377,10 @@ public:
     return result;
   }
 
+  void destroy() {
+    vkDestroyInstance(get(), nullptr);
+  }
+
   VkPhysicalDevice physicalDevice() const { return physicalDevice_; }
 
   vku::device device() const { return vku::device(dev_, physicalDevice_); }
@@ -394,10 +392,6 @@ public:
   VkDevice dev_;
   VkQueue queue_;
 };
-
-template<> void destroy<VkSwapchainKHR>(VkDevice dev, VkSwapchainKHR chain) {
-  vkDestroySwapchainKHR(dev, chain, nullptr);
-}
 
 class renderPassLayout {
 public:
@@ -461,7 +455,7 @@ private:
   std::vector<VkAttachmentReference> refs;
 };
 
-class swapChain : public resource<VkSwapchainKHR> {
+class swapChain : public resource<VkSwapchainKHR, swapChain> {
 public:
   /// semaphore that does not own its pointer
   swapChain(VkSwapchainKHR value = nullptr, VkDevice dev = nullptr) : resource(value, dev) {
@@ -698,6 +692,10 @@ public:
 
   VkFramebuffer frameBuffer(size_t i) const { return frameBuffers_[i]; }
   VkRenderPass renderPass() const { return renderPass_; }
+
+  void destroy() {
+    vkDestroySwapchainKHR(dev(), get(), nullptr);
+  }
 
 private:
   uint32_t width_;
@@ -1227,12 +1225,7 @@ private:
   bool ownsData = false;
 };
 
-// todo: make this work!
-template <> void destroy(VkDevice dev, VkCommandBuffer value) {
-  //vkFreeCommandBuffers(dev, pool_, 1, &value);
-}
-
-class cmdBuffer : public resource<VkCommandBuffer> {
+class cmdBuffer : public resource<VkCommandBuffer, cmdBuffer> {
 public:
   cmdBuffer() : resource(nullptr, nullptr) {
   }
@@ -1526,6 +1519,13 @@ public:
     pool_ = rhs.pool_;
     return *this;
   }*/
+  void destroy() {
+    if (dev() && pool_) {
+      VkCommandBuffer cb = get();
+      vkFreeCommandBuffers(dev(), pool_, 1, &cb);
+    }
+  }
+
 private:
   VkCommandPool pool_ = nullptr;
 };
@@ -1576,22 +1576,7 @@ inline void swapChain::build_images(VkCommandBuffer buf) {
 }
 
 
-template<> VkSemaphore create<VkSemaphore>(VkDevice dev) {
-	VkSemaphoreCreateInfo info = {};
-	info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-	info.flags = VK_FENCE_CREATE_SIGNALED_BIT;
-
-  VkSemaphore res = nullptr;
-	VkResult err = vkCreateSemaphore(dev, &info, nullptr, &res);
-	if (err) throw error(err);
-  return res;
-}
-
-template<> void destroy<VkSemaphore>(VkDevice dev, VkSemaphore sema) {
-  vkDestroySemaphore(dev, sema, nullptr);
-}
-
-class semaphore : public resource<VkSemaphore> {
+class semaphore : public resource<VkSemaphore, semaphore> {
 public:
   /// semaphore that does not own its pointer
   semaphore(VkSemaphore value = nullptr, VkDevice dev = nullptr) : resource(value, dev) {
@@ -1600,12 +1585,24 @@ public:
   /// semaphore that does owns (and creates) its pointer
   semaphore(VkDevice dev) : resource(dev) {
   }
+
+  VkSemaphore create(VkDevice dev) {
+	  VkSemaphoreCreateInfo info = {};
+	  info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+	  info.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+
+    VkSemaphore res = nullptr;
+	  VkResult err = vkCreateSemaphore(dev, &info, nullptr, &res);
+	  if (err) throw error(err);
+    return res;
+  }
+
+  void destroy() {
+    vkDestroySemaphore(dev(), get(), nullptr);
+  }
 };
 
-//template<> VkQueue create<VkQueue>(VkDevice dev) { return nullptr; }
-//template<> void destroy<VkQueue>(VkDevice dev, VkQueue queue_) { }
-
-class queue : public resource<VkQueue> {
+class queue : public resource<VkQueue, queue> {
 public:
   /// queue that does not own its pointer
   queue(VkQueue value = nullptr, VkDevice dev = nullptr) : resource(value, dev) {
@@ -1636,9 +1633,16 @@ public:
     if (err) throw error(err);
   }
 
+  VkQueue create(VkDevice dev) {
+    return nullptr;
+  }
+
+  void destroy() {
+  }
+
 };
 
-class image : public resource<VkImage> {
+class image : public resource<VkImage, image> {
 public:
   /// image that does not own its pointer
   image(VkImage value = nullptr, VkDevice dev = nullptr) : resource(value, dev) {
@@ -1709,9 +1713,18 @@ public:
   }
 
   void destroy() {
-	  if (view()) vkDestroyImageView(dev(), view(), nullptr);
-	  if (mem()) vkFreeMemory(dev(), mem(), nullptr);
-	  if (get()) vkDestroyImage(dev(), get(), nullptr);
+	  if (view()) {
+      //vkDestroyImageView(dev(), view(), nullptr);
+    }
+
+	  if (mem()) {
+      //vkFreeMemory(dev(), mem(), nullptr);
+    }
+
+	  if (get()) {
+      //vkDestroyImage(dev(), get(), nullptr);
+    }
+
     view_ = nullptr;
     mem_ = nullptr;
     set(nullptr, false);
@@ -1722,6 +1735,14 @@ public:
 
 	VkDeviceMemory mem_ = nullptr;
 	VkImageView view_ = nullptr;
+
+  image &operator=(image &&rhs) {
+    (resource&)(*this) = (resource&&)rhs;
+    format_ = rhs.format_;
+    mem_ = rhs.mem_;
+    view_ = rhs.view_;
+    return *this;
+  }
 public:
   VkFormat format_ = VK_FORMAT_UNDEFINED;
 };
