@@ -19,12 +19,40 @@
 #include <fstream>
 #include <iostream>
 #include <chrono>
+#include <unordered_map>
 
 // derived from https://github.com/SaschaWillems/Vulkan
 //
 // Many thanks to Sascha, without who this would be a challenge!
 
 namespace vku {
+
+template <class WindowHandle, class Window> Window *map_window(WindowHandle handle, Window *win) {
+  static std::unordered_map<WindowHandle, Window *> map;
+  auto iter = map.find(handle);
+  if (iter == map.end()) {
+    if (win != nullptr) map[handle] = win;
+    return win;
+  } else {
+    return iter->second;
+  }
+};
+
+#ifdef _WIN32
+  template <class Dummy> static LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
+  {
+    vku::window *win = map_window<HWND, window>(hWnd, nullptr);
+    printf("%04x %p %p\n", uMsg, hWnd, win);
+		if (win) win->handleMessages(hWnd, uMsg, wParam, lParam);
+	  return (DefWindowProc(hWnd, uMsg, wParam, lParam));
+  }
+#else 
+  template <class Dummy> static void handleEvent(const xcb_generic_event_t *event)
+  {
+    vku::window *win = map_window<HWND, window>(hWnd, nullptr);
+		win->handleEvent(event);
+  }
+#endif
 
 class error : public std::runtime_error {
   const char *what(VkResult err) {
@@ -615,65 +643,6 @@ public:
     return currentBuffer;
   }
 
-  #if 0
-  void setupDepthStencil()
-  {
-    depthStencil.image = vku::image(device, width, height, depthFormat, VK_IMAGE_TYPE_2D, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT);
-
-	  /*VkImageCreateInfo image = {};
-	  image.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-	  image.pNext = NULL;
-	  image.imageType = VK_IMAGE_TYPE_2D;
-	  image.format = depthFormat;
-	  image.extent = { width, height, 1 };
-	  image.mipLevels = 1;
-	  image.arrayLayers = 1;
-	  image.samples = VK_SAMPLE_COUNT_1_BIT;
-	  image.tiling = VK_IMAGE_TILING_OPTIMAL;
-	  image.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
-	  image.flags = 0;*/
-
-	  VkMemoryAllocateInfo mem_alloc = {};
-	  mem_alloc.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-	  mem_alloc.pNext = NULL;
-	  mem_alloc.allocationSize = 0;
-	  mem_alloc.memoryTypeIndex = 0;
-
-	  VkImageViewCreateInfo depthStencilView = {};
-	  depthStencilView.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-	  depthStencilView.pNext = NULL;
-	  depthStencilView.viewType = VK_IMAGE_VIEW_TYPE_2D;
-	  depthStencilView.format = depthFormat;
-	  depthStencilView.flags = 0;
-	  depthStencilView.subresourceRange = {};
-	  depthStencilView.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
-	  depthStencilView.subresourceRange.baseMipLevel = 0;
-	  depthStencilView.subresourceRange.levelCount = 1;
-	  depthStencilView.subresourceRange.baseArrayLayer = 0;
-	  depthStencilView.subresourceRange.layerCount = 1;
-
-	  VkMemoryRequirements memReqs;
-	  VkResult err;
-
-	  //err = vkCreateImage(device, &image, nullptr, &depthStencil.image);
-	  //assert(!err);
-
-	  vkGetImageMemoryRequirements(device, depthStencil.image, &memReqs);
-	  mem_alloc.allocationSize = memReqs.size;
-	  getMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &mem_alloc.memoryTypeIndex);
-	  err = vkAllocateMemory(device, &mem_alloc, nullptr, &depthStencil.mem);
-	  assert(!err);
-
-	  err = vkBindImageMemory(device, depthStencil.image, depthStencil.mem, 0);
-	  assert(!err);
-	  vkTools::setImageLayout(setupCmdBuffer, depthStencil.image, VK_IMAGE_ASPECT_DEPTH_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
-
-	  depthStencilView.image = depthStencil.image;
-	  err = vkCreateImageView(device, &depthStencilView, nullptr, &depthStencil.view);
-	  assert(!err);
-  }
-  #endif
-
 
   void setupFrameBuffer(VkImageView depthStencilView, VkFormat depthFormat) {
 	  VkImageView attachments[2];
@@ -734,11 +703,6 @@ private:
 class buffer {
 public:
   buffer(VkDevice dev = nullptr, VkBuffer buf = nullptr) : buf_(buf), dev(dev) {
-  }
-
-  buffer(VkDevice dev, VkBufferCreateInfo *bufInfo) : dev(dev), size_(bufInfo->size) {
-		vkCreateBuffer(dev, bufInfo, nullptr, &buf_);
-    ownsBuffer = true;
   }
 
   buffer(device dev, void *init, VkDeviceSize size, VkBufferUsageFlags usage) : dev(dev), size_(size) {
@@ -1878,6 +1842,9 @@ public:
 	  // Find a suitable depth format
 	  depthFormat = dev.getSupportedDepthFormat();
 	  assert(depthFormat != VK_FORMAT_UNDEFINED);
+
+    setupWindow();
+	  prepareWindow();
   }
 
   ~window() {
@@ -1907,9 +1874,9 @@ public:
   }
 
   #ifdef _WIN32 
-    HWND setupWindow(HINSTANCE hinstance, WNDPROC wndproc)
+    HWND setupWindow()
     {
-	    this->windowInstance = hinstance;
+	    this->windowInstance = GetModuleHandle(NULL);
 
 	    bool fullscreen = false;
 
@@ -1926,10 +1893,10 @@ public:
 
 	    wndClass.cbSize = sizeof(WNDCLASSEX);
 	    wndClass.style = CS_HREDRAW | CS_VREDRAW;
-	    wndClass.lpfnWndProc = wndproc;
+	    wndClass.lpfnWndProc = WndProc<int>;
 	    wndClass.cbClsExtra = 0;
 	    wndClass.cbWndExtra = 0;
-	    wndClass.hInstance = hinstance;
+	    wndClass.hInstance = this->windowInstance;
 	    wndClass.hIcon = LoadIcon(NULL, IDI_APPLICATION);
 	    wndClass.hCursor = LoadCursor(NULL, IDC_ARROW);
 	    wndClass.hbrBackground = (HBRUSH)GetStockObject(WHITE_BRUSH);
@@ -1937,12 +1904,7 @@ public:
 	    wndClass.lpszClassName = name.c_str();
 	    wndClass.hIconSm = LoadIcon(NULL, IDI_WINLOGO);
 
-	    if (!RegisterClassEx(&wndClass))
-	    {
-		    std::cout << "Could not register window class!\n";
-		    fflush(stdout);
-		    exit(1);
-	    }
+	    RegisterClassEx(&wndClass);
 
 	    int screenWidth = GetSystemMetrics(SM_CXSCREEN);
 	    int screenHeight = GetSystemMetrics(SM_CYSCREEN);
@@ -2017,7 +1979,7 @@ public:
 		    windowRect.bottom,
 		    NULL,
 		    NULL,
-		    hinstance,
+		    this->windowInstance,
 		    NULL);
 
 	    if (!window_) 
@@ -2027,6 +1989,8 @@ public:
 		    return 0;
 		    exit(1);
 	    }
+
+      map_window(window_, this);
 
 	    ShowWindow(window_, SW_SHOW);
 	    SetForegroundWindow(window_);
@@ -2042,10 +2006,13 @@ public:
 	    case WM_CLOSE:
 		    prepared = false;
 		    DestroyWindow(hWnd);
-		    PostQuitMessage(0);
+        map_window(hWnd, (window*)nullptr);
+		    //PostQuitMessage(0);
 		    break;
 	    case WM_PAINT:
 		    ValidateRect(window_, NULL);
+        // todo: use WM_TIMER!
+		    render();
 		    break;
 	    case WM_KEYDOWN:
 		    switch (wParam)
@@ -2220,7 +2187,7 @@ public:
   }
 
 
-  void prepare() {
+  void prepareWindow() {
     VkSurfaceKHR surface = instance.createSurface((void*)windowInstance, (void*)window_);
     uint32_t queueNodeIndex = device.getGraphicsQueueNodeIndex(surface);
     if (queueNodeIndex == ~(uint32_t)0) throw(std::runtime_error("no graphics and present queue available"));
@@ -2273,36 +2240,22 @@ public:
 	  //textureLoader = new vkTools::VulkanTextureLoader(instance.physicalDevice(), device, queue, cmdPool);
   }
 
-  void renderLoop() {
+
+
+  static bool poll() {
   #ifdef _WIN32
 	  MSG msg;
-	  while (TRUE)
-	  {
-		  auto tStart = std::chrono::high_resolution_clock::now();
-		  PeekMessage(&msg, NULL, 0, 0, PM_REMOVE);
-		  if (msg.message == WM_QUIT)
-		  {
-			  break;
-		  }
-		  else
-		  {
-			  TranslateMessage(&msg);
-			  DispatchMessage(&msg);
-		  }
-		  render();
-		  auto tEnd = std::chrono::high_resolution_clock::now();
-		  auto tDiff = std::chrono::duration<double, std::milli>(tEnd - tStart).count();
-		  frameTimer = (float)tDiff / 1000.0f;
-		  // Convert to clamped timer value
-		  if (!paused)
-		  {
-			  timer += timerSpeed * frameTimer;
-			  if (timer > 1.0)
-			  {
-				  timer -= 1.0f;
-			  }
-		  }
-	  }
+		PeekMessage(&msg, NULL, 0, 0, PM_REMOVE);
+		if (msg.message == WM_QUIT)
+		{
+			return false;
+		}
+		else
+		{
+			TranslateMessage(&msg);
+			DispatchMessage(&msg);
+		}
+    return true;
   #else
 	  xcb_flush(connection);
 	  while (!quit)

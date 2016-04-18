@@ -16,7 +16,7 @@
 inline float deg_to_rad(float deg) { return deg * (3.1415927f / 180); }
 
 
-class VulkanExample : public vku::window
+class triangle_example : public vku::window
 {
 public:
 	struct {
@@ -33,57 +33,12 @@ public:
   vku::pipeline pipe;
   size_t num_indices;
 
-	VulkanExample() : vku::window(false)
-	{
+	triangle_example() : vku::window(false) {
 		width = 1280;
 		height = 720;
 		zoom = -2.5f;
 		title = "Vulkan Example - Basic indexed triangle";
 		// Values not set here are initialized in the base class constructor
-	}
-
-	void draw()
-	{
-    vku::semaphore sema(device);
-
-		// Get next image in the swap chain (back/front buffer)
-    currentBuffer = swapChain.acquireNextImage(sema);
-
-    queue.submit(sema, drawCmdBuffers[currentBuffer]);
-
-		// Present the current buffer to the swap chain
-		// This will display the image
-    swapChain.present(queue, currentBuffer);
-
-    postPresentCmdBuffer.beginCommandBuffer();
-    postPresentCmdBuffer.pipelineBarrier(swapChain.image(currentBuffer));
-    postPresentCmdBuffer.endCommandBuffer();
-
-    queue.submit(nullptr, postPresentCmdBuffer);
-
-    queue.waitIdle();
-	}
-
-	void updateUniformBuffers()
-	{
-		// Update matrices
-		uniform_data.projectionMatrix = glm::perspective(deg_to_rad(60.0f), (float)width / (float)height, 0.1f, 256.0f);
-
-		uniform_data.viewMatrix = glm::translate(glm::mat4(), glm::vec3(0.0f, 0.0f, zoom));
-
-		uniform_data.modelMatrix = glm::mat4();
-		uniform_data.modelMatrix = glm::rotate(uniform_data.modelMatrix, deg_to_rad(rotation.x), glm::vec3(1.0f, 0.0f, 0.0f));
-		uniform_data.modelMatrix = glm::rotate(uniform_data.modelMatrix, deg_to_rad(rotation.y), glm::vec3(0.0f, 1.0f, 0.0f));
-		uniform_data.modelMatrix = glm::rotate(uniform_data.modelMatrix, deg_to_rad(rotation.z), glm::vec3(0.0f, 0.0f, 1.0f));
-
-		void *dest = uniform_buffer.map();
- 		memcpy(dest, &uniform_data, sizeof(uniform_data));
-    uniform_buffer.unmap();
-	}
-
-	void prepare()
-	{
-		window::prepare();
 
     // Vertices
 		struct Vertex { float pos[3]; float col[3]; };
@@ -128,15 +83,49 @@ public:
 
       cmdbuf.end(swapChain.image(i));
 		}
-
-		prepared = true;
 	}
 
-	virtual void render()
+	void draw()
 	{
-		if (!prepared)
-			return;
+    vku::semaphore sema(device);
 
+		// Get next image in the swap chain (back/front buffer)
+    currentBuffer = swapChain.acquireNextImage(sema);
+
+    queue.submit(sema, drawCmdBuffers[currentBuffer]);
+
+		// Present the current buffer to the swap chain
+		// This will display the image
+    swapChain.present(queue, currentBuffer);
+
+    postPresentCmdBuffer.beginCommandBuffer();
+    postPresentCmdBuffer.pipelineBarrier(swapChain.image(currentBuffer));
+    postPresentCmdBuffer.endCommandBuffer();
+
+    queue.submit(nullptr, postPresentCmdBuffer);
+
+    queue.waitIdle();
+	}
+
+	void updateUniformBuffers()
+	{
+		// Update matrices
+		uniform_data.projectionMatrix = glm::perspective(deg_to_rad(60.0f), (float)width / (float)height, 0.1f, 256.0f);
+
+		uniform_data.viewMatrix = glm::translate(glm::mat4(), glm::vec3(0.0f, 0.0f, zoom));
+
+		uniform_data.modelMatrix = glm::mat4();
+		uniform_data.modelMatrix = glm::rotate(uniform_data.modelMatrix, deg_to_rad(rotation.x), glm::vec3(1.0f, 0.0f, 0.0f));
+		uniform_data.modelMatrix = glm::rotate(uniform_data.modelMatrix, deg_to_rad(rotation.y), glm::vec3(0.0f, 1.0f, 0.0f));
+		uniform_data.modelMatrix = glm::rotate(uniform_data.modelMatrix, deg_to_rad(rotation.z), glm::vec3(0.0f, 0.0f, 1.0f));
+
+		void *dest = uniform_buffer.map();
+ 		memcpy(dest, &uniform_data, sizeof(uniform_data));
+    uniform_buffer.unmap();
+	}
+
+	void render() override
+	{
 		device.waitIdle();
 
 		draw();
@@ -144,7 +133,7 @@ public:
 		device.waitIdle();
 	}
 
-	virtual void viewChanged()
+	void viewChanged() override
 	{
 		// This function is called by the base example class 
 		// each time the view is changed by user input
@@ -152,44 +141,14 @@ public:
 	}
 };
 
-VulkanExample *vulkanExample;
 
-#ifdef _WIN32
 
-LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
-{
-	if (vulkanExample != NULL)
-	{
-		vulkanExample->handleMessages(hWnd, uMsg, wParam, lParam);
-	}
-	return (DefWindowProc(hWnd, uMsg, wParam, lParam));
-}
+int main(const int argc, const char *argv[]) {
+  triangle_example my_example;
+  triangle_example my_example2;
 
-#else 
+	while (vku::window::poll()) {
+  }
 
-static void handleEvent(const xcb_generic_event_t *event)
-{
-	if (vulkanExample != NULL)
-	{
-		vulkanExample->handleEvent(event);
-	}
-}
-#endif
-
-#ifdef _WIN32
-int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR pCmdLine, int nCmdShow)
-#else
-int main(const int argc, const char *argv[])
-#endif
-{
-	vulkanExample = new VulkanExample();
-#ifdef _WIN32
-	vulkanExample->setupWindow(hInstance, WndProc);
-#else
-	vulkanExample->setupWindow();
-#endif
-	vulkanExample->prepare();
-	vulkanExample->renderLoop();
-	delete(vulkanExample);
 	return 0;
 }
