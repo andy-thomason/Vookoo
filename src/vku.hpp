@@ -805,52 +805,6 @@ private:
   bool ownsBuffer = false;
 };
 
-class vertexInputState {
-public:
-  vertexInputState() {
-  }
-
-  vertexInputState &operator=(vertexInputState && rhs) {
-    vi = rhs.vi;
-    bindingDescriptions = std::move(rhs.bindingDescriptions);
-    attributeDescriptions = std::move(rhs.attributeDescriptions);
-  }
-
-  vertexInputState &attrib(uint32_t location, uint32_t binding, VkFormat format, uint32_t offset) {
-    VkVertexInputAttributeDescription desc = {};
-    desc.location = location;
-    desc.binding = binding;
-    desc.format = format;
-    desc.offset = offset;
-    attributeDescriptions.push_back(desc);
-    return *this;
-  }
-
-  vertexInputState &binding(uint32_t binding, uint32_t stride, VkVertexInputRate inputRate = VK_VERTEX_INPUT_RATE_VERTEX) {
-    VkVertexInputBindingDescription desc = {};
-    desc.binding = binding;
-    desc.stride = stride;
-    desc.inputRate = inputRate;
-    bindingDescriptions.push_back(desc);
-    return *this;
-  }
-
-  VkPipelineVertexInputStateCreateInfo *get() {
-    vi.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-    vi.pNext = nullptr;
-    vi.vertexBindingDescriptionCount = (uint32_t)bindingDescriptions.size();
-    vi.pVertexBindingDescriptions = bindingDescriptions.data();
-    vi.vertexAttributeDescriptionCount = (uint32_t)attributeDescriptions.size();
-    vi.pVertexAttributeDescriptions = attributeDescriptions.data();
-    return &vi;
-  }
-
-private:
-  VkPipelineVertexInputStateCreateInfo vi;
-  std::vector<VkVertexInputBindingDescription> bindingDescriptions;
-  std::vector<VkVertexInputAttributeDescription> attributeDescriptions;
-};
-
 class descriptorPool {
 public:
   descriptorPool() {
@@ -965,32 +919,82 @@ public:
   }
 };
 
+class pipelineCreateHelper {
+public:
+  pipelineCreateHelper() {
+  }
+
+  pipelineCreateHelper &operator=(pipelineCreateHelper && rhs) {
+    vi = rhs.vi;
+    bindingDescriptions = std::move(rhs.bindingDescriptions);
+    attributeDescriptions = std::move(rhs.attributeDescriptions);
+  }
+
+  pipelineCreateHelper &attrib(uint32_t location, uint32_t binding, VkFormat format, uint32_t offset) {
+    VkVertexInputAttributeDescription desc = {};
+    desc.location = location;
+    desc.binding = binding;
+    desc.format = format;
+    desc.offset = offset;
+    attributeDescriptions.push_back(desc);
+    return *this;
+  }
+
+  pipelineCreateHelper &binding(uint32_t binding, uint32_t stride, VkVertexInputRate inputRate = VK_VERTEX_INPUT_RATE_VERTEX) {
+    VkVertexInputBindingDescription desc = {};
+    desc.binding = binding;
+    desc.stride = stride;
+    desc.inputRate = inputRate;
+    bindingDescriptions.push_back(desc);
+    return *this;
+  }
+
+  pipelineCreateHelper &uniformBuffers(uint32_t count, VkShaderStageFlags stageFlags) {
+    VkDescriptorSetLayoutBinding layoutBinding = {};
+    layoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    layoutBinding.descriptorCount = count;
+    layoutBinding.stageFlags = stageFlags;
+    layoutBindings_.push_back(layoutBinding);
+    return *this;
+  }
+
+  VkDescriptorSetLayoutCreateInfo *getDescriptorSetLayout() {
+    descriptorLayout_.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    descriptorLayout_.bindingCount = (uint32_t)layoutBindings_.size();
+    descriptorLayout_.pBindings = layoutBindings_.data();
+    return &descriptorLayout_;
+  }
+
+  VkPipelineVertexInputStateCreateInfo *getPipelineVertexInputState() {
+    vi.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+    vi.pNext = nullptr;
+    vi.vertexBindingDescriptionCount = (uint32_t)bindingDescriptions.size();
+    vi.pVertexBindingDescriptions = bindingDescriptions.data();
+    vi.vertexAttributeDescriptionCount = (uint32_t)attributeDescriptions.size();
+    vi.pVertexAttributeDescriptions = attributeDescriptions.data();
+    return &vi;
+  }
+
+private:
+  VkPipelineVertexInputStateCreateInfo vi = {};
+  VkDescriptorSetLayoutCreateInfo descriptorLayout_ = {};
+  std::vector<VkVertexInputBindingDescription> bindingDescriptions;
+  std::vector<VkVertexInputAttributeDescription> attributeDescriptions;
+  std::vector<VkDescriptorSetLayoutBinding> layoutBindings_;
+};
+
 class pipeline {
 public:
   pipeline() {
   }
 
-  pipeline(const vku::device &device, VkRenderPass renderPass, VkPipelineVertexInputStateCreateInfo *vertexInputState, const vku::pipelineCache &pipelineCache) : dev_(device) {
-    // Setup layout of descriptors used in this example
-    // Basically connects the different shader stages to descriptors
-    // for binding uniform buffers, image samplers, etc.
-    // So every shader binding should map to one descriptor set layout
-    // binding
-
-    // Binding 0 : Uniform buffer (Vertex shader)
-    VkDescriptorSetLayoutBinding layoutBinding = {};
-    layoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    layoutBinding.descriptorCount = 1;
-    layoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-    layoutBinding.pImmutableSamplers = NULL;
-
-    VkDescriptorSetLayoutCreateInfo descriptorLayout = {};
-    descriptorLayout.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-    descriptorLayout.pNext = NULL;
-    descriptorLayout.bindingCount = 1;
-    descriptorLayout.pBindings = &layoutBinding;
-
-    VkResult err = vkCreateDescriptorSetLayout(device, &descriptorLayout, NULL, &descriptorSetLayout);
+  pipeline(
+    const vku::device &device,
+    VkRenderPass renderPass,
+    const vku::pipelineCache &pipelineCache,
+    pipelineCreateHelper &pipelineCreateHelper
+  ) : dev_(device) {
+    VkResult err = vkCreateDescriptorSetLayout(device, pipelineCreateHelper.getDescriptorSetLayout(), NULL, &descriptorSetLayout);
     if (err) throw error(err, __FILE__, __LINE__);
 
     // Create the pipeline layout that is used to generate the rendering pipelines that
@@ -1105,7 +1109,7 @@ public:
     // Two shader stages
     pipelineCreateInfo.stageCount = 2;
     // Assign pipeline state create information
-    pipelineCreateInfo.pVertexInputState = vertexInputState;
+    pipelineCreateInfo.pVertexInputState = pipelineCreateHelper.getPipelineVertexInputState();
     pipelineCreateInfo.pInputAssemblyState = &inputAssemblyState;
     pipelineCreateInfo.pRasterizationState = &rasterizationState;
     pipelineCreateInfo.pColorBlendState = &colorBlendState;
@@ -1385,97 +1389,6 @@ public:
     vkCmdEndRenderPass(get());
   }
 
-  /// change the layout of 
-  void addPrePresentationBarrier(VkImage image) const {
-    // Add a present memory barrier to the end of the command buffer
-    // This will transform the frame buffer color attachment to a
-    // new layout for presenting it to the windowing system integration 
-    VkImageMemoryBarrier prePresentBarrier = {};
-    prePresentBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-    prePresentBarrier.pNext = NULL;
-    prePresentBarrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-    prePresentBarrier.dstAccessMask = 0;
-    prePresentBarrier.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-    prePresentBarrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-    prePresentBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    prePresentBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    prePresentBarrier.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };      
-    prePresentBarrier.image = image;
-
-    VkImageMemoryBarrier *pMemoryBarrier = &prePresentBarrier;
-    vkCmdPipelineBarrier(
-      get(), 
-      VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 
-      VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 
-      0,
-      0, nullptr,
-      0, nullptr,
-      1, &prePresentBarrier);
-  }
-
-  
-  /*void addPostPresentationBarrier(VkImage image) const {
-    VkImageMemoryBarrier postPresentBarrier = {};
-    postPresentBarrier.srcAccessMask = 0;
-    postPresentBarrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-    postPresentBarrier.oldLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-    postPresentBarrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-    postPresentBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    postPresentBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    postPresentBarrier.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
-    postPresentBarrier.image = image;
-
-    vkCmdPipelineBarrier(
-      get(),
-      VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
-      VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-      0,
-      0, NULL, // No memory barriers,
-      0, NULL, // No buffer barriers,
-      1, &postPresentBarrier
-    );
-  }*/
-
-
-  void endCommandBuffer() const {
-    vkEndCommandBuffer(get());
-  }
-
-  void pipelineBarrier(VkImage image) const {
-    // Add a post present image memory barrier
-    // This will transform the frame buffer color attachment back
-    // to it's initial layout after it has been presented to the
-    // windowing system
-    // See buildCommandBuffers for the pre present barrier that 
-    // does the opposite transformation 
-    VkImageMemoryBarrier postPresentBarrier = {};
-    postPresentBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-    postPresentBarrier.pNext = NULL;
-    postPresentBarrier.srcAccessMask = 0;
-    postPresentBarrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-    postPresentBarrier.oldLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-    postPresentBarrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-    postPresentBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    postPresentBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    postPresentBarrier.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
-    postPresentBarrier.image = image;
-
-    // Use dedicated command buffer from example base class for submitting the post present barrier
-    VkCommandBufferBeginInfo cmdBufInfo = {};
-    cmdBufInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-
-    // Put post present barrier into command buffer
-    vkCmdPipelineBarrier(
-      get(),
-      VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
-      VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-      0,
-      0, nullptr,
-      0, nullptr,
-      1, &postPresentBarrier
-    );
-  }
-
   // Create an image memory barrier for changing the layout of
   // an image and put it into an active command buffer
   // See chapter 11.4 "Image Layout" for details
@@ -1495,91 +1408,111 @@ public:
     imageMemoryBarrier.subresourceRange.levelCount = 1;
     imageMemoryBarrier.subresourceRange.layerCount = 1;
 
-    // Source layouts (old)
-
-    // Undefined layout
-    // Only allowed as initial layout!
-    // Make sure any writes to the image have been finished
-    if (oldImageLayout == VK_IMAGE_LAYOUT_UNDEFINED)
-    {
-      imageMemoryBarrier.srcAccessMask = VK_ACCESS_HOST_WRITE_BIT | VK_ACCESS_TRANSFER_WRITE_BIT;
-    }
-
-    // Old layout is color attachment
-    // Make sure any writes to the color buffer have been finished
-    if (oldImageLayout == VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL) 
-    {
-      imageMemoryBarrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-    }
-
-    // Old layout is transfer source
-    // Make sure any reads from the image have been finished
-    if (oldImageLayout == VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL)
-    {
-      imageMemoryBarrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
-    }
-
-    // Old layout is shader read (sampler, input attachment)
-    // Make sure any shader reads from the image have been finished
-    if (oldImageLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
-    {
-      imageMemoryBarrier.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
-    }
-
-    // Target layouts (new)
-
-    // New layout is transfer destination (copy, blit)
-    // Make sure any copyies to the image have been finished
-    if (newImageLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL)
-    {
-      imageMemoryBarrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-    }
-
-    // New layout is transfer source (copy, blit)
-    // Make sure any reads from and writes to the image have been finished
-    if (newImageLayout == VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL)
-    {
-      imageMemoryBarrier.srcAccessMask = imageMemoryBarrier.srcAccessMask | VK_ACCESS_TRANSFER_READ_BIT;
-      imageMemoryBarrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
-    }
-
-    // New layout is color attachment
-    // Make sure any writes to the color buffer hav been finished
-    if (newImageLayout == VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL)
-    {
-      imageMemoryBarrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-      imageMemoryBarrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
-    }
-
-    // New layout is depth attachment
-    // Make sure any writes to depth/stencil buffer have been finished
-    if (newImageLayout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL) 
-    {
-      imageMemoryBarrier.dstAccessMask = imageMemoryBarrier.dstAccessMask | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-    }
-
-    // New layout is shader read (sampler, input attachment)
-    // Make sure any writes to the image have been finished
-    if (newImageLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
-    {
-      imageMemoryBarrier.srcAccessMask = VK_ACCESS_HOST_WRITE_BIT | VK_ACCESS_TRANSFER_WRITE_BIT;
-      imageMemoryBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-    }
-
-
     // Put barrier on top
     VkPipelineStageFlags srcStageFlags = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
     VkPipelineStageFlags destStageFlags = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
 
+    switch (oldImageLayout) {
+      case VK_IMAGE_LAYOUT_UNDEFINED: {
+        // Undefined layout
+        // Only allowed as initial layout!
+        // Make sure any writes to the image have been finished
+        imageMemoryBarrier.srcAccessMask = VK_ACCESS_HOST_WRITE_BIT | VK_ACCESS_TRANSFER_WRITE_BIT;
+      } break;
+      case VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL: {
+        // Old layout is color attachment
+        // Make sure any writes to the color buffer have been finished
+        imageMemoryBarrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+      } break;
+      case VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL: {
+        // Old layout is transfer source
+        // Make sure any reads from the image have been finished
+        imageMemoryBarrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+      } break;
+      case VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL: {
+        // Old layout is shader read (sampler, input attachment)
+        // Make sure any shader reads from the image have been finished
+        imageMemoryBarrier.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+      } break;
+      case VK_IMAGE_LAYOUT_PRESENT_SRC_KHR: {
+        // change the layout back from the surface format to the rendering format.
+        srcStageFlags = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
+      } break;
+      default: {
+        throw(std::runtime_error("setImageLayout: unsupported source layout"));
+      }
+    }
+
+    // Target layouts (new)
+    switch (newImageLayout) {
+      // New layout is transfer destination (copy, blit)
+      // Make sure any copyies to the image have been finished
+      case VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL: {
+        imageMemoryBarrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+      } break;
+
+      // New layout is transfer source (copy, blit)
+      // Make sure any reads from and writes to the image have been finished
+      case VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL: {
+        imageMemoryBarrier.srcAccessMask = imageMemoryBarrier.srcAccessMask | VK_ACCESS_TRANSFER_READ_BIT;
+        imageMemoryBarrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+      } break;
+
+      // New layout is color attachment
+      // Make sure any writes to the color buffer hav been finished
+      case VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL: {
+        imageMemoryBarrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+        imageMemoryBarrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+      } break;
+
+      // New layout is depth attachment
+      // Make sure any writes to depth/stencil buffer have been finished
+      case VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL: {
+        imageMemoryBarrier.dstAccessMask = imageMemoryBarrier.dstAccessMask | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+      } break;
+
+      // New layout is shader read (sampler, input attachment)
+      // Make sure any writes to the image have been finished
+      case VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL: {
+        imageMemoryBarrier.srcAccessMask = VK_ACCESS_HOST_WRITE_BIT | VK_ACCESS_TRANSFER_WRITE_BIT;
+        imageMemoryBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+      } break;
+
+      // special case for converting to surface presentation
+      case VK_IMAGE_LAYOUT_PRESENT_SRC_KHR: {
+        // wait for all stages to finish
+        imageMemoryBarrier.dstAccessMask = 0;
+        srcStageFlags = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
+      } break;
+
+      default: {
+        throw(std::runtime_error("setImageLayout: unsupported destination layout"));
+      }
+    }
+
     // Put barrier inside setup command buffer
-    vkCmdPipelineBarrier(
-      get(), 
-      srcStageFlags, 
-      destStageFlags, 
-      0, 
-      0, nullptr,
-      0, nullptr,
-      1, &imageMemoryBarrier);
+    vkCmdPipelineBarrier(get(), srcStageFlags, destStageFlags, 0, 0, nullptr, 0, nullptr, 1, &imageMemoryBarrier);
+  }
+
+  /// change the layout of an image
+  void addPrePresentationBarrier(VkImage image) const {
+    setImageLayout(image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+    return;
+  }
+
+  void endCommandBuffer() const {
+    vkEndCommandBuffer(get());
+  }
+
+  void addPostPresentBariier(VkImage image) const {
+    // Add a post present image memory barrier
+    // This will transform the frame buffer color attachment back
+    // to it's initial layout after it has been presented to the
+    // windowing system
+    // See buildCommandBuffers for the pre present barrier that 
+    // does the opposite transformation 
+    setImageLayout(image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+    return;
   }
 
   cmdBuffer &operator=(cmdBuffer &&rhs) {
@@ -1636,11 +1569,11 @@ inline void swapChain::build_images(VkCommandBuffer buf) {
     colorAttachmentView.viewType = VK_IMAGE_VIEW_TYPE_2D;
     colorAttachmentView.flags = 0;
 
-
     cb.setImageLayout(
       image(i), 
       VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, 
-      VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+      VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
+    );
 
     colorAttachmentView.image = image(i);
 
@@ -2300,7 +2233,7 @@ public:
     swapChain_.present(queue_, currentBuffer());
 
     postPresentCmdBuffer_.beginCommandBuffer();
-    postPresentCmdBuffer_.pipelineBarrier(swapChain_.image(currentBuffer()));
+    postPresentCmdBuffer_.addPostPresentBariier(swapChain_.image(currentBuffer()));
     postPresentCmdBuffer_.endCommandBuffer();
 
     queue_.submit(nullptr, postPresentCmdBuffer_);

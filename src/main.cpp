@@ -28,7 +28,6 @@ public:
   vku::buffer vertex_buffer;
   vku::buffer index_buffer;
   vku::buffer uniform_buffer;
-  vku::vertexInputState vertexInputState;
   vku::descriptorPool descPool;
   vku::pipeline pipe;
   size_t num_indices;
@@ -52,15 +51,19 @@ public:
     num_indices = 3;
 
     // Binding state
-    vertexInputState.binding(VERTEX_BUFFER_BIND_ID, sizeof(Vertex), VK_VERTEX_INPUT_RATE_VERTEX);
-    vertexInputState.attrib(0, VERTEX_BUFFER_BIND_ID, VK_FORMAT_R32G32B32_SFLOAT, 0);
-    vertexInputState.attrib(1, VERTEX_BUFFER_BIND_ID, VK_FORMAT_R32G32B32_SFLOAT, sizeof(float) * 3);
+    vku::pipelineCreateHelper pipeHelper;
+    pipeHelper.binding(VERTEX_BUFFER_BIND_ID, sizeof(Vertex), VK_VERTEX_INPUT_RATE_VERTEX);
+    pipeHelper.attrib(0, VERTEX_BUFFER_BIND_ID, VK_FORMAT_R32G32B32_SFLOAT, 0);
+    pipeHelper.attrib(1, VERTEX_BUFFER_BIND_ID, VK_FORMAT_R32G32B32_SFLOAT, sizeof(float) * 3);
 
     uniform_buffer = vku::buffer(device(), (void*)nullptr, sizeof(uniform_data), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
     
     updateUniformBuffers();
 
-    pipe = vku::pipeline(device(), swapChain().renderPass(), vertexInputState.get(), pipelineCache());
+    pipeHelper.uniformBuffers(1, VK_SHADER_STAGE_VERTEX_BIT);
+
+
+    pipe = vku::pipeline(device(), swapChain().renderPass(), pipelineCache(), pipeHelper);
 
     descPool = vku::descriptorPool(device());
 
@@ -121,7 +124,6 @@ public:
 
 int main(const int argc, const char *argv[]) {
   try {
-    throw(vku::error(VK_ERROR_OUT_OF_DATE_KHR, __FILE__, __LINE__));
     triangle_example my_example;
 
     while (vku::window::poll()) {
