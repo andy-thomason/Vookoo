@@ -30,6 +30,8 @@ public:
   vku::buffer uniform_buffer;
   vku::descriptorPool descPool;
   vku::pipeline pipe;
+  vku::shaderModule vertexShader;
+  vku::shaderModule fragmentShader;
   size_t num_indices;
 
   triangle_example() : vku::window(false, 1280, 720, -2.5f, "triangle") {
@@ -60,8 +62,13 @@ public:
     
     updateUniformBuffers();
 
+    vertexShader = vku::shaderModule(device(), "data/shaders/triangle.vert", VK_SHADER_STAGE_VERTEX_BIT);
+    fragmentShader = vku::shaderModule(device(), "data/shaders/triangle.frag", VK_SHADER_STAGE_FRAGMENT_BIT);
+
     pipeHelper.uniformBuffers(1, VK_SHADER_STAGE_VERTEX_BIT);
 
+    pipeHelper.shader(vertexShader, VK_SHADER_STAGE_VERTEX_BIT, "main");
+    pipeHelper.shader(fragmentShader, VK_SHADER_STAGE_FRAGMENT_BIT, "main");
 
     pipe = vku::pipeline(device(), swapChain().renderPass(), pipelineCache(), pipeHelper);
 

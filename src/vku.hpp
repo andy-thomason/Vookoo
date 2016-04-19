@@ -272,6 +272,7 @@ public:
   void waitIdle() const {
     vkDeviceWaitIdle(dev);
   }
+
 public:
   VkDevice dev;
   VkPhysicalDevice physicalDevice_;
@@ -890,6 +891,61 @@ private:
 };
 
 
+class shaderModule : public resource<VkShaderModule, shaderModule> {
+public:
+  shaderModule() : resource(nullptr, nullptr) {
+  }
+
+  /// descriptor pool that does not own its pointer
+  shaderModule(VkShaderModule value, VkDevice dev) : resource(value, dev) {
+  }
+
+  shaderModule(VkDevice dev, const std::string &filename, VkShaderStageFlagBits stage) : resource(dev) {
+    std::ifstream input(filename, std::ios::binary);
+    auto &b = std::istreambuf_iterator<char>(input);
+    auto &e = std::istreambuf_iterator<char>();
+    std::vector<uint8_t> buf(b, e);
+    create(buf.data(), buf.data() + buf.size(), stage);
+  }
+
+  shaderModule(VkDevice dev, const uint8_t *b, const uint8_t *e, VkShaderStageFlagBits stage) : resource(dev) {
+    create(b, e, stage);
+  }
+
+  /// descriptor pool that owns (and creates) its pointer
+  void create(const uint8_t *b, const uint8_t *e, VkShaderStageFlagBits stage) {
+    std::vector<uint8_t> buf;
+    if (*b != 0x03) {
+      buf.resize(12);
+      ((uint32_t *)buf.data())[0] = 0x07230203; 
+      ((uint32_t *)buf.data())[1] = 0;
+      ((uint32_t *)buf.data())[2] = stage;
+    }
+    while (b != e) buf.push_back(*b++);
+    buf.push_back(0);
+
+    VkShaderModuleCreateInfo moduleCreateInfo = {};
+    moduleCreateInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+    moduleCreateInfo.codeSize = buf.size();
+    moduleCreateInfo.pCode = (uint32_t*)buf.data();
+    moduleCreateInfo.flags = 0;
+
+    VkShaderModule shaderModule;
+    VkResult err = vkCreateShaderModule(dev(), &moduleCreateInfo, NULL, &shaderModule);
+    if (err) throw error(err, __FILE__, __LINE__);
+    set(shaderModule, true);
+  }
+
+  void destroy() {
+    if (get()) vkDestroyShaderModule(dev(), get(), nullptr);
+  }
+
+  shaderModule &operator=(shaderModule &&rhs) {
+    (resource&)(*this) = (resource&&)rhs;
+    return *this;
+  }
+};
+
 class pipelineCache : public resource<VkPipelineCache, pipelineCache> {
 public:
   pipelineCache() : resource(nullptr, nullptr) {
@@ -958,6 +1014,18 @@ public:
     return *this;
   }
 
+  pipelineCreateHelper &shader(const vku::shaderModule &module, VkShaderStageFlagBits stage, const std::string &entrypoint) {
+    VkPipelineShaderStageCreateInfo shaderStage = {};
+    shaderStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    shaderStage.stage = stage;
+    shaderStage.module = module.get();
+    shaderStage.pName = "main"; // todo : make param
+    shaderStages_.push_back(shaderStage);
+    return *this;
+  }
+
+
+  // querying functions
   VkDescriptorSetLayoutCreateInfo *getDescriptorSetLayout() {
     descriptorLayout_.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
     descriptorLayout_.bindingCount = (uint32_t)layoutBindings_.size();
@@ -975,12 +1043,21 @@ public:
     return &vi;
   }
 
+  VkPipelineShaderStageCreateInfo *getShaderStages() const {
+    return (VkPipelineShaderStageCreateInfo *)shaderStages_.data();
+  }
+
+  size_t getNumShaderStages() const {
+    return shaderStages_.size();
+  }
+
 private:
   VkPipelineVertexInputStateCreateInfo vi = {};
   VkDescriptorSetLayoutCreateInfo descriptorLayout_ = {};
   std::vector<VkVertexInputBindingDescription> bindingDescriptions;
   std::vector<VkVertexInputAttributeDescription> attributeDescriptions;
   std::vector<VkDescriptorSetLayoutBinding> layoutBindings_;
+  std::vector<VkPipelineShaderStageCreateInfo> shaderStages_;
 };
 
 class pipeline {
@@ -1094,20 +1171,9 @@ public:
     // No multi sampling used in this example
     multisampleState.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
 
-    // Load shaders
-    VkPipelineShaderStageCreateInfo shaderStages[2] = { {},{} };
-
-#ifdef USE_GLSL
-    shaderStages[0] = loadShaderGLSL("data/shaders/triangle.vert", VK_SHADER_STAGE_VERTEX_BIT);
-    shaderStages[1] = loadShaderGLSL("data/shaders/triangle.frag", VK_SHADER_STAGE_FRAGMENT_BIT);
-#else
-    shaderStages[0] = loadShader("data/shaders/triangle.vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
-    shaderStages[1] = loadShader("data/shaders/triangle.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
-#endif
-
     // Assign states
     // Two shader stages
-    pipelineCreateInfo.stageCount = 2;
+    pipelineCreateInfo.stageCount = (uint32_t)pipelineCreateHelper.getNumShaderStages();
     // Assign pipeline state create information
     pipelineCreateInfo.pVertexInputState = pipelineCreateHelper.getPipelineVertexInputState();
     pipelineCreateInfo.pInputAssemblyState = &inputAssemblyState;
@@ -1116,7 +1182,7 @@ public:
     pipelineCreateInfo.pMultisampleState = &multisampleState;
     pipelineCreateInfo.pViewportState = &viewportState;
     pipelineCreateInfo.pDepthStencilState = &depthStencilState;
-    pipelineCreateInfo.pStages = shaderStages;
+    pipelineCreateInfo.pStages = pipelineCreateHelper.getShaderStages();
     pipelineCreateInfo.renderPass = renderPass;
     pipelineCreateInfo.pDynamicState = &dynamicState;
 
@@ -1180,7 +1246,7 @@ public:
   VkDescriptorSetLayout *descriptorLayouts() { return &descriptorSetLayout; }
 
 private:
-  VkPipelineShaderStageCreateInfo loadShader(const char * fileName, VkShaderStageFlagBits stage)
+  /*VkPipelineShaderStageCreateInfo loadShader(const char * fileName, VkShaderStageFlagBits stage)
   {
     std::ifstream input(fileName, std::ios::binary);
     auto &b = std::istreambuf_iterator<char>(input);
@@ -1236,7 +1302,7 @@ private:
     shaderStage.pName = "main";
     shaderModules.push_back(shaderStage.module);
     return shaderStage;
-  }
+  }*/
 
   VkPipeline pipe_ = nullptr;
   VkPipelineLayout pipelineLayout = nullptr;
