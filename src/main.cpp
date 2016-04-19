@@ -4,10 +4,6 @@
 //
 // 
 
-#define USE_GLSL
-#define VERTEX_BUFFER_BIND_ID 0
-
-
 // vulkan utilities.
 #include "vku.hpp"
 
@@ -23,11 +19,16 @@ public:
   vku::buffer vertex_buffer;
   vku::buffer index_buffer;
   vku::buffer uniform_buffer;
+
   vku::descriptorPool descPool;
   vku::pipeline pipe;
+
   vku::shaderModule vertexShader;
   vku::shaderModule fragmentShader;
   size_t num_indices;
+
+  static const int VERTEX_BUFFER_BIND_ID = 0;
+
 
   triangle_example() : vku::window(false, 1280, 720, -2.5f, "triangle") {
 
@@ -85,11 +86,6 @@ public:
     updateUniformBuffers();
   }
 
-  void draw()
-  {
-    present();
-  }
-
   void updateUniformBuffers()
   {
     uniform_data.projectionMatrix = defaultProjectionMatrix();
@@ -104,7 +100,7 @@ public:
   void render() override
   {
     device().waitIdle();
-    draw();
+    present();
     device().waitIdle();
   }
 
