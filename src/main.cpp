@@ -67,8 +67,8 @@ public:
 
     pipeHelper.uniformBuffers(1, VK_SHADER_STAGE_VERTEX_BIT);
 
-    pipeHelper.shader(vertexShader, VK_SHADER_STAGE_VERTEX_BIT, "main");
-    pipeHelper.shader(fragmentShader, VK_SHADER_STAGE_FRAGMENT_BIT, "main");
+    pipeHelper.shader(vertexShader, VK_SHADER_STAGE_VERTEX_BIT);
+    pipeHelper.shader(fragmentShader, VK_SHADER_STAGE_FRAGMENT_BIT);
 
     pipe = vku::pipeline(device(), swapChain().renderPass(), pipelineCache(), pipeHelper);
 
