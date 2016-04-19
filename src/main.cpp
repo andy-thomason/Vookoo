@@ -60,7 +60,6 @@ public:
     
     updateUniformBuffers();
 
-  //pipeline(const vku::device &device, VkRenderPass renderPass, VkPipelineVertexInputStateCreateInfo *vertexInputState, const vku::pipelineCache &pipelineCache) : dev_(device) {
     pipe = vku::pipeline(device(), swapChain().renderPass(), vertexInputState.get(), pipelineCache());
 
     descPool = vku::descriptorPool(device());
@@ -99,16 +98,14 @@ public:
     uniform_data.modelMatrix = glm::rotate(uniform_data.modelMatrix, deg_to_rad(rotation().z), glm::vec3(0.0f, 0.0f, 1.0f));
 
     void *dest = uniform_buffer.map();
-     memcpy(dest, &uniform_data, sizeof(uniform_data));
+    memcpy(dest, &uniform_data, sizeof(uniform_data));
     uniform_buffer.unmap();
   }
 
   void render() override
   {
     device().waitIdle();
-
     draw();
-
     device().waitIdle();
   }
 
@@ -123,12 +120,18 @@ public:
 
 
 int main(const int argc, const char *argv[]) {
-  triangle_example my_example;
+  try {
+    throw(vku::error(VK_ERROR_OUT_OF_DATE_KHR, __FILE__, __LINE__));
+    triangle_example my_example;
 
-  while (vku::window::poll()) {
-    if (my_example.windowIsClosed()) {
-      break;
+    while (vku::window::poll()) {
+      if (my_example.windowIsClosed()) {
+        break;
+      }
+      my_example.render();
     }
+  } catch(std::runtime_error &e) {
+    printf("fail: %s\n", e.what());
   }
 
   return 0;

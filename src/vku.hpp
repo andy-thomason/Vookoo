@@ -55,7 +55,7 @@ template <class WindowHandle, class Window> Window *map_window(WindowHandle hand
 #endif
 
 class error : public std::runtime_error {
-  const char *what(VkResult err) {
+  const char *error_name(VkResult err) {
     switch (err) {
       case VK_SUCCESS: return "VK_SUCCESS";
       case VK_NOT_READY: return "VK_NOT_READY";
@@ -83,8 +83,15 @@ class error : public std::runtime_error {
       default: return "UNKNOWN ERROR";
     }
   }
+
+  const char *what(VkResult err, const char *file, int line) {
+    snprintf(text_, sizeof(text_), "error: %s at %s:%d", error_name(err), file, line);
+    return text_;
+  }
+
+  char text_[256];
 public:
-  error(VkResult err) : std::runtime_error(what(err)) {
+  error(VkResult err, const char *file, int line) : std::runtime_error(what(err, file, line)) {
   }
 };
 
@@ -247,11 +254,11 @@ public:
     // Get list of supported formats
     uint32_t formatCount = 0;
     VkResult err = vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice_, surface, &formatCount, NULL);
-    if (err) throw error(err);
+    if (err) throw error(err, __FILE__, __LINE__);
 
     std::vector<VkSurfaceFormatKHR> surfFormats(formatCount);
     err = vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice_, surface, &formatCount, surfFormats.data());
-    if (err) throw error(err);
+    if (err) throw error(err, __FILE__, __LINE__);
 
     return formatCount == 0 || surfFormats[0].format == VK_FORMAT_UNDEFINED ?
       std::pair<VkFormat, VkColorSpaceKHR>(VK_FORMAT_B8G8R8A8_UNORM, VK_COLORSPACE_SRGB_NONLINEAR_KHR) :
@@ -329,7 +336,7 @@ public:
     uint32_t gpuCount = 0;
     // Get number of available physical devices
     VkResult err = vkEnumeratePhysicalDevices(get(), &gpuCount, nullptr);
-    if (err) throw error(err);
+    if (err) throw error(err, __FILE__, __LINE__);
 
     if (gpuCount == 0) {
       throw(std::runtime_error("no Vulkan devices found"));
@@ -338,7 +345,7 @@ public:
     // Enumerate devices
     std::vector<VkPhysicalDevice> physicalDevices(gpuCount);
     err = vkEnumeratePhysicalDevices(get(), &gpuCount, physicalDevices.data());
-    if (err) throw error(err);
+    if (err) throw error(err, __FILE__, __LINE__);
 
     // Note : 
     // This example will always use the first physical device reported, 
@@ -392,7 +399,7 @@ public:
     }
 
     err = vkCreateDevice(physicalDevice_, &deviceCreateInfo, nullptr, &dev_);
-    if (err) throw error(err);
+    if (err) throw error(err, __FILE__, __LINE__);
 
     // Get the graphics queue
     vkGetDeviceQueue(dev_, graphicsQueueIndex, 0, &queue_);
@@ -419,7 +426,7 @@ public:
       surfaceCreateInfo.window = window;
       VkResult err = vkCreateXcbSurfaceKHR(get(), &surfaceCreateInfo, nullptr, &result);
     #endif
-    if (err) throw error(err);
+    if (err) throw error(err, __FILE__, __LINE__);
     return result;
   }
 
@@ -515,17 +522,17 @@ public:
     // Get physical device surface properties and formats
     VkSurfaceCapabilitiesKHR surfCaps;
     err = vkGetPhysicalDeviceSurfaceCapabilitiesKHR(dev.physicalDevice(), surface, &surfCaps);
-    if (err) throw error(err);
+    if (err) throw error(err, __FILE__, __LINE__);
 
     uint32_t presentModeCount;
     err = vkGetPhysicalDeviceSurfacePresentModesKHR(dev.physicalDevice(), surface, &presentModeCount, NULL);
-    if (err) throw error(err);
+    if (err) throw error(err, __FILE__, __LINE__);
 
     // todo : replace with vector?
     VkPresentModeKHR *presentModes = (VkPresentModeKHR *)malloc(presentModeCount * sizeof(VkPresentModeKHR));
 
     err = vkGetPhysicalDeviceSurfacePresentModesKHR(dev.physicalDevice(), surface, &presentModeCount, presentModes);
-    if (err) throw error(err);
+    if (err) throw error(err, __FILE__, __LINE__);
 
     VkExtent2D swapchainExtent = {};
     // width and height are either both -1, or both not -1.
@@ -597,7 +604,7 @@ public:
 
     VkSwapchainKHR res;
     err = vkCreateSwapchainKHR(dev, &swapchainCI, nullptr, &res);
-    if (err) throw error(err);
+    if (err) throw error(err, __FILE__, __LINE__);
     set(res, true);
 
     surface_ = surface;
@@ -626,7 +633,7 @@ public:
     presentInfo.pSwapchains = &sc;
     presentInfo.pImageIndices = &currentBuffer;
     VkResult err = vkQueuePresentKHR(queue, &presentInfo);
-    if (err) throw error(err);
+    if (err) throw error(err, __FILE__, __LINE__);
   }
 
   uint32_t width() const { return width_; }
@@ -639,7 +646,7 @@ public:
   uint32_t acquireNextImage(VkSemaphore presentCompleteSemaphore) const {
     uint32_t currentBuffer = 0;
     VkResult err = vkAcquireNextImageKHR(dev(), get(), UINT64_MAX, presentCompleteSemaphore, (VkFence)nullptr, &currentBuffer);
-    if (err) throw error(err);
+    if (err) throw error(err, __FILE__, __LINE__);
     return currentBuffer;
   }
 
@@ -711,7 +718,7 @@ public:
     bufInfo.size = size;
     bufInfo.usage = usage;
     VkResult err = vkCreateBuffer(dev, &bufInfo, nullptr, &buf_);
-    if (err) throw error(err);
+    if (err) throw error(err, __FILE__, __LINE__);
 
     ownsBuffer = true;
 
@@ -724,7 +731,7 @@ public:
     memAlloc.memoryTypeIndex = dev.getMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
 
      err = vkAllocateMemory(dev, &memAlloc, nullptr, &mem);
-    if (err) throw error(err);
+    if (err) throw error(err, __FILE__, __LINE__);
 
     if (init) {
       void *dest = map();
@@ -762,7 +769,7 @@ public:
   void *map() {
     void *dest = nullptr;
     VkResult err = vkMapMemory(dev, mem, 0, size(), 0, &dest);
-    if (err) throw error(err);
+    if (err) throw error(err, __FILE__, __LINE__);
     return dest;
   }
 
@@ -772,7 +779,7 @@ public:
 
   void bind() {
     VkResult err = vkBindBufferMemory(dev, buf_, mem, 0);
-    if (err) throw error(err);
+    if (err) throw error(err, __FILE__, __LINE__);
   }
 
   size_t size() const {
@@ -873,7 +880,7 @@ public:
     descriptorPoolInfo.maxSets = 2;
 
     VkResult err = vkCreateDescriptorPool(dev_, &descriptorPoolInfo, nullptr, &pool_);
-    if (err) throw error(err);
+    if (err) throw error(err, __FILE__, __LINE__);
 
     ownsResource_ = true;
   }
@@ -891,7 +898,7 @@ public:
     allocInfo.pSetLayouts = layout;
 
     VkResult err = vkAllocateDescriptorSets(dev_, &allocInfo, descriptorSets);
-    if (err) throw error(err);
+    if (err) throw error(err, __FILE__, __LINE__);
 
     // Binding 0 : Uniform buffer
     writeDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -944,7 +951,7 @@ public:
     pipelineCacheCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO;
     VkPipelineCache cache;
     VkResult err = vkCreatePipelineCache(dev, &pipelineCacheCreateInfo, nullptr, &cache);
-    if (err) throw error(err);
+    if (err) throw error(err, __FILE__, __LINE__);
     set(cache, true);
   }
 
@@ -984,7 +991,7 @@ public:
     descriptorLayout.pBindings = &layoutBinding;
 
     VkResult err = vkCreateDescriptorSetLayout(device, &descriptorLayout, NULL, &descriptorSetLayout);
-    if (err) throw error(err);
+    if (err) throw error(err, __FILE__, __LINE__);
 
     // Create the pipeline layout that is used to generate the rendering pipelines that
     // are based on this descriptor set layout
@@ -997,7 +1004,7 @@ public:
     pPipelineLayoutCreateInfo.pSetLayouts = &descriptorSetLayout;
 
     err = vkCreatePipelineLayout(device, &pPipelineLayoutCreateInfo, nullptr, &pipelineLayout);
-    if (err) throw error(err);
+    if (err) throw error(err, __FILE__, __LINE__);
 
     VkGraphicsPipelineCreateInfo pipelineCreateInfo = {};
 
@@ -1111,7 +1118,7 @@ public:
 
     // Create rendering pipeline
     err = vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineCreateInfo, nullptr, &pipe_);
-    if (err) throw error(err);
+    if (err) throw error(err, __FILE__, __LINE__);
 
     ownsData = true;
   }
@@ -1145,7 +1152,7 @@ public:
 
     descriptorSet = nullptr;
     VkResult err = vkAllocateDescriptorSets(dev_, &allocInfo, &descriptorSet);
-    if (err) throw error(err);
+    if (err) throw error(err, __FILE__, __LINE__);
   }
 
   void updateDescriptorSets(buffer &uniformVS) {
@@ -1183,7 +1190,7 @@ private:
     moduleCreateInfo.flags = 0;
     VkShaderModule shaderModule;
     VkResult err = vkCreateShaderModule(dev_, &moduleCreateInfo, NULL, &shaderModule);
-    if (err) throw error(err);
+    if (err) throw error(err, __FILE__, __LINE__);
 
     VkPipelineShaderStageCreateInfo shaderStage = {};
     shaderStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -1216,7 +1223,7 @@ private:
 
     VkShaderModule shaderModule;
     VkResult err = vkCreateShaderModule(dev_, &moduleCreateInfo, NULL, &shaderModule);
-    if (err) throw error(err);
+    if (err) throw error(err, __FILE__, __LINE__);
 
     VkPipelineShaderStageCreateInfo shaderStage = {};
     shaderStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -1253,7 +1260,7 @@ public:
     cmdPoolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
     VkCommandPool cmdPool;
     VkResult err = vkCreateCommandPool(dev, &cmdPoolInfo, nullptr, &cmdPool);
-    if (err) throw error(err);
+    if (err) throw error(err, __FILE__, __LINE__);
     set(cmdPool, true);
   }
 
@@ -1603,12 +1610,12 @@ inline void swapChain::build_images(VkCommandBuffer buf) {
 
   uint32_t imageCount = 0;
   VkResult err = vkGetSwapchainImagesKHR(dev(), get(), &imageCount, NULL);
-  if (err) throw error(err);
+  if (err) throw error(err, __FILE__, __LINE__);
 
   swapchainImages.resize(imageCount);
   swapchainViews.resize(imageCount);
   err = vkGetSwapchainImagesKHR(dev(), *this, &imageCount, swapchainImages.data());
-  if (err) throw error(err);
+  if (err) throw error(err, __FILE__, __LINE__);
 
   for (uint32_t i = 0; i < imageCount; i++) {
     VkImageViewCreateInfo colorAttachmentView = {};
@@ -1638,7 +1645,7 @@ inline void swapChain::build_images(VkCommandBuffer buf) {
     colorAttachmentView.image = image(i);
 
     err = vkCreateImageView(dev(), &colorAttachmentView, nullptr, &swapchainViews[i]);
-    if (err) throw error(err);
+    if (err) throw error(err, __FILE__, __LINE__);
   }
 }
 
@@ -1660,7 +1667,7 @@ public:
 
     VkSemaphore res = nullptr;
     VkResult err = vkCreateSemaphore(dev, &info, nullptr, &res);
-    if (err) throw error(err);
+    if (err) throw error(err, __FILE__, __LINE__);
     return res;
   }
 
@@ -1692,12 +1699,12 @@ public:
 
     // Submit to the graphics queue
     VkResult err = vkQueueSubmit(get(), 1, &submitInfo, VK_NULL_HANDLE);
-    if (err) throw error(err);
+    if (err) throw error(err, __FILE__, __LINE__);
   }
 
   void waitIdle() const {  
     VkResult err = vkQueueWaitIdle(get());
-    if (err) throw error(err);
+    if (err) throw error(err, __FILE__, __LINE__);
   }
 
   VkQueue create(VkDevice dev) {
@@ -1732,7 +1739,7 @@ public:
 
     VkImage result = nullptr;
     VkResult err = vkCreateImage(dev, &image, nullptr, &result);
-    if (err) throw error(err);
+    if (err) throw error(err, __FILE__, __LINE__);
 
     set(result, true);
     format_ = format;
@@ -1748,13 +1755,13 @@ public:
     mem_alloc.allocationSize = memReqs.size;
     mem_alloc.memoryTypeIndex = device.getMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
     VkResult err = vkAllocateMemory(device, &mem_alloc, nullptr, &mem_);
-    if (err) throw error(err);
+    if (err) throw error(err, __FILE__, __LINE__);
   }
 
   /// bind device memory to the image object
   void bindMemoryToImage() {
     VkResult err = vkBindImageMemory(dev(), get(), mem(), 0);
-    if (err) throw error(err);
+    if (err) throw error(err, __FILE__, __LINE__);
   }
 
   void setImageLayout(const vku::cmdBuffer &cmdBuf, VkImageAspectFlags aspectMask, VkImageLayout oldImageLayout, VkImageLayout newImageLayout) {
@@ -1777,7 +1784,7 @@ public:
     viewCreateInfo.subresourceRange.layerCount = 1;
     viewCreateInfo.image = get();
     VkResult err = vkCreateImageView(dev(), &viewCreateInfo, nullptr, &view_);
-    if (err) throw error(err);
+    if (err) throw error(err, __FILE__, __LINE__);
   }
 
   void destroy() {
@@ -2015,8 +2022,6 @@ public:
         break;
       case WM_PAINT:
         ValidateRect(window_, NULL);
-        // todo: use WM_TIMER!
-        render();
         break;
       case WM_KEYDOWN:
         switch (wParam)
