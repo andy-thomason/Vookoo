@@ -33,12 +33,7 @@ public:
   vku::pipeline pipe;
   size_t num_indices;
 
-  triangle_example() : vku::window(false) {
-    width = 1280;
-    height = 720;
-    zoom = -2.5f;
-    title = "Vulkan Example - Basic indexed triangle";
-    // Values not set here are initialized in the base class constructor
+  triangle_example() : vku::window(false, 1280, 720, -2.5f, "triangle") {
 
     // Vertices
     struct Vertex { float pos[3]; float col[3]; };
@@ -49,11 +44,11 @@ public:
       { { 0.0f, -1.0f, 0.0f }, { 0.0f, 0.0f, 1.0f} }
     };
 
-    vertex_buffer = vku::buffer(device, (void*)vertex_data, sizeof(vertex_data), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
+    vertex_buffer = vku::buffer(device(), (void*)vertex_data, sizeof(vertex_data), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
 
     // Indices
     static const uint32_t index_data[] = { 0, 1, 2 };
-    index_buffer = vku::buffer(device, (void*)index_data, sizeof(index_data), VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
+    index_buffer = vku::buffer(device(), (void*)index_data, sizeof(index_data), VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
     num_indices = 3;
 
     // Binding state
@@ -61,65 +56,47 @@ public:
     vertexInputState.attrib(0, VERTEX_BUFFER_BIND_ID, VK_FORMAT_R32G32B32_SFLOAT, 0);
     vertexInputState.attrib(1, VERTEX_BUFFER_BIND_ID, VK_FORMAT_R32G32B32_SFLOAT, sizeof(float) * 3);
 
-    uniform_buffer = vku::buffer(device, (void*)nullptr, sizeof(uniform_data), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+    uniform_buffer = vku::buffer(device(), (void*)nullptr, sizeof(uniform_data), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
     
     updateUniformBuffers();
 
-    pipe = vku::pipeline(device, swapChain.renderPass(), vertexInputState.get(), pipelineCache);
+  //pipeline(const vku::device &device, VkRenderPass renderPass, VkPipelineVertexInputStateCreateInfo *vertexInputState, const vku::pipelineCache &pipelineCache) : dev_(device) {
+    pipe = vku::pipeline(device(), swapChain().renderPass(), vertexInputState.get(), pipelineCache());
 
-    descPool = vku::descriptorPool(device);
+    descPool = vku::descriptorPool(device());
 
     pipe.allocateDescriptorSets(descPool);
     pipe.updateDescriptorSets(uniform_buffer);
 
-    for (int32_t i = 0; i < swapChain.imageCount(); ++i) {
-      const vku::cmdBuffer &cmdbuf = drawCmdBuffers[i];
-      cmdbuf.begin(swapChain.renderPass(), swapChain.frameBuffer(i), width, height);
+    for (int32_t i = 0; i < swapChain().imageCount(); ++i) {
+      const vku::cmdBuffer &cmdbuf = drawCmdBuffer(i);
+      cmdbuf.begin(swapChain().renderPass(), swapChain().frameBuffer(i), width(), height());
 
       cmdbuf.bindPipeline(pipe);
       cmdbuf.bindVertexBuffer(vertex_buffer, VERTEX_BUFFER_BIND_ID);
       cmdbuf.bindIndexBuffer(index_buffer);
       cmdbuf.drawIndexed((uint32_t)num_indices, 1, 0, 0, 1);
 
-      cmdbuf.end(swapChain.image(i));
+      cmdbuf.end(swapChain().image(i));
     }
   }
 
   void draw()
   {
-    {
-      vku::semaphore sema(device);
-
-      // Get next image in the swap chain (back/front buffer)
-      currentBuffer = swapChain.acquireNextImage(sema);
-
-      queue.submit(sema, drawCmdBuffers[currentBuffer]);
-    }
-
-    // Present the current buffer to the swap chain
-    // This will display the image
-    swapChain.present(queue, currentBuffer);
-
-    postPresentCmdBuffer.beginCommandBuffer();
-    postPresentCmdBuffer.pipelineBarrier(swapChain.image(currentBuffer));
-    postPresentCmdBuffer.endCommandBuffer();
-
-    queue.submit(nullptr, postPresentCmdBuffer);
-
-    queue.waitIdle();
+    present();
   }
 
   void updateUniformBuffers()
   {
     // Update matrices
-    uniform_data.projectionMatrix = glm::perspective(deg_to_rad(60.0f), (float)width / (float)height, 0.1f, 256.0f);
+    uniform_data.projectionMatrix = glm::perspective(deg_to_rad(60.0f), (float)width() / (float)height(), 0.1f, 256.0f);
 
-    uniform_data.viewMatrix = glm::translate(glm::mat4(), glm::vec3(0.0f, 0.0f, zoom));
+    uniform_data.viewMatrix = glm::translate(glm::mat4(), glm::vec3(0.0f, 0.0f, zoom()));
 
     uniform_data.modelMatrix = glm::mat4();
-    uniform_data.modelMatrix = glm::rotate(uniform_data.modelMatrix, deg_to_rad(rotation.x), glm::vec3(1.0f, 0.0f, 0.0f));
-    uniform_data.modelMatrix = glm::rotate(uniform_data.modelMatrix, deg_to_rad(rotation.y), glm::vec3(0.0f, 1.0f, 0.0f));
-    uniform_data.modelMatrix = glm::rotate(uniform_data.modelMatrix, deg_to_rad(rotation.z), glm::vec3(0.0f, 0.0f, 1.0f));
+    uniform_data.modelMatrix = glm::rotate(uniform_data.modelMatrix, deg_to_rad(rotation().x), glm::vec3(1.0f, 0.0f, 0.0f));
+    uniform_data.modelMatrix = glm::rotate(uniform_data.modelMatrix, deg_to_rad(rotation().y), glm::vec3(0.0f, 1.0f, 0.0f));
+    uniform_data.modelMatrix = glm::rotate(uniform_data.modelMatrix, deg_to_rad(rotation().z), glm::vec3(0.0f, 0.0f, 1.0f));
 
     void *dest = uniform_buffer.map();
      memcpy(dest, &uniform_data, sizeof(uniform_data));
@@ -128,11 +105,11 @@ public:
 
   void render() override
   {
-    device.waitIdle();
+    device().waitIdle();
 
     draw();
 
-    device.waitIdle();
+    device().waitIdle();
   }
 
   void viewChanged() override

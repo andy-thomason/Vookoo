@@ -42,7 +42,7 @@ template <class WindowHandle, class Window> Window *map_window(WindowHandle hand
   template <class Dummy> static LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
   {
     vku::window *win = map_window<HWND, window>(hWnd, nullptr);
-    printf("%04x %p %p\n", uMsg, hWnd, win);
+    //printf("%04x %p %p\n", uMsg, hWnd, win);
     if (win) win->handleMessages(hWnd, uMsg, wParam, lParam);
     return (DefWindowProc(hWnd, uMsg, wParam, lParam));
   }
@@ -123,7 +123,7 @@ public:
     clear();
   }
 
-  operator VulkanType() {
+  operator VulkanType() const {
     return value_;
   }
 
@@ -632,11 +632,11 @@ public:
   uint32_t width() const { return width_; }
   uint32_t height() const { return height_; }
 
-  size_t imageCount() { return swapchainImages.size(); }
-  VkImage image(size_t i) { return swapchainImages[i]; }
-  VkImageView view(size_t i) { return swapchainViews[i]; }
+  size_t imageCount() const { return swapchainImages.size(); }
+  VkImage image(size_t i) const { return swapchainImages[i]; }
+  VkImageView view(size_t i) const { return swapchainViews[i]; }
 
-  uint32_t acquireNextImage(VkSemaphore presentCompleteSemaphore) {
+  uint32_t acquireNextImage(VkSemaphore presentCompleteSemaphore) const {
     uint32_t currentBuffer = 0;
     VkResult err = vkAcquireNextImageKHR(dev(), get(), UINT64_MAX, presentCompleteSemaphore, (VkFence)nullptr, &currentBuffer);
     if (err) throw error(err);
@@ -929,12 +929,41 @@ private:
 };
 
 
+class pipelineCache : public resource<VkPipelineCache, pipelineCache> {
+public:
+  pipelineCache() : resource(nullptr, nullptr) {
+  }
+
+  /// descriptor pool that does not own its pointer
+  pipelineCache(VkPipelineCache value, VkDevice dev) : resource(value, dev) {
+  }
+
+  /// descriptor pool that does owns (and creates) its pointer
+  pipelineCache(VkDevice dev) : resource(dev) {
+    VkPipelineCacheCreateInfo pipelineCacheCreateInfo = {};
+    pipelineCacheCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO;
+    VkPipelineCache cache;
+    VkResult err = vkCreatePipelineCache(dev, &pipelineCacheCreateInfo, nullptr, &cache);
+    if (err) throw error(err);
+    set(cache, true);
+  }
+
+  void destroy() {
+    if (get()) vkDestroyPipelineCache(dev(), get(), nullptr);
+  }
+
+  pipelineCache &operator=(pipelineCache &&rhs) {
+    (resource&)(*this) = (resource&&)rhs;
+    return *this;
+  }
+};
+
 class pipeline {
 public:
   pipeline() {
   }
 
-  pipeline(VkDevice device, VkRenderPass renderPass, VkPipelineVertexInputStateCreateInfo *vertexInputState, VkPipelineCache pipelineCache) : dev_(device) {
+  pipeline(const vku::device &device, VkRenderPass renderPass, VkPipelineVertexInputStateCreateInfo *vertexInputState, const vku::pipelineCache &pipelineCache) : dev_(device) {
     // Setup layout of descriptors used in this example
     // Basically connects the different shader stages to descriptors
     // for binding uniform buffers, image samplers, etc.
@@ -1233,35 +1262,6 @@ public:
   }
 
   commandPool &operator=(commandPool &&rhs) {
-    (resource&)(*this) = (resource&&)rhs;
-    return *this;
-  }
-};
-
-class pipelineCache : public resource<VkPipelineCache, pipelineCache> {
-public:
-  pipelineCache() : resource(nullptr, nullptr) {
-  }
-
-  /// descriptor pool that does not own its pointer
-  pipelineCache(VkPipelineCache value, VkDevice dev) : resource(value, dev) {
-  }
-
-  /// descriptor pool that does owns (and creates) its pointer
-  pipelineCache(VkDevice dev) : resource(dev) {
-    VkPipelineCacheCreateInfo pipelineCacheCreateInfo = {};
-    pipelineCacheCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO;
-    VkPipelineCache cache;
-    VkResult err = vkCreatePipelineCache(dev, &pipelineCacheCreateInfo, nullptr, &cache);
-    if (err) throw error(err);
-    set(cache, true);
-  }
-
-  void destroy() {
-    if (get()) vkDestroyPipelineCache(dev(), get(), nullptr);
-  }
-
-  pipelineCache &operator=(pipelineCache &&rhs) {
     (resource&)(*this) = (resource&&)rhs;
     return *this;
   }
@@ -1817,7 +1817,10 @@ public:
 
 class window {
 public:
-  window(bool enableValidation) {
+  window(bool enableValidation, uint32_t width, uint32_t height, float zoom, const std::string &title) :
+    width_(width), height_(height), zoom_(zoom), title_(title)
+  {
+    // Values not set here are initialized in the base class constructor
     // Check for validation command line flag
     #ifdef _WIN32
       for (int32_t i = 0; i < __argc; i++)
@@ -1833,15 +1836,15 @@ public:
       initxcbConnection();
     #endif
 
-    instance = vku::instance("vku");
+    instance_ = vku::instance("vku");
 
-    vku::device dev = instance.device();
-    device = dev;
-    queue = instance.queue();
+    vku::device dev = instance_.device();
+    device_ = dev;
+    queue_ = instance_.queue();
 
     // Find a suitable depth format
-    depthFormat = dev.getSupportedDepthFormat();
-    assert(depthFormat != VK_FORMAT_UNDEFINED);
+    depthFormat_ = dev.getSupportedDepthFormat();
+    assert(depthFormat_ != VK_FORMAT_UNDEFINED);
 
     setupWindow();
     prepareWindow();
@@ -1849,23 +1852,23 @@ public:
 
   ~window() {
     // Clean up Vulkan resources
-    swapChain.clear();
+    swapChain_.clear();
 
-    cmdPool.clear();
+    cmdPool_.clear();
 
-    pipelineCache.clear();
+    pipelineCache_.clear();
 
-    cmdPool.clear();
+    cmdPool_.clear();
 
     //vkDestroyDevice(device, nullptr); 
     //device.clear();
 
-    if (enableValidation)
+    if (enableValidation_)
     {
       //vkDebug::freeDebugCallback(instance);
     }
 
-    instance.clear();
+    instance_.clear();
 
     #ifndef _WIN32
       xcb_destroy_window(connection, window);
@@ -1901,7 +1904,7 @@ public:
       wndClass.hCursor = LoadCursor(NULL, IDC_ARROW);
       wndClass.hbrBackground = (HBRUSH)GetStockObject(WHITE_BRUSH);
       wndClass.lpszMenuName = NULL;
-      wndClass.lpszClassName = name.c_str();
+      wndClass.lpszClassName = name_.c_str();
       wndClass.hIconSm = LoadIcon(NULL, IDI_WINLOGO);
 
       RegisterClassEx(&wndClass);
@@ -1919,7 +1922,7 @@ public:
         dmScreenSettings.dmBitsPerPel = 32;
         dmScreenSettings.dmFields = DM_BITSPERPEL | DM_PELSWIDTH | DM_PELSHEIGHT;
 
-        if ((width != screenWidth) && (height != screenHeight))
+        if ((width_ != screenWidth) && (height_ != screenHeight))
         {
           if (ChangeDisplaySettings(&dmScreenSettings, CDS_FULLSCREEN) != DISP_CHANGE_SUCCESSFUL)
           {
@@ -1960,17 +1963,17 @@ public:
       }
       else
       {
-        windowRect.left = (long)screenWidth / 2 - width / 2;
-        windowRect.right = (long)width;
-        windowRect.top = (long)screenHeight / 2 - height / 2;
-        windowRect.bottom = (long)height;
+        windowRect.left = (long)screenWidth / 2 - width_ / 2;
+        windowRect.right = (long)width_;
+        windowRect.top = (long)screenHeight / 2 - height_ / 2;
+        windowRect.bottom = (long)height_;
       }
 
       AdjustWindowRectEx(&windowRect, dwStyle, FALSE, dwExStyle);
 
       window_ = CreateWindowEx(0,
-        name.c_str(),
-        title.c_str(),
+        name_.c_str(),
+        title_.c_str(),
         //    WS_OVERLAPPEDWINDOW | WS_VISIBLE | WS_SYSMENU,
         dwStyle | WS_CLIPSIBLINGS | WS_CLIPCHILDREN,
         windowRect.left,
@@ -2019,7 +2022,7 @@ public:
         switch (wParam)
         {
         case 0x50:
-          paused = !paused;
+          paused_ = !paused_;
           break;
         case VK_ESCAPE:
           exit(0);
@@ -2028,25 +2031,25 @@ public:
         break;
       case WM_RBUTTONDOWN:
       case WM_LBUTTONDOWN:
-        mousePos.x = (float)LOWORD(lParam);
-        mousePos.y = (float)HIWORD(lParam);
+        mousePos_.x = (float)LOWORD(lParam);
+        mousePos_.y = (float)HIWORD(lParam);
         break;
       case WM_MOUSEMOVE:
         if (wParam & MK_RBUTTON)
         {
           int32_t posx = LOWORD(lParam);
           int32_t posy = HIWORD(lParam);
-          zoom += (mousePos.y - (float)posy) * .005f * zoomSpeed;
-          mousePos = glm::vec2((float)posx, (float)posy);
+          zoom_ += (mousePos_.y - (float)posy) * .005f * zoomSpeed_;
+          mousePos_ = glm::vec2((float)posx, (float)posy);
           viewChanged();
         }
         if (wParam & MK_LBUTTON)
         {
           int32_t posx = LOWORD(lParam);
           int32_t posy = HIWORD(lParam);
-          rotation.x += (mousePos.y - (float)posy) * 1.25f * rotationSpeed;
-          rotation.y -= (mousePos.x - (float)posx) * 1.25f * rotationSpeed;
-          mousePos = glm::vec2((float)posx, (float)posy);
+          rotation_.x += (mousePos_.y - (float)posy) * 1.25f * rotationSpeed_;
+          rotation_.y -= (mousePos_.x - (float)posx) * 1.25f * rotationSpeed_;
+          mousePos_ = glm::vec2((float)posx, (float)posy);
           viewChanged();
         }
         break;
@@ -2073,7 +2076,7 @@ public:
       xcb_create_window(connection,
         XCB_COPY_FROM_PARENT,
         window, screen->root,
-        0, 0, width, height, 0,
+        0, 0, width_, height, 0,
         XCB_WINDOW_CLASS_INPUT_OUTPUT,
         screen->root_visual,
         value_mask, value_list);
@@ -2189,56 +2192,56 @@ public:
 
 
   void prepareWindow() {
-    VkSurfaceKHR surface = instance.createSurface((void*)windowInstance, (void*)window_);
-    uint32_t queueNodeIndex = device.getGraphicsQueueNodeIndex(surface);
+    VkSurfaceKHR surface = instance_.createSurface((void*)windowInstance, (void*)window_);
+    uint32_t queueNodeIndex = device_.getGraphicsQueueNodeIndex(surface);
     if (queueNodeIndex == ~(uint32_t)0) throw(std::runtime_error("no graphics and present queue available"));
-    auto sf = device.getSurfaceFormat(surface);
+    auto sf = device_.getSurfaceFormat(surface);
     //swapChain.colorFormat = sf.first;
     //swapChain.colorSpace = sf.second;
 
-    if (enableValidation) {
+    if (enableValidation_) {
       //vkDebug::setupDebugging(instance, VK_DEBUG_REPORT_ERROR_BIT_EXT | VK_DEBUG_REPORT_WARNING_BIT_EXT, NULL);
     }
 
-    cmdPool = vku::commandPool(device, queueNodeIndex);
+    cmdPool_ = vku::commandPool(device_, queueNodeIndex);
 
-    setupCmdBuffer = vku::cmdBuffer(device, cmdPool);
-    setupCmdBuffer.beginCommandBuffer();
+    setupCmdBuffer_ = vku::cmdBuffer(device_, cmdPool_);
+    setupCmdBuffer_.beginCommandBuffer();
 
-    swapChain = vku::swapChain(device, width, height, surface, setupCmdBuffer);
-    width = swapChain.width();
-    height = swapChain.height();
+    swapChain_ = vku::swapChain(device_, width_, height_, surface, setupCmdBuffer_);
+    width_ = swapChain_.width();
+    height_ = swapChain_.height();
 
-    assert(swapChain.imageCount() <= 2);
+    assert(swapChain_.imageCount() <= 2);
 
-    for (size_t i = 0; i != swapChain.imageCount(); ++i) {
-      drawCmdBuffers[i] = vku::cmdBuffer(device, cmdPool);
+    for (size_t i = 0; i != swapChain_.imageCount(); ++i) {
+      drawCmdBuffers_[i] = vku::cmdBuffer(device_, cmdPool_);
     }
 
-    postPresentCmdBuffer = vku::cmdBuffer(device, cmdPool);
+    postPresentCmdBuffer_ = vku::cmdBuffer(device_, cmdPool_);
 
-    depthStencil = vku::image(device, width, height, depthFormat, VK_IMAGE_TYPE_2D, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT);
-    depthStencil.allocate(device);
-    depthStencil.bindMemoryToImage();
-    depthStencil.setImageLayout(setupCmdBuffer, VK_IMAGE_ASPECT_DEPTH_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
-    depthStencil.createView();
+    depthStencil_ = vku::image(device_, width_, height_, depthFormat_, VK_IMAGE_TYPE_2D, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT);
+    depthStencil_.allocate(device_);
+    depthStencil_.bindMemoryToImage();
+    depthStencil_.setImageLayout(setupCmdBuffer_, VK_IMAGE_ASPECT_DEPTH_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+    depthStencil_.createView();
 
-    pipelineCache = vku::pipelineCache(device);
+    pipelineCache_ = vku::pipelineCache(device_);
     //createPipelineCache();
 
-    swapChain.setupFrameBuffer(depthStencil.view(), depthFormat);
+    swapChain_.setupFrameBuffer(depthStencil_.view(), depthFormat_);
 
-    setupCmdBuffer.endCommandBuffer();
-    queue.submit(nullptr, setupCmdBuffer);
-    queue.waitIdle();
+    setupCmdBuffer_.endCommandBuffer();
+    queue_.submit(nullptr, setupCmdBuffer_);
+    queue_.waitIdle();
 
     // Recreate setup command buffer for derived class
 
-    setupCmdBuffer = vku::cmdBuffer(device, cmdPool);
-    setupCmdBuffer.beginCommandBuffer();
+    setupCmdBuffer_ = vku::cmdBuffer(device_, cmdPool_);
+    setupCmdBuffer_.beginCommandBuffer();
 
     // Create a simple texture loader class 
-    //textureLoader = new vkTools::VulkanTextureLoader(instance.physicalDevice(), device, queue, cmdPool);
+    //textureLoader = new vkTools::VulkanTextureLoader(instance_.physicalDevice(), device, queue, cmdPool);
   }
 
 
@@ -2277,58 +2280,107 @@ public:
   #endif
   }
 
-  bool windowIsClosed() const {
-    return windowIsClosed_;
+  void present() {
+    {
+      vku::semaphore sema(device_);
+
+      // Get next image in the swap chain (back/front buffer)
+      currentBuffer_ = swapChain_.acquireNextImage(sema);
+
+      queue_.submit(sema, drawCmdBuffers_[currentBuffer_]);
+    }
+
+    // Present the current buffer to the swap chain
+    // This will display the image
+    swapChain_.present(queue_, currentBuffer());
+
+    postPresentCmdBuffer_.beginCommandBuffer();
+    postPresentCmdBuffer_.pipelineBarrier(swapChain_.image(currentBuffer()));
+    postPresentCmdBuffer_.endCommandBuffer();
+
+    queue_.submit(nullptr, postPresentCmdBuffer_);
+
+    queue_.waitIdle();
   }
 
+  const vku::instance &instance() const { return instance_; }
+  const vku::device &device() const { return device_; }
+  const vku::queue &queue() const { return queue_; }
+  const vku::commandPool &cmdPool() const { return cmdPool_; }
+  const vku::cmdBuffer &setupCmdBuffer() const { return setupCmdBuffer_; }
+  const vku::cmdBuffer &postPresentCmdBuffer() const { return postPresentCmdBuffer_; }
+  const vku::cmdBuffer &drawCmdBuffer(size_t i) const { return drawCmdBuffers_[i]; }
+  const vku::pipelineCache &pipelineCache() const { return pipelineCache_; }
+  const vku::image &depthStencil() const { return depthStencil_; }
+  const vku::swapChain &swapChain() const { return swapChain_; }
+
+  const VkFormat colorformat() const { return colorformat_; }
+  const VkFormat depthFormat() const { return depthFormat_; }
+  const uint32_t currentBuffer() const { return currentBuffer_; }
+  const uint32_t width() const { return width_; }
+  const uint32_t height() const { return height_; }
+  const float frameTimer() const { return frameTimer_; }
+  const VkClearColorValue &defaultClearColor() const { return defaultClearColor_; }
+  const float zoom() const { return zoom_; }
+  const float timer() const { return timer_; }
+  const float timerSpeed() const { return timerSpeed_; }
+  const bool paused() const { return paused_; }
+  const bool windowIsClosed() const { return windowIsClosed_; }
+  const bool enableValidation() const { return enableValidation_; }
+  const float rotationSpeed() const { return rotationSpeed_; }
+  const float zoomSpeed() const { return zoomSpeed_; }
+  const glm::vec3 &rotation() const { return rotation_; }
+  const glm::vec2 &mousePos() const { return mousePos_; }
+  const std::string &title() const { return title_; }
+  const std::string &name() const { return name_; }
 public:
   virtual void render() = 0;
 
-  bool windowIsClosed_ = false;
-  bool enableValidation = false;
+private:
+  vku::instance instance_;
+  vku::device device_;
+  vku::queue queue_;
+  vku::commandPool cmdPool_;
+  vku::cmdBuffer setupCmdBuffer_;
+  vku::cmdBuffer postPresentCmdBuffer_;
+  vku::cmdBuffer drawCmdBuffers_[2];
+  vku::pipelineCache pipelineCache_;
+  vku::image depthStencil_;
+  vku::swapChain swapChain_;
 
-  // Last frame time, measured using a high performance timer (if available)
-  float frameTimer = 1.0f;
-  vku::instance instance;
-  vku::device device;
-  vku::queue queue;
-  VkFormat colorformat = VK_FORMAT_B8G8R8A8_UNORM;
-  VkFormat depthFormat;
-  vku::commandPool cmdPool;
-  vku::cmdBuffer setupCmdBuffer;
-  vku::cmdBuffer postPresentCmdBuffer;
-  vku::cmdBuffer drawCmdBuffers[2];
-  uint32_t currentBuffer = 0;
-  vku::pipelineCache pipelineCache;
-  vku::swapChain swapChain;
+  VkFormat colorformat_ = VK_FORMAT_B8G8R8A8_UNORM;
+  VkFormat depthFormat_;
+  uint32_t currentBuffer_ = 0;
   bool prepared = false;
-  uint32_t width = 1280;
-  uint32_t height = 720;
+  uint32_t width_ = 1280;
+  uint32_t height_ = 720;
 
-  VkClearColorValue defaultClearColor = { { 0.025f, 0.025f, 0.025f, 1.0f } };
+  float frameTimer_ = 1.0f;
+  VkClearColorValue defaultClearColor_ = { { 0.025f, 0.025f, 0.025f, 1.0f } };
 
-  float zoom = 0;
+  float zoom_ = 0;
 
   // Defines a frame rate independent timer value clamped from -1.0...1.0
   // For use in animations, rotations, etc.
-  float timer = 0.0f;
+  float timer_ = 0.0f;
   // Multiplier for speeding up (or slowing down) the global timer
-  float timerSpeed = 0.25f;
+  float timerSpeed_ = 0.25f;
   
-  bool paused = false;
+  bool paused_ = false;
+  bool windowIsClosed_ = false;
+  bool enableValidation_ = false;
 
   // Use to adjust mouse rotation speed
-  float rotationSpeed = 1.0f;
+  float rotationSpeed_ = 1.0f;
   // Use to adjust mouse zoom speed
-  float zoomSpeed = 1.0f;
+  float zoomSpeed_ = 1.0f;
 
-  glm::vec3 rotation = glm::vec3();
-  glm::vec2 mousePos;
+  glm::vec3 rotation_ = glm::vec3();
+  glm::vec2 mousePos_;
 
-  std::string title = "Vulkan Example";
-  std::string name = "vulkanExample";
+  std::string title_ = "Vulkan Example";
+  std::string name_ = "vulkanExample";
 
-  vku::image depthStencil;
 
   // OS specific 
   #ifdef _WIN32
