@@ -12,6 +12,7 @@
 
 #include "../vulkan/vulkan.h"
 #include "../glm/glm.hpp"
+#include "../glm/gtc/matrix_transform.hpp"
 
 #include <cstring>
 #include <vector>
@@ -26,6 +27,8 @@
 // Many thanks to Sascha, without who this would be a challenge!
 
 namespace vku {
+
+  inline float deg_to_rad(float deg) { return deg * (3.1415927f / 180); }
 
 template <class WindowHandle, class Window> Window *map_window(WindowHandle handle, Window *win) {
   static std::unordered_map<WindowHandle, Window *> map;
@@ -1212,11 +1215,11 @@ public:
     }
   }
 
-  void allocateDescriptorSets(descriptorPool &descPool) {
+  void allocateDescriptorSets(descriptorPool &descPool, uint32_t count=1) {
     VkDescriptorSetAllocateInfo allocInfo = {};
     allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
     allocInfo.descriptorPool = descPool;
-    allocInfo.descriptorSetCount = 1;
+    allocInfo.descriptorSetCount = count;
     allocInfo.pSetLayouts = &descriptorSetLayout;
 
     descriptorSet = nullptr;
@@ -2224,6 +2227,22 @@ public:
       frameTimer = tDiff / 1000.0f;
   }
   #endif
+  }
+
+  glm::mat4 defaultProjectionMatrix() const {
+    return glm::perspective(deg_to_rad(60.0f), (float)width() / (float)height(), 0.1f, 256.0f);
+  }
+
+  glm::mat4 defaultViewMatrix() const {
+    return glm::translate(glm::mat4(), glm::vec3(0.0f, 0.0f, zoom()));
+  }
+
+  glm::mat4 defaultModelMatrix() const {
+    glm::mat4 m;
+    m = glm::rotate(m, deg_to_rad(rotation().x), glm::vec3(1.0f, 0.0f, 0.0f));
+    m = glm::rotate(m, deg_to_rad(rotation().y), glm::vec3(0.0f, 1.0f, 0.0f));
+    m = glm::rotate(m, deg_to_rad(rotation().z), glm::vec3(0.0f, 0.0f, 1.0f));
+    return m;
   }
 
   void present() {

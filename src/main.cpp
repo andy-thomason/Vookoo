@@ -11,11 +11,6 @@
 // vulkan utilities.
 #include "vku.hpp"
 
-#include "../glm/gtc/matrix_transform.hpp"
-
-inline float deg_to_rad(float deg) { return deg * (3.1415927f / 180); }
-
-
 class triangle_example : public vku::window
 {
 public:
@@ -60,8 +55,6 @@ public:
 
     uniform_buffer = vku::buffer(device(), (void*)nullptr, sizeof(uniform_data), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
     
-    updateUniformBuffers();
-
     vertexShader = vku::shaderModule(device(), "data/shaders/triangle.vert", VK_SHADER_STAGE_VERTEX_BIT);
     fragmentShader = vku::shaderModule(device(), "data/shaders/triangle.frag", VK_SHADER_STAGE_FRAGMENT_BIT);
 
@@ -88,6 +81,8 @@ public:
 
       cmdbuf.end(swapChain().image(i));
     }
+
+    updateUniformBuffers();
   }
 
   void draw()
@@ -97,15 +92,9 @@ public:
 
   void updateUniformBuffers()
   {
-    // Update matrices
-    uniform_data.projectionMatrix = glm::perspective(deg_to_rad(60.0f), (float)width() / (float)height(), 0.1f, 256.0f);
-
-    uniform_data.viewMatrix = glm::translate(glm::mat4(), glm::vec3(0.0f, 0.0f, zoom()));
-
-    uniform_data.modelMatrix = glm::mat4();
-    uniform_data.modelMatrix = glm::rotate(uniform_data.modelMatrix, deg_to_rad(rotation().x), glm::vec3(1.0f, 0.0f, 0.0f));
-    uniform_data.modelMatrix = glm::rotate(uniform_data.modelMatrix, deg_to_rad(rotation().y), glm::vec3(0.0f, 1.0f, 0.0f));
-    uniform_data.modelMatrix = glm::rotate(uniform_data.modelMatrix, deg_to_rad(rotation().z), glm::vec3(0.0f, 0.0f, 1.0f));
+    uniform_data.projectionMatrix = defaultProjectionMatrix();
+    uniform_data.viewMatrix = defaultViewMatrix();
+    uniform_data.modelMatrix = defaultModelMatrix();
 
     void *dest = uniform_buffer.map();
     memcpy(dest, &uniform_data, sizeof(uniform_data));
