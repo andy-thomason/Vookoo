@@ -1,8 +1,11 @@
 Vulkan Utititles Library
 ========================
 
-A simple utilities library for the Vulkan graphics API that
-has sensible defaults and an easy programming interface.
+A simple utilities library in modern C++ for the Vulkan graphics
+API that has sensible defaults and an easy programming interface.
+
+The initial implementation is based on Sasch Willem's excellent
+Vulkan examples.
 
 Introduction
 ------------
@@ -68,3 +71,10 @@ images from host data, for example.
 
 If you want more efficient storage, or just wish to pass an object without transfering ownership
 you can use non-owning versions of the vku classes.
+
+The library
+-----------
+
+VKU is a modern C++ library like STL, Boost and GLM and does not need to be pre-built.
+Distribution is source only.
+
