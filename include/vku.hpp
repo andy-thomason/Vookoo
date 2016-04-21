@@ -5,9 +5,8 @@
 
 #ifdef _WIN32
   #define VK_USE_PLATFORM_WIN32_KHR
-  #pragma comment(lib, "vulkan/vulkan-1.lib")
+  #pragma comment(lib, "vulkan-1.lib")
   #define _CRT_SECURE_NO_WARNINGS
-
 #endif
 
 #include "../vulkan/vulkan.h"
@@ -814,13 +813,13 @@ public:
   descriptorPool() {
   }
 
-  descriptorPool(VkDevice dev) : dev_(dev) {
+  descriptorPool(VkDevice dev, uint32_t num_uniform_buffers) : dev_(dev) {
     // We need to tell the API the number of max. requested descriptors per type
     VkDescriptorPoolSize typeCounts[1];
     // This example only uses one descriptor type (uniform buffer) and only
     // requests one descriptor of this type
     typeCounts[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    typeCounts[0].descriptorCount = 2;
+    typeCounts[0].descriptorCount = num_uniform_buffers;
     // For additional types you need to add new entries in the type count list
     // E.g. for two combined image samplers :
     // typeCounts[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
@@ -835,7 +834,7 @@ public:
     descriptorPoolInfo.pPoolSizes = typeCounts;
     // Set the max. number of sets that can be requested
     // Requesting descriptors beyond maxSets will result in an error
-    descriptorPoolInfo.maxSets = 2;
+    descriptorPoolInfo.maxSets = num_uniform_buffers * 2;
 
     VkResult err = vkCreateDescriptorPool(dev_, &descriptorPoolInfo, nullptr, &pool_);
     if (err) throw error(err, __FILE__, __LINE__);
@@ -907,6 +906,7 @@ public:
     std::ifstream input(filename, std::ios::binary);
     auto &b = std::istreambuf_iterator<char>(input);
     auto &e = std::istreambuf_iterator<char>();
+    if (b == e) throw(std::runtime_error("shaderModule(): shader file empty or not found"));
     std::vector<uint8_t> buf(b, e);
     create(buf.data(), buf.data() + buf.size(), stage);
   }
