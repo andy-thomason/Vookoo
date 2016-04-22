@@ -141,23 +141,15 @@ public:
 
 
 int main(const int argc, const char *argv[]) {
-  try {
-    // create a window.
-    triangle_example my_example;
+  // create a window.
+  triangle_example my_example;
 
-    // poll the windows until they are all closed
-    while (vku::window::poll()) {
-      if (my_example.windowIsClosed()) {
-        break;
-      }
-      my_example.render();
+  // poll the windows until they are all closed
+  while (vku::window::poll()) {
+    if (my_example.windowIsClosed()) {
+      break;
     }
-  } catch(std::runtime_error &e) {
-    // come here if something fails.
-    printf("fail: %s\n", e.what());
-    char x;
-    std::cin >> x;
+    my_example.render();
   }
-
   return 0;
 }

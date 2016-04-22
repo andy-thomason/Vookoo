@@ -110,10 +110,10 @@ public:
 template <class VulkanType, class ParentClass>
 class resource {
 public:
-  resource() : value_(nullptr), ownsResource(false), dev_(nullptr) {
+  resource() : value_(VK_NULL_HANDLE), ownsResource(false), dev_(VK_NULL_HANDLE) {
   }
 
-  resource(VulkanType value, VkDevice dev = nullptr) : value_(value), ownsResource(false), dev_(dev) {
+  resource(VulkanType value, VkDevice dev = VK_NULL_HANDLE) : value_(value), ownsResource(false), dev_(dev) {
   }
 
   resource(VkDevice dev) : dev_(dev), ownsResource(false) {
@@ -126,7 +126,7 @@ public:
     value_ = rhs.value_;
     dev_ = rhs.dev_;
     ownsResource = rhs.ownsResource;
-    rhs.value_ = nullptr;
+    rhs.value_ = VK_NULL_HANDLE;
     rhs.ownsResource = false;
   }
 
@@ -144,12 +144,12 @@ public:
 
   void clear() {
     if (value_ && ownsResource) ((ParentClass*)this)->destroy();
-    value_ = nullptr; ownsResource = false;
+    value_ = VK_NULL_HANDLE; ownsResource = false;
   }
 private:
   // resources have a value, a device and an ownership flag.
-  VulkanType value_ = nullptr;
-  VkDevice dev_ = nullptr;
+  VulkanType value_ = VK_NULL_HANDLE;
+  VkDevice dev_ = VK_NULL_HANDLE;
   bool ownsResource = false;
 };
 
@@ -284,15 +284,15 @@ public:
 
 class instance : public resource<VkInstance, instance> {
 public:
-  instance() : resource((VkInstance)nullptr) {
+  instance() : resource((VkInstance)VK_NULL_HANDLE) {
   }
 
   /// instance that does not own its pointer
-  instance(VkInstance value) : resource(value, nullptr) {
+  instance(VkInstance value) : resource(value, VK_NULL_HANDLE) {
   }
 
   /// instance that does owns (and creates) its pointer
-  instance(const char *name) : resource((VkDevice)nullptr) {
+  instance(const char *name) : resource((VkDevice)VK_NULL_HANDLE) {
     bool enableValidation = false;
     VkApplicationInfo appInfo = {};
     appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
@@ -333,14 +333,14 @@ public:
       //instanceCreateInfo.ppEnabledLayerNames = vkDebug::validationLayerNames;
     }
 
-    VkInstance inst = nullptr;
-    vkCreateInstance(&instanceCreateInfo, nullptr, &inst);
+    VkInstance inst = VK_NULL_HANDLE;
+    vkCreateInstance(&instanceCreateInfo, VK_NULL_HANDLE, &inst);
     set(inst, true);
 
     // Physical device
     uint32_t gpuCount = 0;
     // Get number of available physical devices
-    VkResult err = vkEnumeratePhysicalDevices(get(), &gpuCount, nullptr);
+    VkResult err = vkEnumeratePhysicalDevices(get(), &gpuCount, VK_NULL_HANDLE);
     if (err) throw error(err, __FILE__, __LINE__);
 
     if (gpuCount == 0) {
@@ -403,7 +403,7 @@ public:
       //deviceCreateInfo.ppEnabledLayerNames = vkDebug::validationLayerNames;
     }
 
-    err = vkCreateDevice(physicalDevice_, &deviceCreateInfo, nullptr, &dev_);
+    err = vkCreateDevice(physicalDevice_, &deviceCreateInfo, VK_NULL_HANDLE, &dev_);
     if (err) throw error(err, __FILE__, __LINE__);
 
     // Get the graphics queue
@@ -411,14 +411,14 @@ public:
   }
 
   VkSurfaceKHR createSurface(void *connection, void *window) {
-    VkSurfaceKHR result = nullptr;
+    VkSurfaceKHR result = VK_NULL_HANDLE;
     // Create surface depending on OS
     #if defined(_WIN32)
       VkWin32SurfaceCreateInfoKHR surfaceCreateInfo = {};
       surfaceCreateInfo.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
       surfaceCreateInfo.hinstance = (HINSTANCE)connection;
       surfaceCreateInfo.hwnd = (HWND)window;
-      VkResult err = vkCreateWin32SurfaceKHR(get(), &surfaceCreateInfo, nullptr, &result);
+      VkResult err = vkCreateWin32SurfaceKHR(get(), &surfaceCreateInfo, VK_NULL_HANDLE, &result);
     #elif defined(__ANDROID__)
       VkAndroidSurfaceCreateInfoKHR surfaceCreateInfo = {};
       surfaceCreateInfo.sType = VK_STRUCTURE_TYPE_ANDROID_SURFACE_CREATE_INFO_KHR;
@@ -429,14 +429,14 @@ public:
       surfaceCreateInfo.sType = VK_STRUCTURE_TYPE_XCB_SURFACE_CREATE_INFO_KHR;
       surfaceCreateInfo.connection = connection;
       surfaceCreateInfo.window = window;
-      VkResult err = vkCreateXcbSurfaceKHR(get(), &surfaceCreateInfo, nullptr, &result);
+      VkResult err = vkCreateXcbSurfaceKHR(get(), &surfaceCreateInfo, VK_NULL_HANDLE, &result);
     #endif
     if (err) throw error(err, __FILE__, __LINE__);
     return result;
   }
 
   void destroy() {
-    vkDestroyInstance(get(), nullptr);
+    vkDestroyInstance(get(), VK_NULL_HANDLE);
   }
 
   VkPhysicalDevice physicalDevice() const { return physicalDevice_; }
@@ -496,8 +496,8 @@ public:
     renderPassInfo.subpassCount = (uint32_t)descs.size();
     renderPassInfo.pSubpasses = descs.data();
 
-    VkRenderPass renderPass = nullptr;
-    VkResult err = vkCreateRenderPass(device, &renderPassInfo, nullptr, &renderPass);
+    VkRenderPass renderPass = VK_NULL_HANDLE;
+    VkResult err = vkCreateRenderPass(device, &renderPassInfo, VK_NULL_HANDLE, &renderPass);
     return renderPass;
   }
 
@@ -516,7 +516,7 @@ private:
 class swapChain : public resource<VkSwapchainKHR, swapChain> {
 public:
   /// semaphore that does not own its pointer
-  swapChain(VkSwapchainKHR value = nullptr, VkDevice dev = nullptr) : resource(value, dev) {
+  swapChain(VkSwapchainKHR value = VK_NULL_HANDLE, VkDevice dev = VK_NULL_HANDLE) : resource(value, dev) {
   }
 
   /// semaphore that does owns (and creates) its pointer
@@ -608,7 +608,7 @@ public:
     swapchainCI.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
 
     VkSwapchainKHR res;
-    err = vkCreateSwapchainKHR(dev, &swapchainCI, nullptr, &res);
+    err = vkCreateSwapchainKHR(dev, &swapchainCI, VK_NULL_HANDLE, &res);
     if (err) throw error(err, __FILE__, __LINE__);
     set(res, true);
 
@@ -650,7 +650,7 @@ public:
 
   uint32_t acquireNextImage(VkSemaphore presentCompleteSemaphore) const {
     uint32_t currentBuffer = 0;
-    VkResult err = vkAcquireNextImageKHR(dev(), get(), UINT64_MAX, presentCompleteSemaphore, (VkFence)nullptr, &currentBuffer);
+    VkResult err = vkAcquireNextImageKHR(dev(), get(), UINT64_MAX, presentCompleteSemaphore, (VkFence)VK_NULL_HANDLE, &currentBuffer);
     if (err) throw error(err, __FILE__, __LINE__);
     return currentBuffer;
   }
@@ -685,7 +685,7 @@ public:
     for (uint32_t i = 0; i < frameBuffers_.size(); i++)
     {
       attachments[0] = swapchainViews[i];
-      VkResult err = vkCreateFramebuffer(dev(), &frameBufferCreateInfo, nullptr, &frameBuffers_[i]);
+      VkResult err = vkCreateFramebuffer(dev(), &frameBufferCreateInfo, VK_NULL_HANDLE, &frameBuffers_[i]);
     }
   }
 
@@ -693,7 +693,7 @@ public:
   VkRenderPass renderPass() const { return renderPass_; }
 
   void destroy() {
-    vkDestroySwapchainKHR(dev(), get(), nullptr);
+    vkDestroySwapchainKHR(dev(), get(), VK_NULL_HANDLE);
   }
 
 private:
@@ -704,7 +704,7 @@ private:
   VkFormat depthFormat_ = VK_FORMAT_B8G8R8A8_UNORM;;
   VkColorSpaceKHR colorSpace_ = VK_COLORSPACE_SRGB_NONLINEAR_KHR;
   uint32_t queueNodeIndex_ = UINT32_MAX;
-  VkSurfaceKHR surface_ = nullptr;
+  VkSurfaceKHR surface_ = VK_NULL_HANDLE;
   VkRenderPass renderPass_;
 
   std::vector<VkImage> swapchainImages;
@@ -714,7 +714,7 @@ private:
 
 class buffer {
 public:
-  buffer(VkDevice dev = nullptr, VkBuffer buf = nullptr) : buf_(buf), dev(dev) {
+  buffer(VkDevice dev = VK_NULL_HANDLE, VkBuffer buf = VK_NULL_HANDLE) : buf_(buf), dev(dev) {
   }
 
   buffer(device dev, void *init, VkDeviceSize size, VkBufferUsageFlags usage) : dev(dev), size_(size) {
@@ -722,7 +722,7 @@ public:
     bufInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
     bufInfo.size = size;
     bufInfo.usage = usage;
-    VkResult err = vkCreateBuffer(dev, &bufInfo, nullptr, &buf_);
+    VkResult err = vkCreateBuffer(dev, &bufInfo, VK_NULL_HANDLE, &buf_);
     if (err) throw error(err, __FILE__, __LINE__);
 
     ownsBuffer = true;
@@ -735,7 +735,7 @@ public:
     memAlloc.allocationSize = memReqs.size;
     memAlloc.memoryTypeIndex = dev.getMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
 
-     err = vkAllocateMemory(dev, &memAlloc, nullptr, &mem);
+     err = vkAllocateMemory(dev, &memAlloc, VK_NULL_HANDLE, &mem);
     if (err) throw error(err, __FILE__, __LINE__);
 
     if (init) {
@@ -746,8 +746,8 @@ public:
     bind();
   }
 
-  buffer(VkBufferCreateInfo bufInfo, VkDevice dev = nullptr) : dev(dev) {
-    vkCreateBuffer(dev, &bufInfo, nullptr, &buf_);
+  buffer(VkBufferCreateInfo bufInfo, VkDevice dev = VK_NULL_HANDLE) : dev(dev) {
+    vkCreateBuffer(dev, &bufInfo, VK_NULL_HANDLE, &buf_);
   }
 
   // RAII move operator
@@ -756,9 +756,9 @@ public:
     buf_ = rhs.buf_;
     mem = rhs.mem;
     size_ = rhs.size_;
-    rhs.dev = nullptr;
-    rhs.mem = nullptr;
-    rhs.buf_ = nullptr;
+    rhs.dev = VK_NULL_HANDLE;
+    rhs.mem = VK_NULL_HANDLE;
+    rhs.buf_ = VK_NULL_HANDLE;
 
     rhs.ownsBuffer = false;
     return *this;
@@ -766,13 +766,13 @@ public:
 
   ~buffer() {
     if (buf_ && ownsBuffer) {
-      vkDestroyBuffer(dev, buf_, nullptr);
-      buf_ = nullptr;
+      vkDestroyBuffer(dev, buf_, VK_NULL_HANDLE);
+      buf_ = VK_NULL_HANDLE;
     }
   }
 
   void *map() {
-    void *dest = nullptr;
+    void *dest = VK_NULL_HANDLE;
     VkResult err = vkMapMemory(dev, mem, 0, size(), 0, &dest);
     if (err) throw error(err, __FILE__, __LINE__);
     return dest;
@@ -803,9 +803,9 @@ public:
   }
 
 private:
-  VkBuffer buf_ = nullptr;
-  VkDevice dev = nullptr;
-  VkDeviceMemory mem = nullptr;
+  VkBuffer buf_ = VK_NULL_HANDLE;
+  VkDevice dev = VK_NULL_HANDLE;
+  VkDeviceMemory mem = VK_NULL_HANDLE;
   size_t size_;
   bool ownsBuffer = false;
 };
@@ -838,7 +838,7 @@ public:
     // Requesting descriptors beyond maxSets will result in an error
     descriptorPoolInfo.maxSets = num_uniform_buffers * 2;
 
-    VkResult err = vkCreateDescriptorPool(dev_, &descriptorPoolInfo, nullptr, &pool_);
+    VkResult err = vkCreateDescriptorPool(dev_, &descriptorPoolInfo, VK_NULL_HANDLE, &pool_);
     if (err) throw error(err, __FILE__, __LINE__);
 
     ownsResource_ = true;
@@ -873,7 +873,7 @@ public:
 
   ~descriptorPool() {
     if (pool_ && ownsResource_) {
-      vkDestroyDescriptorPool(dev_, pool_, nullptr);
+      vkDestroyDescriptorPool(dev_, pool_, VK_NULL_HANDLE);
       ownsResource_ = false;
     }
   }
@@ -888,8 +888,8 @@ public:
 
   operator VkDescriptorPool() { return pool_; }
 private:
-  VkDevice dev_ = nullptr;
-  VkDescriptorPool pool_ = nullptr;
+  VkDevice dev_ = VK_NULL_HANDLE;
+  VkDescriptorPool pool_ = VK_NULL_HANDLE;
   bool ownsResource_ = false;
   VkWriteDescriptorSet writeDescriptorSet = {};
 };
@@ -897,7 +897,7 @@ private:
 
 class shaderModule : public resource<VkShaderModule, shaderModule> {
 public:
-  shaderModule() : resource(nullptr, nullptr) {
+  shaderModule() : resource(VK_NULL_HANDLE, VK_NULL_HANDLE) {
   }
 
   /// descriptor pool that does not own its pointer
@@ -942,7 +942,7 @@ public:
   }
 
   void destroy() {
-    if (get()) vkDestroyShaderModule(dev(), get(), nullptr);
+    if (get()) vkDestroyShaderModule(dev(), get(), VK_NULL_HANDLE);
   }
 
   shaderModule &operator=(shaderModule &&rhs) {
@@ -953,7 +953,7 @@ public:
 
 class pipelineCache : public resource<VkPipelineCache, pipelineCache> {
 public:
-  pipelineCache() : resource(nullptr, nullptr) {
+  pipelineCache() : resource(VK_NULL_HANDLE, VK_NULL_HANDLE) {
   }
 
   /// descriptor pool that does not own its pointer
@@ -965,13 +965,13 @@ public:
     VkPipelineCacheCreateInfo pipelineCacheCreateInfo = {};
     pipelineCacheCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO;
     VkPipelineCache cache;
-    VkResult err = vkCreatePipelineCache(dev, &pipelineCacheCreateInfo, nullptr, &cache);
+    VkResult err = vkCreatePipelineCache(dev, &pipelineCacheCreateInfo, VK_NULL_HANDLE, &cache);
     if (err) throw error(err, __FILE__, __LINE__);
     set(cache, true);
   }
 
   void destroy() {
-    if (get()) vkDestroyPipelineCache(dev(), get(), nullptr);
+    if (get()) vkDestroyPipelineCache(dev(), get(), VK_NULL_HANDLE);
   }
 
   pipelineCache &operator=(pipelineCache &&rhs) {
@@ -1111,7 +1111,7 @@ public:
 
   VkGraphicsPipelineCreateInfo *get(VkRenderPass renderPass, VkPipelineLayout pipelineLayout) {
     vi.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-    vi.pNext = nullptr;
+    vi.pNext = VK_NULL_HANDLE;
     vi.vertexBindingDescriptionCount = (uint32_t)bindingDescriptions.size();
     vi.pVertexBindingDescriptions = bindingDescriptions.data();
     vi.vertexAttributeDescriptionCount = (uint32_t)attributeDescriptions.size();
@@ -1185,13 +1185,13 @@ public:
     pPipelineLayoutCreateInfo.setLayoutCount = 1;
     pPipelineLayoutCreateInfo.pSetLayouts = &descriptorSetLayout;
 
-    err = vkCreatePipelineLayout(device, &pPipelineLayoutCreateInfo, nullptr, &pipelineLayout);
+    err = vkCreatePipelineLayout(device, &pPipelineLayoutCreateInfo, VK_NULL_HANDLE, &pipelineLayout);
     if (err) throw error(err, __FILE__, __LINE__);
 
     auto info = pipelineCreateHelper.get(renderPass, pipelineLayout);
 
     // Create rendering pipeline
-    err = vkCreateGraphicsPipelines(device, pipelineCache, 1, info, nullptr, &pipe_);
+    err = vkCreateGraphicsPipelines(device, pipelineCache, 1, info, VK_NULL_HANDLE, &pipe_);
     if (err) throw error(err, __FILE__, __LINE__);
 
     ownsData = true;
@@ -1211,9 +1211,9 @@ public:
 
   ~pipeline() {
     if (ownsData) {
-      vkDestroyPipeline(dev_, pipe_, nullptr);
-      vkDestroyPipelineLayout(dev_, pipelineLayout, nullptr);
-      vkDestroyDescriptorSetLayout(dev_, descriptorSetLayout, nullptr);
+      vkDestroyPipeline(dev_, pipe_, VK_NULL_HANDLE);
+      vkDestroyPipelineLayout(dev_, pipelineLayout, VK_NULL_HANDLE);
+      vkDestroyDescriptorSetLayout(dev_, descriptorSetLayout, VK_NULL_HANDLE);
     }
   }
 
@@ -1224,7 +1224,7 @@ public:
     allocInfo.descriptorSetCount = count;
     allocInfo.pSetLayouts = &descriptorSetLayout;
 
-    descriptorSet = nullptr;
+    descriptorSet = VK_NULL_HANDLE;
     VkResult err = vkAllocateDescriptorSets(dev_, &allocInfo, &descriptorSet);
     if (err) throw error(err, __FILE__, __LINE__);
   }
@@ -1251,18 +1251,18 @@ public:
 
 private:
 
-  VkPipeline pipe_ = nullptr;
-  VkPipelineLayout pipelineLayout = nullptr;
-  VkDescriptorSet descriptorSet = nullptr;
-  VkDescriptorSetLayout descriptorSetLayout = nullptr;
-  VkDevice dev_ = nullptr;
+  VkPipeline pipe_ = VK_NULL_HANDLE;
+  VkPipelineLayout pipelineLayout = VK_NULL_HANDLE;
+  VkDescriptorSet descriptorSet = VK_NULL_HANDLE;
+  VkDescriptorSetLayout descriptorSetLayout = VK_NULL_HANDLE;
+  VkDevice dev_ = VK_NULL_HANDLE;
   std::vector<VkShaderModule> shaderModules;
   bool ownsData = false;
 };
 
 class commandPool : public resource<VkCommandPool, commandPool> {
 public:
-  commandPool() : resource(nullptr, nullptr) {
+  commandPool() : resource(VK_NULL_HANDLE, VK_NULL_HANDLE) {
   }
 
   /// command pool that does not own its pointer
@@ -1276,13 +1276,13 @@ public:
     cmdPoolInfo.queueFamilyIndex = queueFamilyIndex;
     cmdPoolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
     VkCommandPool cmdPool;
-    VkResult err = vkCreateCommandPool(dev, &cmdPoolInfo, nullptr, &cmdPool);
+    VkResult err = vkCreateCommandPool(dev, &cmdPoolInfo, VK_NULL_HANDLE, &cmdPool);
     if (err) throw error(err, __FILE__, __LINE__);
     set(cmdPool, true);
   }
 
   void destroy() {
-    if (get()) vkDestroyCommandPool(dev(), get(), nullptr);
+    if (get()) vkDestroyCommandPool(dev(), get(), VK_NULL_HANDLE);
   }
 
   commandPool &operator=(commandPool &&rhs) {
@@ -1293,7 +1293,7 @@ public:
 
 class cmdBuffer : public resource<VkCommandBuffer, cmdBuffer> {
 public:
-  cmdBuffer() : resource(nullptr, nullptr) {
+  cmdBuffer() : resource(VK_NULL_HANDLE, VK_NULL_HANDLE) {
   }
 
   /// command buffer that does not own its pointer
@@ -1302,7 +1302,7 @@ public:
 
   /// command buffer that does owns (and creates) its pointer
   cmdBuffer(VkDevice dev, VkCommandPool cmdPool, VkCommandBufferLevel level = VK_COMMAND_BUFFER_LEVEL_PRIMARY) : resource(dev) {
-    VkCommandBuffer res = nullptr;
+    VkCommandBuffer res = VK_NULL_HANDLE;
     VkCommandBufferAllocateInfo commandBufferAllocateInfo = {};
     commandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
     commandBufferAllocateInfo.commandPool = cmdPool;
@@ -1504,7 +1504,7 @@ public:
     }
 
     // Put barrier inside setup command buffer
-    vkCmdPipelineBarrier(get(), srcStageFlags, destStageFlags, 0, 0, nullptr, 0, nullptr, 1, &imageMemoryBarrier);
+    vkCmdPipelineBarrier(get(), srcStageFlags, destStageFlags, 0, 0, VK_NULL_HANDLE, 0, VK_NULL_HANDLE, 1, &imageMemoryBarrier);
   }
 
   /// change the layout of an image
@@ -1547,7 +1547,7 @@ public:
   }
 
 private:
-  VkCommandPool pool_ = nullptr;
+  VkCommandPool pool_ = VK_NULL_HANDLE;
 };
 
 inline void swapChain::build_images(VkCommandBuffer buf) {
@@ -1590,7 +1590,7 @@ inline void swapChain::build_images(VkCommandBuffer buf) {
 
     colorAttachmentView.image = image(i);
 
-    err = vkCreateImageView(dev(), &colorAttachmentView, nullptr, &swapchainViews[i]);
+    err = vkCreateImageView(dev(), &colorAttachmentView, VK_NULL_HANDLE, &swapchainViews[i]);
     if (err) throw error(err, __FILE__, __LINE__);
   }
 }
@@ -1599,7 +1599,7 @@ inline void swapChain::build_images(VkCommandBuffer buf) {
 class semaphore : public resource<VkSemaphore, semaphore> {
 public:
   /// semaphore that does not own its pointer
-  semaphore(VkSemaphore value = nullptr, VkDevice dev = nullptr) : resource(value, dev) {
+  semaphore(VkSemaphore value = VK_NULL_HANDLE, VkDevice dev = VK_NULL_HANDLE) : resource(value, dev) {
   }
 
   /// semaphore that does owns (and creates) its pointer
@@ -1611,21 +1611,21 @@ public:
     info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
     info.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 
-    VkSemaphore res = nullptr;
-    VkResult err = vkCreateSemaphore(dev, &info, nullptr, &res);
+    VkSemaphore res = VK_NULL_HANDLE;
+    VkResult err = vkCreateSemaphore(dev, &info, VK_NULL_HANDLE, &res);
     if (err) throw error(err, __FILE__, __LINE__);
     return res;
   }
 
   void destroy() {
-    vkDestroySemaphore(dev(), get(), nullptr);
+    vkDestroySemaphore(dev(), get(), VK_NULL_HANDLE);
   }
 };
 
 class queue : public resource<VkQueue, queue> {
 public:
   /// queue that does not own its pointer
-  queue(VkQueue value = nullptr, VkDevice dev = nullptr) : resource(value, dev) {
+  queue(VkQueue value = VK_NULL_HANDLE, VkDevice dev = VK_NULL_HANDLE) : resource(value, dev) {
   }
 
   /// queue that does owns (and creates) its pointer
@@ -1654,7 +1654,7 @@ public:
   }
 
   VkQueue create(VkDevice dev) {
-    return nullptr;
+    return VK_NULL_HANDLE;
   }
 
   void destroy() {
@@ -1665,11 +1665,11 @@ public:
 class image : public resource<VkImage, image> {
 public:
   /// image that does not own its pointer
-  image(VkImage value = nullptr, VkDevice dev = nullptr) : resource(value, dev) {
+  image(VkImage value = VK_NULL_HANDLE, VkDevice dev = VK_NULL_HANDLE) : resource(value, dev) {
   }
 
   /// image that does owns (and creates) its pointer
-  image(VkDevice dev, uint32_t width, uint32_t height, VkFormat format=VK_FORMAT_R8G8B8_UNORM, VkImageType type=VK_IMAGE_TYPE_2D, VkImageUsageFlags usage=0) : resource(nullptr, dev) {
+  image(VkDevice dev, uint32_t width, uint32_t height, VkFormat format=VK_FORMAT_R8G8B8_UNORM, VkImageType type=VK_IMAGE_TYPE_2D, VkImageUsageFlags usage=0) : resource(VK_NULL_HANDLE, dev) {
     VkImageCreateInfo image = {};
     image.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
     image.pNext = NULL;
@@ -1683,8 +1683,8 @@ public:
     image.usage = usage;
     image.flags = 0;
 
-    VkImage result = nullptr;
-    VkResult err = vkCreateImage(dev, &image, nullptr, &result);
+    VkImage result = VK_NULL_HANDLE;
+    VkResult err = vkCreateImage(dev, &image, VK_NULL_HANDLE, &result);
     if (err) throw error(err, __FILE__, __LINE__);
 
     set(result, true);
@@ -1700,7 +1700,7 @@ public:
     mem_alloc.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
     mem_alloc.allocationSize = memReqs.size;
     mem_alloc.memoryTypeIndex = device.getMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-    VkResult err = vkAllocateMemory(device, &mem_alloc, nullptr, &mem_);
+    VkResult err = vkAllocateMemory(device, &mem_alloc, VK_NULL_HANDLE, &mem_);
     if (err) throw error(err, __FILE__, __LINE__);
   }
 
@@ -1729,33 +1729,33 @@ public:
     viewCreateInfo.subresourceRange.baseArrayLayer = 0;
     viewCreateInfo.subresourceRange.layerCount = 1;
     viewCreateInfo.image = get();
-    VkResult err = vkCreateImageView(dev(), &viewCreateInfo, nullptr, &view_);
+    VkResult err = vkCreateImageView(dev(), &viewCreateInfo, VK_NULL_HANDLE, &view_);
     if (err) throw error(err, __FILE__, __LINE__);
   }
 
   void destroy() {
     if (view()) {
-      //vkDestroyImageView(dev(), view(), nullptr);
+      //vkDestroyImageView(dev(), view(), VK_NULL_HANDLE);
     }
 
     if (mem()) {
-      //vkFreeMemory(dev(), mem(), nullptr);
+      //vkFreeMemory(dev(), mem(), VK_NULL_HANDLE);
     }
 
     if (get()) {
-      //vkDestroyImage(dev(), get(), nullptr);
+      //vkDestroyImage(dev(), get(), VK_NULL_HANDLE);
     }
 
-    view_ = nullptr;
-    mem_ = nullptr;
-    set(nullptr, false);
+    view_ = VK_NULL_HANDLE;
+    mem_ = VK_NULL_HANDLE;
+    set(VK_NULL_HANDLE, false);
   }
 
   VkDeviceMemory mem() const { return mem_; }
   VkImageView view() const { return view_; }
 
-  VkDeviceMemory mem_ = nullptr;
-  VkImageView view_ = nullptr;
+  VkDeviceMemory mem_ = VK_NULL_HANDLE;
+  VkImageView view_ = VK_NULL_HANDLE;
 
   image &operator=(image &&rhs) {
     (resource&)(*this) = (resource&&)rhs;
@@ -1813,7 +1813,7 @@ public:
 
     cmdPool_.clear();
 
-    //vkDestroyDevice(device, nullptr); 
+    //vkDestroyDevice(device, VK_NULL_HANDLE); 
     //device.clear();
 
     if (enableValidation_)
@@ -1962,7 +1962,7 @@ public:
       case WM_CLOSE:
         prepared = false;
         DestroyWindow(hWnd);
-        map_window(hWnd, (window*)nullptr);
+        map_window(hWnd, (window*)VK_NULL_HANDLE);
         windowIsClosed_ = true;
         //PostQuitMessage(0);
         break;
@@ -2183,7 +2183,7 @@ public:
     swapChain_.setupFrameBuffer(depthStencil_.view(), depthFormat_);
 
     setupCmdBuffer_.endCommandBuffer();
-    queue_.submit(nullptr, setupCmdBuffer_);
+    queue_.submit(VK_NULL_HANDLE, setupCmdBuffer_);
     queue_.waitIdle();
 
     // Recreate setup command buffer for derived class
@@ -2265,7 +2265,7 @@ public:
     postPresentCmdBuffer_.addPostPresentBariier(swapChain_.image(currentBuffer()));
     postPresentCmdBuffer_.endCommandBuffer();
 
-    queue_.submit(nullptr, postPresentCmdBuffer_);
+    queue_.submit(VK_NULL_HANDLE, postPresentCmdBuffer_);
 
     queue_.waitIdle();
   }
