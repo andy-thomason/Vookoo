@@ -20,6 +20,8 @@
 #include <iostream>
 #include <chrono>
 #include <unordered_map>
+#include <algorithm>
+#include <numeric>
 
 // derived from https://github.com/SaschaWillems/Vulkan
 //
@@ -2363,6 +2365,7 @@ private:
     xcb_intern_atom_reply_t *atom_wm_delete_window;
   #endif  
 };
+
 
 
 } // vku

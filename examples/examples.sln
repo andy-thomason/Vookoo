@@ -5,16 +5,28 @@ VisualStudioVersion = 14.0.23107.0
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "triangle", "triangle\triangle.vcxproj", "{C8F26BEE-BE6D-49B6-8576-108CF1AA33EA}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "teapot", "teapot\teapot.vcxproj", "{4DFDECFB-6C67-4062-9C2A-035288DE1047}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
+		Debug|x86 = Debug|x86
 		Release|x64 = Release|x64
+		Release|x86 = Release|x86
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
 		{C8F26BEE-BE6D-49B6-8576-108CF1AA33EA}.Debug|x64.ActiveCfg = Debug|x64
 		{C8F26BEE-BE6D-49B6-8576-108CF1AA33EA}.Debug|x64.Build.0 = Debug|x64
+		{C8F26BEE-BE6D-49B6-8576-108CF1AA33EA}.Debug|x86.ActiveCfg = Debug|x64
 		{C8F26BEE-BE6D-49B6-8576-108CF1AA33EA}.Release|x64.ActiveCfg = Release|x64
 		{C8F26BEE-BE6D-49B6-8576-108CF1AA33EA}.Release|x64.Build.0 = Release|x64
+		{C8F26BEE-BE6D-49B6-8576-108CF1AA33EA}.Release|x86.ActiveCfg = Release|x64
+		{4DFDECFB-6C67-4062-9C2A-035288DE1047}.Debug|x64.ActiveCfg = Debug|x64
+		{4DFDECFB-6C67-4062-9C2A-035288DE1047}.Debug|x64.Build.0 = Debug|x64
+		{4DFDECFB-6C67-4062-9C2A-035288DE1047}.Debug|x86.ActiveCfg = Debug|x64
+		{4DFDECFB-6C67-4062-9C2A-035288DE1047}.Release|x64.ActiveCfg = Release|x64
+		{4DFDECFB-6C67-4062-9C2A-035288DE1047}.Release|x64.Build.0 = Release|x64
+		{4DFDECFB-6C67-4062-9C2A-035288DE1047}.Release|x86.ActiveCfg = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
