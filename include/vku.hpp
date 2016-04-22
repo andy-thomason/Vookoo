@@ -45,6 +45,33 @@ template <class WindowHandle, class Window> Window *map_window(WindowHandle hand
   }
 };
 
+  #ifdef _WIN32
+    inline static HINSTANCE connection() { return GetModuleHandle(); }
+  #else
+    inline static xcb_connection_t *connection() {
+      static xcb_connection_t *connection = nullptr;
+      if (connection == nullptr) {
+
+        const xcb_setup_t *setup;
+        xcb_screen_iterator_t iter;
+        int scr = 10;
+
+        setup = xcb_get_setup(connection);
+        iter = xcb_setup_roots_iterator(setup);
+        while (scr-- > 0) {
+          xcb_screen_next(&iter);
+          connection = xcb_connect(NULL, &scr);
+          if (connection == NULL) {
+            printf("Could not find a compatible Vulkan ICD!\n");
+            fflush(stdout);
+            exit(1);
+          }
+        }
+      }
+      return connection;
+    }
+  #endif
+
 #ifdef _WIN32
   template <class Window> static LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
   {
@@ -52,12 +79,6 @@ template <class WindowHandle, class Window> Window *map_window(WindowHandle hand
     //printf("%04x %p %p\n", uMsg, hWnd, win);
     if (win) win->handleMessages(hWnd, uMsg, wParam, lParam);
     return (DefWindowProc(hWnd, uMsg, wParam, lParam));
-  }
-#else 
-  template <class Window> static void handleEvent(const xcb_generic_event_t *event)
-  {
-    //Window *win = map_window<, window>(hWnd, nullptr);
-    //win->handleEvent(event);
   }
 #endif
 
@@ -413,13 +434,13 @@ public:
     vkGetDeviceQueue(dev_, graphicsQueueIndex, 0, &queue_);
   }
 
-  VkSurfaceKHR createSurface(void *connection, void *window) {
+  VkSurfaceKHR createSurface(void *window) {
     VkSurfaceKHR result = VK_NULL_HANDLE;
     // Create surface depending on OS
     #if defined(_WIN32)
       VkWin32SurfaceCreateInfoKHR surfaceCreateInfo = {};
       surfaceCreateInfo.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
-      surfaceCreateInfo.hinstance = (HINSTANCE)connection;
+      surfaceCreateInfo.hinstance = connection();
       surfaceCreateInfo.hwnd = (HWND)window;
       VkResult err = vkCreateWin32SurfaceKHR(get(), &surfaceCreateInfo, VK_NULL_HANDLE, &result);
     #elif defined(__ANDROID__)
@@ -430,7 +451,7 @@ public:
     #else
       VkXcbSurfaceCreateInfoKHR surfaceCreateInfo = {};
       surfaceCreateInfo.sType = VK_STRUCTURE_TYPE_XCB_SURFACE_CREATE_INFO_KHR;
-      surfaceCreateInfo.connection = (xcb_connection_t*)connection;
+      surfaceCreateInfo.connection = connection();
       surfaceCreateInfo.window = (xcb_window_t)(intptr_t)window;
       VkResult err = vkCreateXcbSurfaceKHR(get(), &surfaceCreateInfo, VK_NULL_HANDLE, &result);
     #endif
@@ -1790,10 +1811,6 @@ public:
       }
     #endif
 
-    #ifndef _WIN32
-      initxcbConnection();
-    #endif
-
     instance_ = vku::instance("vku");
 
     vku::device dev = instance_.device();
@@ -1829,15 +1846,15 @@ public:
     instance_.clear();
 
     #ifndef _WIN32
-      xcb_destroy_window(connection, window);
-      xcb_disconnect(connection);
+      xcb_destroy_window(connection(), window_);
+      //xcb_disconnect(connection);
     #endif 
   }
 
   #ifdef _WIN32 
     HWND setupWindow()
     {
-      this->windowInstance = GetModuleHandle(NULL);
+      this->connection = GetModuleHandle(NULL);
 
       bool fullscreen = false;
 
@@ -1857,7 +1874,7 @@ public:
       wndClass.lpfnWndProc = WndProc<vku::window>;
       wndClass.cbClsExtra = 0;
       wndClass.cbWndExtra = 0;
-      wndClass.hInstance = this->windowInstance;
+      wndClass.hInstance = this->connection;
       wndClass.hIcon = LoadIcon(NULL, IDI_APPLICATION);
       wndClass.hCursor = LoadCursor(NULL, IDC_ARROW);
       wndClass.hbrBackground = (HBRUSH)GetStockObject(WHITE_BRUSH);
@@ -1940,7 +1957,7 @@ public:
         windowRect.bottom,
         NULL,
         NULL,
-        this->windowInstance,
+        this->connection,
         NULL);
 
       if (!window_) 
@@ -2018,7 +2035,7 @@ public:
     {
       uint32_t value_mask, value_list[32];
 
-      window = xcb_generate_id(connection);
+      window_ = xcb_generate_id(connection());
 
       value_mask = XCB_CW_BACK_PIXEL | XCB_CW_EVENT_MASK;
       value_list[0] = screen->black_pixel;
@@ -2029,36 +2046,37 @@ public:
         XCB_EVENT_MASK_BUTTON_PRESS |
         XCB_EVENT_MASK_BUTTON_RELEASE;
 
-      xcb_create_window(connection,
+      xcb_create_window(connection(),
         XCB_COPY_FROM_PARENT,
-        window, screen->root,
-        0, 0, width_, height, 0,
+        window_, screen->root,
+        0, 0, width_, height_, 0,
         XCB_WINDOW_CLASS_INPUT_OUTPUT,
         screen->root_visual,
         value_mask, value_list);
 
       /* Magic code that will send notification when window is destroyed */
-      xcb_intern_atom_cookie_t cookie = xcb_intern_atom(connection, 1, 12, "WM_PROTOCOLS");
-      xcb_intern_atom_reply_t* reply = xcb_intern_atom_reply(connection, cookie, 0);
+      xcb_intern_atom_cookie_t cookie = xcb_intern_atom(connection(), 1, 12, "WM_PROTOCOLS");
+      xcb_intern_atom_reply_t* reply = xcb_intern_atom_reply(connection(), cookie, 0);
 
-      xcb_intern_atom_cookie_t cookie2 = xcb_intern_atom(connection, 0, 16, "WM_DELETE_WINDOW");
-      atom_wm_delete_window = xcb_intern_atom_reply(connection, cookie2, 0);
+      xcb_intern_atom_cookie_t cookie2 = xcb_intern_atom(connection(), 0, 16, "WM_DELETE_WINDOW");
+      atom_wm_delete_window = xcb_intern_atom_reply(connection(), cookie2, 0);
 
-      xcb_change_property(connection, XCB_PROP_MODE_REPLACE,
-        window, (*reply).atom, 4, 32, 1,
+      xcb_change_property(connection(), XCB_PROP_MODE_REPLACE,
+        window_, (*reply).atom, 4, 32, 1,
         &(*atom_wm_delete_window).atom);
 
-      xcb_change_property(connection, XCB_PROP_MODE_REPLACE,
-        window, XCB_ATOM_WM_NAME, XCB_ATOM_STRING, 8,
-        title.size(), title.c_str());
+      xcb_change_property(connection(), XCB_PROP_MODE_REPLACE,
+        window_, XCB_ATOM_WM_NAME, XCB_ATOM_STRING, 8,
+        title_.size(), title_.c_str());
 
       free(reply);
 
-      xcb_map_window(connection, window);
+      xcb_map_window(connection(), window_);
 
-      return(window);
+      return(window_);
     }
 
+/*
     // Initialize XCB connection
     void initxcbConnection()
     {
@@ -2066,19 +2084,13 @@ public:
       xcb_screen_iterator_t iter;
       int scr;
 
-      connection = xcb_connect(NULL, &scr);
-      if (connection == NULL) {
-        printf("Could not find a compatible Vulkan ICD!\n");
-        fflush(stdout);
-        exit(1);
-      }
-
-      setup = xcb_get_setup(connection);
+      setup = xcb_get_setup(connection());
       iter = xcb_setup_roots_iterator(setup);
       while (scr-- > 0)
         xcb_screen_next(&iter);
       screen = iter.data;
     }
+*/
 
     void handleEvent(const xcb_generic_event_t *event)
     {
@@ -2087,40 +2099,40 @@ public:
       case XCB_CLIENT_MESSAGE:
         if ((*(xcb_client_message_event_t*)event).data.data32[0] ==
           (*atom_wm_delete_window).atom) {
-          quit = true;
+          windowIsClosed_ = true;
         }
         break;
       case XCB_MOTION_NOTIFY:
       {
         xcb_motion_notify_event_t *motion = (xcb_motion_notify_event_t *)event;
-        if (mouseButtons.left)
+        if (mouseButtons_.left)
         {
-          rotation.x += (mousePos.y - (float)motion->event_y) * 1.25f;
-          rotation.y -= (mousePos.x - (float)motion->event_x) * 1.25f;
+          rotation_.x += (mousePos_.y - (float)motion->event_y) * 1.25f;
+          rotation_.y -= (mousePos_.x - (float)motion->event_x) * 1.25f;
           viewChanged();
         }
-        if (mouseButtons.right)
+        if (mouseButtons_.right)
         {
-          zoom += (mousePos.y - (float)motion->event_y) * .005f;
+          zoom_ += (mousePos_.y - (float)motion->event_y) * .005f;
           viewChanged();
         }
-        mousePos = glm::vec2((float)motion->event_x, (float)motion->event_y);
+        mousePos_ = glm::vec2((float)motion->event_x, (float)motion->event_y);
       }
       break;
       case XCB_BUTTON_PRESS:
       {
         xcb_button_press_event_t *press = (xcb_button_press_event_t *)event;
-        mouseButtons.left = (press->detail & XCB_BUTTON_INDEX_1);
-        mouseButtons.right = (press->detail & XCB_BUTTON_INDEX_3);
+        mouseButtons_.left = (press->detail & XCB_BUTTON_INDEX_1);
+        mouseButtons_.right = (press->detail & XCB_BUTTON_INDEX_3);
       }
       break;
       case XCB_BUTTON_RELEASE:
       {
         xcb_button_press_event_t *press = (xcb_button_press_event_t *)event;
         if (press->detail & XCB_BUTTON_INDEX_1)
-          mouseButtons.left = false;
+          mouseButtons_.left = false;
         if (press->detail & XCB_BUTTON_INDEX_3)
-          mouseButtons.right = false;
+          mouseButtons_.right = false;
       }
       break;
       case XCB_KEY_RELEASE:
@@ -2128,12 +2140,13 @@ public:
         const xcb_key_release_event_t *key =
           (const xcb_key_release_event_t *)event;
 
-        if (key->detail == 0x9)
-          quit = true;
+        if (key->detail == 0x9) {
+          windowIsClosed_ = true;
+        }
       }
       break;
       case XCB_DESTROY_NOTIFY:
-        quit = true;
+        windowIsClosed_ = true;
         break;
       default:
         break;
@@ -2148,7 +2161,7 @@ public:
 
 
   void prepareWindow() {
-    VkSurfaceKHR surface = instance_.createSurface((void*)windowInstance, (void*)window_);
+    VkSurfaceKHR surface = instance_.createSurface((void*)(intptr_t)window_);
     uint32_t queueNodeIndex = device_.getGraphicsQueueNodeIndex(surface);
     if (queueNodeIndex == ~(uint32_t)0) throw(std::runtime_error("no graphics and present queue available"));
     auto sf = device_.getSurfaceFormat(surface);
@@ -2206,34 +2219,18 @@ public:
   #ifdef _WIN32
     MSG msg;
     PeekMessage(&msg, NULL, 0, 0, PM_REMOVE);
-    if (msg.message == WM_QUIT)
-    {
-      return false;
-    }
-    else
-    {
-      TranslateMessage(&msg);
-      DispatchMessage(&msg);
-    }
-    return true;
+    TranslateMessage(&msg);
+    DispatchMessage(&msg);
   #else
-    xcb_flush(connection);
-    while (!quit)
-    {
-      auto tStart = std::chrono::high_resolution_clock::now();
-      xcb_generic_event_t *event;
-      event = xcb_poll_for_event(connection);
-      if (event) 
-      {
-        handleEvent(event);
-        free(event);
-      }
-      render();
-      auto tEnd = std::chrono::high_resolution_clock::now();
-      auto tDiff = std::chrono::duration<double, std::milli>(tEnd - tStart).count();
-      frameTimer = tDiff / 1000.0f;
-  }
+    xcb_flush(connection());
+    xcb_generic_event_t *event = xcb_poll_for_event(connection());
+    if (event) {
+      vku::window *win = nullptr;
+      win->handleEvent(event);
+      free(event);
+    }
   #endif
+    return true;
   }
 
   glm::mat4 defaultProjectionMatrix() const {
@@ -2355,18 +2352,15 @@ private:
   std::string title_ = "Vulkan Example";
   std::string name_ = "vulkanExample";
 
-
   // OS specific 
   #ifdef _WIN32
     HWND window_;
-    HINSTANCE windowInstance;
   #else
     struct {
       bool left = false;
       bool right = false;
-    } mouseButtons;
-    bool quit;
-    xcb_connection_t *connection;
+    } mouseButtons_;
+
     xcb_screen_t *screen;
     xcb_window_t window_;
     xcb_intern_atom_reply_t *atom_wm_delete_window;
