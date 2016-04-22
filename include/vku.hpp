@@ -1770,15 +1770,15 @@ public:
 
 class window {
 public:
-  window(bool enableValidation, uint32_t width, uint32_t height, float zoom, const std::string &title) :
-    width_(width), height_(height), zoom_(zoom), title_(title)
+  window(int argc, const char **argv, bool enableValidation, uint32_t width, uint32_t height, float zoom, const std::string &title) :
+    width_(width), height_(height), zoom_(zoom), title_(title), argc_(argc), argv_(argv)
   {
     // Values not set here are initialized in the base class constructor
     // Check for validation command line flag
     #ifdef _WIN32
-      for (int32_t i = 0; i < __argc; i++)
+      for (int32_t i = 0; i < argc; i++)
       {
-        if (__argv[i] == std::string("-validation"))
+        if (argv[i] == std::string("-validation"))
         {
           enableValidation = true;
         }
@@ -1837,9 +1837,9 @@ public:
       bool fullscreen = false;
 
       // Check command line arguments
-      for (int32_t i = 0; i < __argc; i++)
+      for (int32_t i = 0; i < argc_; i++)
       {
-        if (__argv[i] == std::string("-fullscreen"))
+        if (argv_[i] == std::string("-fullscreen"))
         {
           fullscreen = true;
         }
@@ -2321,6 +2321,8 @@ private:
   bool prepared = false;
   uint32_t width_ = 1280;
   uint32_t height_ = 720;
+  int argc_ = 0;
+  const char **argv_ = nullptr;
 
   float frameTimer_ = 1.0f;
   VkClearColorValue defaultClearColor_ = { { 0.025f, 0.025f, 0.025f, 1.0f } };

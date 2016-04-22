@@ -41,7 +41,7 @@ public:
   static const int vertex_buffer_bind_id = 0;
 
   // This is the constructor for a window containing our example
-  triangle_example() : vku::window(false, 1280, 720, -2.5f, "triangle") {
+  triangle_example(int argc, const char **argv) : vku::window(argc, argv, false, 1280, 720, -2.5f, "triangle") {
 
     // Vertices
     struct Vertex { float pos[3]; float col[3]; };
@@ -142,7 +142,7 @@ public:
 
 int main(const int argc, const char *argv[]) {
   // create a window.
-  triangle_example my_example;
+  triangle_example my_example(argc, argv);
 
   // poll the windows until they are all closed
   while (vku::window::poll()) {
