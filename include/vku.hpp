@@ -7,9 +7,12 @@
   #define VK_USE_PLATFORM_WIN32_KHR
   #pragma comment(lib, "vulkan-1.lib")
   #define _CRT_SECURE_NO_WARNINGS
+#else
+  #define VK_USE_PLATFORM_XCB_KHR
 #endif
 
 #include "../vulkan/vulkan.h"
+#include "../vulkan/vk_platform.h"
 #include "../glm/glm.hpp"
 #include "../glm/gtc/matrix_transform.hpp"
 
@@ -43,18 +46,18 @@ template <class WindowHandle, class Window> Window *map_window(WindowHandle hand
 };
 
 #ifdef _WIN32
-  template <class Dummy> static LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
+  template <class Window> static LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
   {
-    vku::window *win = map_window<HWND, window>(hWnd, nullptr);
+    Window *win = map_window<HWND, window>(hWnd, nullptr);
     //printf("%04x %p %p\n", uMsg, hWnd, win);
     if (win) win->handleMessages(hWnd, uMsg, wParam, lParam);
     return (DefWindowProc(hWnd, uMsg, wParam, lParam));
   }
 #else 
-  template <class Dummy> static void handleEvent(const xcb_generic_event_t *event)
+  template <class Window> static void handleEvent(const xcb_generic_event_t *event)
   {
-    vku::window *win = map_window<HWND, window>(hWnd, nullptr);
-    win->handleEvent(event);
+    //Window *win = map_window<, window>(hWnd, nullptr);
+    //win->handleEvent(event);
   }
 #endif
 
