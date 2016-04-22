@@ -1237,11 +1237,12 @@ public:
     VkWriteDescriptorSet writeDescriptorSet = {};
 
     // Binding 0 : Uniform buffer
+    VkDescriptorBufferInfo desc = uniformVS.desc();
     writeDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
     writeDescriptorSet.dstSet = descriptorSet;
     writeDescriptorSet.descriptorCount = 1;
     writeDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    writeDescriptorSet.pBufferInfo = &uniformVS.desc();
+    writeDescriptorSet.pBufferInfo = &desc;
     // Binds this uniform buffer to binding point 0
     writeDescriptorSet.dstBinding = 0;
 
@@ -2013,7 +2014,7 @@ public:
   #else // WIN32
     // Linux : Setup window 
     // TODO : Not finished...
-    xcb_window_t VulkanExampleBase::setupWindow()
+    xcb_window_t setupWindow()
     {
       uint32_t value_mask, value_list[32];
 
@@ -2059,7 +2060,7 @@ public:
     }
 
     // Initialize XCB connection
-    void VulkanExampleBase::initxcbConnection()
+    void initxcbConnection()
     {
       const xcb_setup_t *setup;
       xcb_screen_iterator_t iter;
@@ -2079,7 +2080,7 @@ public:
       screen = iter.data;
     }
 
-    void VulkanExampleBase::handleEvent(const xcb_generic_event_t *event)
+    void handleEvent(const xcb_generic_event_t *event)
     {
       switch (event->response_type & 0x7f)
       {
