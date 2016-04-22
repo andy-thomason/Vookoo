@@ -430,8 +430,8 @@ public:
     #else
       VkXcbSurfaceCreateInfoKHR surfaceCreateInfo = {};
       surfaceCreateInfo.sType = VK_STRUCTURE_TYPE_XCB_SURFACE_CREATE_INFO_KHR;
-      surfaceCreateInfo.connection = connection;
-      surfaceCreateInfo.window = window;
+      surfaceCreateInfo.connection = (xcb_connection_t*)connection;
+      surfaceCreateInfo.window = (xcb_window_t)(intptr_t)window;
       VkResult err = vkCreateXcbSurfaceKHR(get(), &surfaceCreateInfo, VK_NULL_HANDLE, &result);
     #endif
     if (err) throw error(err, __FILE__, __LINE__);
@@ -863,11 +863,12 @@ public:
     if (err) throw error(err, __FILE__, __LINE__);
 
     // Binding 0 : Uniform buffer
+    VkDescriptorBufferInfo desc = buffer.desc();
     writeDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
     writeDescriptorSet.dstSet = descriptorSets[0];
     writeDescriptorSet.descriptorCount = 1;
     writeDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    writeDescriptorSet.pBufferInfo = &buffer.desc();
+    writeDescriptorSet.pBufferInfo = &desc;
     // Binds this uniform buffer to binding point 0
     writeDescriptorSet.dstBinding = 0;
 
@@ -909,8 +910,8 @@ public:
 
   shaderModule(VkDevice dev, const std::string &filename, VkShaderStageFlagBits stage) : resource(dev) {
     std::ifstream input(filename, std::ios::binary);
-    auto &b = std::istreambuf_iterator<char>(input);
-    auto &e = std::istreambuf_iterator<char>();
+    auto b = std::istreambuf_iterator<char>(input);
+    auto e = std::istreambuf_iterator<char>();
     if (b == e) throw(std::runtime_error("shaderModule(): shader file empty or not found"));
     std::vector<uint8_t> buf(b, e);
     create(buf.data(), buf.data() + buf.size(), stage);
