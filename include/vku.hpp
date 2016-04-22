@@ -1853,7 +1853,7 @@ public:
 
       wndClass.cbSize = sizeof(WNDCLASSEX);
       wndClass.style = CS_HREDRAW | CS_VREDRAW;
-      wndClass.lpfnWndProc = WndProc<int>;
+      wndClass.lpfnWndProc = WndProc<vku::window>;
       wndClass.cbClsExtra = 0;
       wndClass.cbWndExtra = 0;
       wndClass.hInstance = this->windowInstance;
