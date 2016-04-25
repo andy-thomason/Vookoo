@@ -11,8 +11,8 @@
   #define VK_USE_PLATFORM_XCB_KHR
 #endif
 
-#include "../vulkan/vulkan.h"
-#include "../vulkan/vk_platform.h"
+#include <vulkan/vulkan.h>
+#include <vulkan/vk_platform.h>
 #include "../glm/glm.hpp"
 #include "../glm/gtc/matrix_transform.hpp"
 
@@ -45,7 +45,7 @@ template <class WindowHandle, class Window> Window *map_window(WindowHandle hand
   }
 };
 
-  #ifdef _WIN32
+  #ifdef VK_USE_PLATFORM_WIN32_KHR
     inline static HINSTANCE connection() { return GetModuleHandle(); }
   #else
     inline static xcb_connection_t *connection() {
@@ -72,7 +72,7 @@ template <class WindowHandle, class Window> Window *map_window(WindowHandle hand
     }
   #endif
 
-#ifdef _WIN32
+#ifdef VK_USE_PLATFORM_WIN32_KHR
   template <class Window> static LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
   {
     Window *win = map_window<HWND, window>(hWnd, nullptr);
@@ -329,11 +329,12 @@ public:
 
     std::vector<const char*> enabledExtensions = { VK_KHR_SURFACE_EXTENSION_NAME };
 
-    #ifdef _WIN32
+    #if defined(VK_KHR_WIN32_SURFACE_EXTENSION_NAME)
       enabledExtensions.push_back(VK_KHR_WIN32_SURFACE_EXTENSION_NAME);
-    #else
-      // todo : linux/android
+    #elif defined(VK_KHR_XCB_SURFACE_EXTENSION_NAME)
       enabledExtensions.push_back(VK_KHR_XCB_SURFACE_EXTENSION_NAME);
+    #elif defined(VK_KHR_MIR_SURFACE_EXTENSION_NAME)
+      enabledExtensions.push_back(VK_KHR_MIR_SURFACE_EXTENSION_NAME);
     #endif
 
     // todo : check if all extensions are present
@@ -358,13 +359,14 @@ public:
     }
 
     VkInstance inst = VK_NULL_HANDLE;
-    vkCreateInstance(&instanceCreateInfo, VK_NULL_HANDLE, &inst);
+    VkResult err = vkCreateInstance(&instanceCreateInfo, VK_NULL_HANDLE, &inst);
+    if (err) throw error(err, __FILE__, __LINE__);
     set(inst, true);
 
     // Physical device
     uint32_t gpuCount = 0;
     // Get number of available physical devices
-    VkResult err = vkEnumeratePhysicalDevices(get(), &gpuCount, VK_NULL_HANDLE);
+    err = vkEnumeratePhysicalDevices(get(), &gpuCount, VK_NULL_HANDLE);
     if (err) throw error(err, __FILE__, __LINE__);
 
     if (gpuCount == 0) {
