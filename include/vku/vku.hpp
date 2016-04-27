@@ -1,20 +1,25 @@
+////////////////////////////////////////////////////////////////////////////////
+//
+// (C) Andy Thomason 2016
+//
+// Vookoo: main include file
+// 
 
 #ifndef VKU_INCLUDED
 #define VKU_INCLUDED
 
 
 #ifdef _WIN32
-  #define VK_USE_PLATFORM_WIN32_KHR
+  #define VK_USE_PLATFORM_WIN32_KHR 1
   #pragma comment(lib, "vulkan-1.lib")
   #define _CRT_SECURE_NO_WARNINGS
 #else
   #define VK_USE_PLATFORM_XCB_KHR
 #endif
 
-#include "../vulkan/vulkan.h"
-#include "../vulkan/vk_platform.h"
-#include "../glm/glm.hpp"
-#include "../glm/gtc/matrix_transform.hpp"
+#include <vulkan/vulkan.h>
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
 
 #include <cstring>
 #include <vector>
@@ -45,7 +50,7 @@ template <class WindowHandle, class Window> Window *map_window(WindowHandle hand
   }
 };
 
-#ifdef _WIN32
+#ifdef VK_USE_PLATFORM_WIN32_KHR
   template <class Window> static LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
   {
     Window *win = map_window<HWND, window>(hWnd, nullptr);
@@ -1237,11 +1242,12 @@ public:
     VkWriteDescriptorSet writeDescriptorSet = {};
 
     // Binding 0 : Uniform buffer
+    VkDescriptorBufferInfo desc = uniformVS.desc();
     writeDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
     writeDescriptorSet.dstSet = descriptorSet;
     writeDescriptorSet.descriptorCount = 1;
     writeDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    writeDescriptorSet.pBufferInfo = &uniformVS.desc();
+    writeDescriptorSet.pBufferInfo = &desc;
     // Binds this uniform buffer to binding point 0
     writeDescriptorSet.dstBinding = 0;
 

@@ -1,0 +1,2515 @@
+0000001b..0000075e FBXHeaderExtension
+  0000003a..0000005c FBXHeaderVersion
+     I 1003
+  0000005c..00000078 FBXVersion
+     I 7400
+  00000078..00000098 EncryptionType
+     I 0
+  00000098..00000181 CreationTimeStamp
+    000000b6..000000cf Version
+       I 1000
+    000000cf..000000e5 Year
+       I 2016
+    000000e5..000000fc Month
+       I 4
+    000000fc..00000111 Day
+       I 27
+    00000111..00000127 Hour
+       I 12
+    00000127..0000013f Minute
+       I 13
+    0000013f..00000157 Second
+       I 22
+    00000157..00000174 Millisecond
+       I 873
+  00000181..000001c8 Creator
+     S Blender (stable FBX IO) - 2.76 (sub 0) - 3.6.2
+  000001c8..00000751 SceneInfo
+     S GlobalInfo
+     S UserData
+    00000205..00000223 Type
+       S UserData
+    00000223..0000023c Version
+       I 100
+    0000023c..0000030c MetaData
+      00000251..0000026a Version
+         I 100
+      0000026a..00000281 Title
+         S 
+      00000281..0000029a Subject
+         S 
+      0000029a..000002b2 Author
+         S 
+      000002b2..000002cc Keywords
+         S 
+      000002cc..000002e6 Revision
+         S 
+      000002e6..000002ff Comment
+         S 
+    0000030c..00000744 Properties70
+      00000325..0000036c P
+         S DocumentUrl
+         S KString
+         S Url
+         S 
+         S /foobar.fbx
+      0000036c..000003b6 P
+         S SrcDocumentUrl
+         S KString
+         S Url
+         S 
+         S /foobar.fbx
+      000003b6..000003e8 P
+         S Original
+         S Compound
+         S 
+         S 
+      000003e8..00000442 P
+         S Original|ApplicationVendor
+         S KString
+         S 
+         S 
+         S Blender Foundation
+      00000442..0000049f P
+         S Original|ApplicationName
+         S KString
+         S 
+         S 
+         S Blender (stable FBX IO)
+      0000049f..000004f4 P
+         S Original|ApplicationVersion
+         S KString
+         S 
+         S 
+         S 2.76 (sub 0)
+      000004f4..0000054f P
+         S Original|DateTime_GMT
+         S DateTime
+         S 
+         S 
+         S 01/01/1970 00:00:00.000
+      0000054f..00000599 P
+         S Original|FileName
+         S KString
+         S 
+         S 
+         S /foobar.fbx
+      00000599..000005cc P
+         S LastSaved
+         S Compound
+         S 
+         S 
+      000005cc..00000627 P
+         S LastSaved|ApplicationVendor
+         S KString
+         S 
+         S 
+         S Blender Foundation
+      00000627..00000685 P
+         S LastSaved|ApplicationName
+         S KString
+         S 
+         S 
+         S Blender (stable FBX IO)
+      00000685..000006db P
+         S LastSaved|ApplicationVersion
+         S KString
+         S 
+         S 
+         S 2.76 (sub 0)
+      000006db..00000737 P
+         S LastSaved|DateTime_GMT
+         S DateTime
+         S 
+         S 
+         S 01/01/1970 00:00:00.000
+0000075e..00000786 FileId
+   R <raw>
+00000786..000007bb CreationTime
+   S 1970-01-01 10:00:00:000
+000007bb..00000802 Creator
+   S Blender (stable FBX IO) - 2.76 (sub 0) - 3.6.2
+00000802..00000c80 GlobalSettings
+  0000081d..00000836 Version
+     I 1000
+  00000836..00000c73 Properties70
+    0000084f..00000886 P
+       S UpAxis
+       S int
+       S Integer
+       S 
+       I 1
+    00000886..000008c1 P
+       S UpAxisSign
+       S int
+       S Integer
+       S 
+       I 1
+    000008c1..000008fb P
+       S FrontAxis
+       S int
+       S Integer
+       S 
+       I 2
+    000008fb..00000939 P
+       S FrontAxisSign
+       S int
+       S Integer
+       S 
+       I 1
+    00000939..00000973 P
+       S CoordAxis
+       S int
+       S Integer
+       S 
+       I 0
+    00000973..000009b1 P
+       S CoordAxisSign
+       S int
+       S Integer
+       S 
+       I 1
+    000009b1..000009f0 P
+       S OriginalUpAxis
+       S int
+       S Integer
+       S 
+       I -1
+    000009f0..00000a33 P
+       S OriginalUpAxisSign
+       S int
+       S Integer
+       S 
+       I 1
+    00000a33..00000a79 P
+       S UnitScaleFactor
+       S double
+       S Number
+       S 
+       D   1.000000
+    00000a79..00000ac7 P
+       S OriginalUnitScaleFactor
+       S double
+       S Number
+       S 
+       D   1.000000
+    00000ac7..00000b1d P
+       S AmbientColor
+       S ColorRGB
+       S Color
+       S 
+       D   0.000000
+       D   0.000000
+       D   0.000000
+    00000b1d..00000b6c P
+       S DefaultCamera
+       S KString
+       S 
+       S 
+       S Producer Perspective
+    00000b6c..00000b9f P
+       S TimeMode
+       S enum
+       S 
+       S 
+       I 11
+    00000b9f..00000be0 P
+       S TimeSpanStart
+       S KTime
+       S Time
+       S 
+       L 0
+    00000be0..00000c20 P
+       S TimeSpanStop
+       S KTime
+       S Time
+       S 
+       L 46186158000
+    00000c20..00000c66 P
+       S CustomFrameRate
+       S double
+       S Number
+       S 
+       D  24.000000
+00000c80..00000db2 Documents
+  00000c96..00000cad Count
+     I 1
+  00000cad..00000da5 Document
+     L 120472520
+     S Scene
+     S Scene
+    00000cdf..00000d7a Properties70
+      00000cf8..00000d2c P
+         S SourceObject
+         S object
+         S 
+         S 
+      00000d2c..00000d6d P
+         S ActiveAnimStackName
+         S KString
+         S 
+         S 
+         S 
+    00000d7a..00000d98 RootNode
+       L 0
+00000db2..00000dd6 References
+00000dd6..00004fd4 Definitions
+  00000dee..00000e07 Version
+     I 100
+  00000e07..00000e1e Count
+     I 11
+  00000e1e..00000e6c ObjectType
+     S GlobalSettings
+    00000e48..00000e5f Count
+       I 1
+  00000e6c..00002961 ObjectType
+     S NodeAttribute
+    00000e95..00000eac Count
+       I 2
+    00000eac..00002954 PropertyTemplate
+       S FbxCamera
+      00000ed7..00002947 Properties70
+        00000ef0..00000f3f P
+           S Color
+           S ColorRGB
+           S Color
+           S 
+           D   0.800000
+           D   0.800000
+           D   0.800000
+        00000f3f..00000f8b P
+           S Position
+           S Vector
+           S 
+           S A
+           D   0.000000
+           D   0.000000
+           D -50.000000
+        00000f8b..00000fd7 P
+           S UpVector
+           S Vector
+           S 
+           S A
+           D   0.000000
+           D   1.000000
+           D   0.000000
+        00000fd7..0000102b P
+           S InterestPosition
+           S Vector
+           S 
+           S A
+           D   0.000000
+           D   0.000000
+           D   0.000000
+        0000102b..0000105f P
+           S Roll
+           S Roll
+           S 
+           S A
+           D   0.000000
+        0000105f..000010a7 P
+           S OpticalCenterX
+           S OpticalCenterX
+           S 
+           S A
+           D   0.000000
+        000010a7..000010ef P
+           S OpticalCenterY
+           S OpticalCenterY
+           S 
+           S A
+           D   0.000000
+        000010ef..00001141 P
+           S BackgroundColor
+           S Color
+           S 
+           S A
+           D   0.630000
+           D   0.630000
+           D   0.630000
+        00001141..0000117c P
+           S TurnTable
+           S Number
+           S 
+           S A
+           D   0.000000
+        0000117c..000011bb P
+           S DisplayTurnTableIcon
+           S bool
+           S 
+           S 
+           I 0
+        000011bb..000011f3 P
+           S UseMotionBlur
+           S bool
+           S 
+           S 
+           I 0
+        000011f3..00001233 P
+           S UseRealTimeMotionBlur
+           S bool
+           S 
+           S 
+           I 1
+        00001233..0000127a P
+           S Motion Blur Intensity
+           S Number
+           S 
+           S A
+           D   1.000000
+        0000127a..000012b4 P
+           S AspectRatioMode
+           S enum
+           S 
+           S 
+           I 0
+        000012b4..000012f6 P
+           S AspectWidth
+           S double
+           S Number
+           S 
+           D 320.000000
+        000012f6..00001339 P
+           S AspectHeight
+           S double
+           S Number
+           S 
+           D 200.000000
+        00001339..00001380 P
+           S PixelAspectRatio
+           S double
+           S Number
+           S 
+           D   1.000000
+        00001380..000013bd P
+           S FilmOffsetX
+           S Number
+           S 
+           S A
+           D   0.000000
+        000013bd..000013fa P
+           S FilmOffsetY
+           S Number
+           S 
+           S A
+           D   0.000000
+        000013fa..0000143a P
+           S FilmWidth
+           S double
+           S Number
+           S 
+           D   0.816000
+        0000143a..0000147b P
+           S FilmHeight
+           S double
+           S Number
+           S 
+           D   0.612000
+        0000147b..000014c1 P
+           S FilmAspectRatio
+           S double
+           S Number
+           S 
+           D   1.333333
+        000014c1..00001508 P
+           S FilmSqueezeRatio
+           S double
+           S Number
+           S 
+           D   1.000000
+        00001508..00001542 P
+           S FilmFormatIndex
+           S enum
+           S 
+           S 
+           I 0
+        00001542..0000157c P
+           S PreScale
+           S Number
+           S 
+           S A
+           D   1.000000
+        0000157c..000015bc P
+           S FilmTranslateX
+           S Number
+           S 
+           S A
+           D   0.000000
+        000015bc..000015fc P
+           S FilmTranslateY
+           S Number
+           S 
+           S A
+           D   0.000000
+        000015fc..0000163c P
+           S FilmRollPivotX
+           S Number
+           S 
+           S A
+           D   0.000000
+        0000163c..0000167c P
+           S FilmRollPivotY
+           S Number
+           S 
+           S A
+           D   0.000000
+        0000167c..000016bb P
+           S FilmRollValue
+           S Number
+           S 
+           S A
+           D   0.000000
+        000016bb..000016f3 P
+           S FilmRollOrder
+           S enum
+           S 
+           S 
+           I 0
+        000016f3..0000172a P
+           S ApertureMode
+           S enum
+           S 
+           S 
+           I 2
+        0000172a..0000175c P
+           S GateFit
+           S enum
+           S 
+           S 
+           I 0
+        0000175c..0000179e P
+           S FieldOfView
+           S FieldOfView
+           S 
+           S A
+           D  25.115000
+        0000179e..000017e2 P
+           S FieldOfViewX
+           S FieldOfViewX
+           S 
+           S A
+           D  40.000000
+        000017e2..00001826 P
+           S FieldOfViewY
+           S FieldOfViewY
+           S 
+           S A
+           D  40.000000
+        00001826..00001863 P
+           S FocalLength
+           S Number
+           S 
+           S A
+           D  34.893276
+        00001863..0000189a P
+           S CameraFormat
+           S enum
+           S 
+           S 
+           I 0
+        0000189a..000018d2 P
+           S UseFrameColor
+           S bool
+           S 
+           S 
+           I 0
+        000018d2..00001926 P
+           S FrameColor
+           S ColorRGB
+           S Color
+           S 
+           D   0.300000
+           D   0.300000
+           D   0.300000
+        00001926..00001959 P
+           S ShowName
+           S bool
+           S 
+           S 
+           I 1
+        00001959..00001994 P
+           S ShowInfoOnMoving
+           S bool
+           S 
+           S 
+           I 1
+        00001994..000019c7 P
+           S ShowGrid
+           S bool
+           S 
+           S 
+           I 1
+        000019c7..00001a03 P
+           S ShowOpticalCenter
+           S bool
+           S 
+           S 
+           I 0
+        00001a03..00001a38 P
+           S ShowAzimut
+           S bool
+           S 
+           S 
+           I 1
+        00001a38..00001a6f P
+           S ShowTimeCode
+           S bool
+           S 
+           S 
+           I 0
+        00001a6f..00001aa3 P
+           S ShowAudio
+           S bool
+           S 
+           S 
+           I 0
+        00001aa3..00001af8 P
+           S AudioColor
+           S Vector3D
+           S Vector
+           S 
+           D   0.000000
+           D   1.000000
+           D   0.000000
+        00001af8..00001b38 P
+           S NearPlane
+           S double
+           S Number
+           S 
+           D  10.000000
+        00001b38..00001b77 P
+           S FarPlane
+           S double
+           S Number
+           S 
+           D 4000.000000
+        00001b77..00001bb6 P
+           S AutoComputeClipPanes
+           S bool
+           S 
+           S 
+           I 0
+        00001bb6..00001bf3 P
+           S ViewCameraToLookAt
+           S bool
+           S 
+           S 
+           I 1
+        00001bf3..00001c35 P
+           S ViewFrustumNearFarPlane
+           S bool
+           S 
+           S 
+           I 0
+        00001c35..00001c78 P
+           S ViewFrustumBackPlaneMode
+           S enum
+           S 
+           S 
+           I 2
+        00001c78..00001cbb P
+           S BackPlaneDistance
+           S Number
+           S 
+           S A
+           D 4000.000000
+        00001cbb..00001cfb P
+           S BackPlaneDistanceMode
+           S enum
+           S 
+           S 
+           I 1
+        00001cfb..00001d3f P
+           S ViewFrustumFrontPlaneMode
+           S enum
+           S 
+           S 
+           I 2
+        00001d3f..00001d83 P
+           S FrontPlaneDistance
+           S Number
+           S 
+           S A
+           D  10.000000
+        00001d83..00001dc4 P
+           S FrontPlaneDistanceMode
+           S enum
+           S 
+           S 
+           I 1
+        00001dc4..00001df7 P
+           S LockMode
+           S bool
+           S 
+           S 
+           I 0
+        00001df7..00001e38 P
+           S LockInterestNavigation
+           S bool
+           S 
+           S 
+           I 0
+        00001e38..00001e6b P
+           S FitImage
+           S bool
+           S 
+           S 
+           I 0
+        00001e6b..00001e9a P
+           S Crop
+           S bool
+           S 
+           S 
+           I 0
+        00001e9a..00001ecb P
+           S Center
+           S bool
+           S 
+           S 
+           I 1
+        00001ecb..00001eff P
+           S KeepRatio
+           S bool
+           S 
+           S 
+           I 1
+        00001eff..00001f4d P
+           S BackgroundAlphaTreshold
+           S double
+           S Number
+           S 
+           D   0.500000
+        00001f4d..00001f85 P
+           S ShowBackplate
+           S bool
+           S 
+           S 
+           I 1
+        00001f85..00001fc7 P
+           S BackPlaneOffsetX
+           S Number
+           S 
+           S A
+           D   0.000000
+        00001fc7..00002009 P
+           S BackPlaneOffsetY
+           S Number
+           S 
+           S A
+           D   0.000000
+        00002009..0000204c P
+           S BackPlaneRotation
+           S Number
+           S 
+           S A
+           D   0.000000
+        0000204c..0000208d P
+           S BackPlaneScaleX
+           S Number
+           S 
+           S A
+           D   1.000000
+        0000208d..000020ce P
+           S BackPlaneScaleY
+           S Number
+           S 
+           S A
+           D   1.000000
+        000020ce..00002108 P
+           S Background Texture
+           S object
+           S 
+           S 
+        00002108..00002145 P
+           S FrontPlateFitImage
+           S bool
+           S 
+           S 
+           I 1
+        00002145..0000217e P
+           S FrontPlateCrop
+           S bool
+           S 
+           S 
+           I 0
+        0000217e..000021b9 P
+           S FrontPlateCenter
+           S bool
+           S 
+           S 
+           I 1
+        000021b9..000021f7 P
+           S FrontPlateKeepRatio
+           S bool
+           S 
+           S 
+           I 1
+        000021f7..00002240 P
+           S Foreground Opacity
+           S double
+           S Number
+           S 
+           D   1.000000
+        00002240..00002279 P
+           S ShowFrontplate
+           S bool
+           S 
+           S 
+           I 1
+        00002279..000022bc P
+           S FrontPlaneOffsetX
+           S Number
+           S 
+           S A
+           D   0.000000
+        000022bc..000022ff P
+           S FrontPlaneOffsetY
+           S Number
+           S 
+           S A
+           D   0.000000
+        000022ff..00002343 P
+           S FrontPlaneRotation
+           S Number
+           S 
+           S A
+           D   0.000000
+        00002343..00002385 P
+           S FrontPlaneScaleX
+           S Number
+           S 
+           S A
+           D   1.000000
+        00002385..000023c7 P
+           S FrontPlaneScaleY
+           S Number
+           S 
+           S A
+           D   1.000000
+        000023c7..00002401 P
+           S Foreground Texture
+           S object
+           S 
+           S 
+        00002401..0000243b P
+           S DisplaySafeArea
+           S bool
+           S 
+           S 
+           I 0
+        0000243b..0000247d P
+           S DisplaySafeAreaOnRender
+           S bool
+           S 
+           S 
+           I 0
+        0000247d..000024bc P
+           S SafeAreaDisplayStyle
+           S enum
+           S 
+           S 
+           I 1
+        000024bc..00002506 P
+           S SafeAreaAspectRatio
+           S double
+           S Number
+           S 
+           D   1.333333
+        00002506..00002543 P
+           S Use2DMagnifierZoom
+           S bool
+           S 
+           S 
+           I 0
+        00002543..00002586 P
+           S 2D Magnifier Zoom
+           S Number
+           S 
+           S A
+           D 100.000000
+        00002586..000025c6 P
+           S 2D Magnifier X
+           S Number
+           S 
+           S A
+           D  50.000000
+        000025c6..00002606 P
+           S 2D Magnifier Y
+           S Number
+           S 
+           S A
+           D  50.000000
+        00002606..00002645 P
+           S CameraProjectionType
+           S enum
+           S 
+           S 
+           I 0
+        00002645..00002685 P
+           S OrthoZoom
+           S double
+           S Number
+           S 
+           D   1.000000
+        00002685..000026c3 P
+           S UseRealTimeDOFAndAA
+           S bool
+           S 
+           S 
+           I 0
+        000026c3..000026fd P
+           S UseDepthOfField
+           S bool
+           S 
+           S 
+           I 0
+        000026fd..00002733 P
+           S FocusSource
+           S enum
+           S 
+           S 
+           I 0
+        00002733..00002774 P
+           S FocusAngle
+           S double
+           S Number
+           S 
+           D   3.500000
+        00002774..000027b8 P
+           S FocusDistance
+           S double
+           S Number
+           S 
+           D 200.000000
+        000027b8..000027f2 P
+           S UseAntialiasing
+           S bool
+           S 
+           S 
+           I 0
+        000027f2..0000283e P
+           S AntialiasingIntensity
+           S double
+           S Number
+           S 
+           D   0.777770
+        0000283e..0000287b P
+           S AntialiasingMethod
+           S enum
+           S 
+           S 
+           I 0
+        0000287b..000028bb P
+           S UseAccumulationBuffer
+           S bool
+           S 
+           S 
+           I 0
+        000028bb..000028fe P
+           S FrameSamplingCount
+           S int
+           S Integer
+           S 
+           I 7
+        000028fe..0000293a P
+           S FrameSamplingType
+           S enum
+           S 
+           S 
+           I 1
+  00002961..00002ba7 ObjectType
+     S Geometry
+    00002985..0000299c Count
+       I 1
+    0000299c..00002b9a PropertyTemplate
+       S FbxMesh
+      000029c5..00002b8d Properties70
+        000029de..00002a2d P
+           S Color
+           S ColorRGB
+           S Color
+           S 
+           D   0.800000
+           D   0.800000
+           D   0.800000
+        00002a2d..00002a7f P
+           S BBoxMin
+           S Vector3D
+           S Vector
+           S 
+           D   0.000000
+           D   0.000000
+           D   0.000000
+        00002a7f..00002ad1 P
+           S BBoxMax
+           S Vector3D
+           S Vector
+           S 
+           D   0.000000
+           D   0.000000
+           D   0.000000
+        00002ad1..00002b0e P
+           S Primary Visibility
+           S bool
+           S 
+           S 
+           I 1
+        00002b0e..00002b46 P
+           S Casts Shadows
+           S bool
+           S 
+           S 
+           I 1
+        00002b46..00002b80 P
+           S Receive Shadows
+           S bool
+           S 
+           S 
+           I 1
+  00002ba7..00003f4a ObjectType
+     S Model
+    00002bc8..00002bdf Count
+       I 3
+    00002bdf..00003f3d PropertyTemplate
+       S FbxNode
+      00002c08..00003f30 Properties70
+        00002c21..00002c61 P
+           S QuaternionInterpolate
+           S enum
+           S 
+           S 
+           I 0
+        00002c61..00002cba P
+           S RotationOffset
+           S Vector3D
+           S Vector
+           S 
+           D   0.000000
+           D   0.000000
+           D   0.000000
+        00002cba..00002d12 P
+           S RotationPivot
+           S Vector3D
+           S Vector
+           S 
+           D   0.000000
+           D   0.000000
+           D   0.000000
+        00002d12..00002d6a P
+           S ScalingOffset
+           S Vector3D
+           S Vector
+           S 
+           D   0.000000
+           D   0.000000
+           D   0.000000
+        00002d6a..00002dc1 P
+           S ScalingPivot
+           S Vector3D
+           S Vector
+           S 
+           D   0.000000
+           D   0.000000
+           D   0.000000
+        00002dc1..00002dfd P
+           S TranslationActive
+           S bool
+           S 
+           S 
+           I 0
+        00002dfd..00002e56 P
+           S TranslationMin
+           S Vector3D
+           S Vector
+           S 
+           D   0.000000
+           D   0.000000
+           D   0.000000
+        00002e56..00002eaf P
+           S TranslationMax
+           S Vector3D
+           S Vector
+           S 
+           D   0.000000
+           D   0.000000
+           D   0.000000
+        00002eaf..00002ee9 P
+           S TranslationMinX
+           S bool
+           S 
+           S 
+           I 0
+        00002ee9..00002f23 P
+           S TranslationMinY
+           S bool
+           S 
+           S 
+           I 0
+        00002f23..00002f5d P
+           S TranslationMinZ
+           S bool
+           S 
+           S 
+           I 0
+        00002f5d..00002f97 P
+           S TranslationMaxX
+           S bool
+           S 
+           S 
+           I 0
+        00002f97..00002fd1 P
+           S TranslationMaxY
+           S bool
+           S 
+           S 
+           I 0
+        00002fd1..0000300b P
+           S TranslationMaxZ
+           S bool
+           S 
+           S 
+           I 0
+        0000300b..00003043 P
+           S RotationOrder
+           S enum
+           S 
+           S 
+           I 0
+        00003043..00003087 P
+           S RotationSpaceForLimitOnly
+           S bool
+           S 
+           S 
+           I 0
+        00003087..000030d0 P
+           S RotationStiffnessX
+           S double
+           S Number
+           S 
+           D   0.000000
+        000030d0..00003119 P
+           S RotationStiffnessY
+           S double
+           S Number
+           S 
+           D   0.000000
+        00003119..00003162 P
+           S RotationStiffnessZ
+           S double
+           S Number
+           S 
+           D   0.000000
+        00003162..000031a0 P
+           S AxisLen
+           S double
+           S Number
+           S 
+           D  10.000000
+        000031a0..000031f6 P
+           S PreRotation
+           S Vector3D
+           S Vector
+           S 
+           D   0.000000
+           D   0.000000
+           D   0.000000
+        000031f6..0000324d P
+           S PostRotation
+           S Vector3D
+           S Vector
+           S 
+           D   0.000000
+           D   0.000000
+           D   0.000000
+        0000324d..00003286 P
+           S RotationActive
+           S bool
+           S 
+           S 
+           I 0
+        00003286..000032dc P
+           S RotationMin
+           S Vector3D
+           S Vector
+           S 
+           D   0.000000
+           D   0.000000
+           D   0.000000
+        000032dc..00003332 P
+           S RotationMax
+           S Vector3D
+           S Vector
+           S 
+           D   0.000000
+           D   0.000000
+           D   0.000000
+        00003332..00003369 P
+           S RotationMinX
+           S bool
+           S 
+           S 
+           I 0
+        00003369..000033a0 P
+           S RotationMinY
+           S bool
+           S 
+           S 
+           I 0
+        000033a0..000033d7 P
+           S RotationMinZ
+           S bool
+           S 
+           S 
+           I 0
+        000033d7..0000340e P
+           S RotationMaxX
+           S bool
+           S 
+           S 
+           I 0
+        0000340e..00003445 P
+           S RotationMaxY
+           S bool
+           S 
+           S 
+           I 0
+        00003445..0000347c P
+           S RotationMaxZ
+           S bool
+           S 
+           S 
+           I 0
+        0000347c..000034b2 P
+           S InheritType
+           S enum
+           S 
+           S 
+           I 0
+        000034b2..000034ea P
+           S ScalingActive
+           S bool
+           S 
+           S 
+           I 0
+        000034ea..0000353f P
+           S ScalingMin
+           S Vector3D
+           S Vector
+           S 
+           D   0.000000
+           D   0.000000
+           D   0.000000
+        0000353f..00003594 P
+           S ScalingMax
+           S Vector3D
+           S Vector
+           S 
+           D   1.000000
+           D   1.000000
+           D   1.000000
+        00003594..000035ca P
+           S ScalingMinX
+           S bool
+           S 
+           S 
+           I 0
+        000035ca..00003600 P
+           S ScalingMinY
+           S bool
+           S 
+           S 
+           I 0
+        00003600..00003636 P
+           S ScalingMinZ
+           S bool
+           S 
+           S 
+           I 0
+        00003636..0000366c P
+           S ScalingMaxX
+           S bool
+           S 
+           S 
+           I 0
+        0000366c..000036a2 P
+           S ScalingMaxY
+           S bool
+           S 
+           S 
+           I 0
+        000036a2..000036d8 P
+           S ScalingMaxZ
+           S bool
+           S 
+           S 
+           I 0
+        000036d8..00003737 P
+           S GeometricTranslation
+           S Vector3D
+           S Vector
+           S 
+           D   0.000000
+           D   0.000000
+           D   0.000000
+        00003737..00003793 P
+           S GeometricRotation
+           S Vector3D
+           S Vector
+           S 
+           D   0.000000
+           D   0.000000
+           D   0.000000
+        00003793..000037ee P
+           S GeometricScaling
+           S Vector3D
+           S Vector
+           S 
+           D   1.000000
+           D   1.000000
+           D   1.000000
+        000037ee..00003832 P
+           S MinDampRangeX
+           S double
+           S Number
+           S 
+           D   0.000000
+        00003832..00003876 P
+           S MinDampRangeY
+           S double
+           S Number
+           S 
+           D   0.000000
+        00003876..000038ba P
+           S MinDampRangeZ
+           S double
+           S Number
+           S 
+           D   0.000000
+        000038ba..000038fe P
+           S MaxDampRangeX
+           S double
+           S Number
+           S 
+           D   0.000000
+        000038fe..00003942 P
+           S MaxDampRangeY
+           S double
+           S Number
+           S 
+           D   0.000000
+        00003942..00003986 P
+           S MaxDampRangeZ
+           S double
+           S Number
+           S 
+           D   0.000000
+        00003986..000039cd P
+           S MinDampStrengthX
+           S double
+           S Number
+           S 
+           D   0.000000
+        000039cd..00003a14 P
+           S MinDampStrengthY
+           S double
+           S Number
+           S 
+           D   0.000000
+        00003a14..00003a5b P
+           S MinDampStrengthZ
+           S double
+           S Number
+           S 
+           D   0.000000
+        00003a5b..00003aa2 P
+           S MaxDampStrengthX
+           S double
+           S Number
+           S 
+           D   0.000000
+        00003aa2..00003ae9 P
+           S MaxDampStrengthY
+           S double
+           S Number
+           S 
+           D   0.000000
+        00003ae9..00003b30 P
+           S MaxDampStrengthZ
+           S double
+           S Number
+           S 
+           D   0.000000
+        00003b30..00003b75 P
+           S PreferedAngleX
+           S double
+           S Number
+           S 
+           D   0.000000
+        00003b75..00003bba P
+           S PreferedAngleY
+           S double
+           S Number
+           S 
+           D   0.000000
+        00003bba..00003bff P
+           S PreferedAngleZ
+           S double
+           S Number
+           S 
+           D   0.000000
+        00003bff..00003c35 P
+           S LookAtProperty
+           S object
+           S 
+           S 
+        00003c35..00003c6d P
+           S UpVectorProperty
+           S object
+           S 
+           S 
+        00003c6d..00003c9c P
+           S Show
+           S bool
+           S 
+           S 
+           I 1
+        00003c9c..00003ce2 P
+           S NegativePercentShapeSupport
+           S bool
+           S 
+           S 
+           I 1
+        00003ce2..00003d28 P
+           S DefaultAttributeIndex
+           S int
+           S Integer
+           S 
+           I -1
+        00003d28..00003d59 P
+           S Freeze
+           S bool
+           S 
+           S 
+           I 0
+        00003d59..00003d8a P
+           S LODBox
+           S bool
+           S 
+           S 
+           I 0
+        00003d8a..00003de6 P
+           S Lcl Translation
+           S Lcl Translation
+           S 
+           S A
+           D   0.000000
+           D   0.000000
+           D   0.000000
+        00003de6..00003e3c P
+           S Lcl Rotation
+           S Lcl Rotation
+           S 
+           S A
+           D   0.000000
+           D   0.000000
+           D   0.000000
+        00003e3c..00003e90 P
+           S Lcl Scaling
+           S Lcl Scaling
+           S 
+           S A
+           D   1.000000
+           D   1.000000
+           D   1.000000
+        00003e90..00003ed0 P
+           S Visibility
+           S Visibility
+           S 
+           S A
+           D   1.000000
+        00003ed0..00003f23 P
+           S Visibility Inheritance
+           S Visibility Inheritance
+           S 
+           S 
+           I 1
+  00003f4a..000046c0 ObjectType
+     S Material
+    00003f6e..00003f85 Count
+       I 2
+    00003f85..000046b3 PropertyTemplate
+       S FbxSurfacePhong
+      00003fb6..000046a6 Properties70
+        00003fcf..0000400e P
+           S ShadingModel
+           S KString
+           S 
+           S 
+           S Phong
+        0000400e..00004043 P
+           S MultiLayer
+           S bool
+           S 
+           S 
+           I 0
+        00004043..00004093 P
+           S EmissiveColor
+           S Color
+           S 
+           S A
+           D   0.000000
+           D   0.000000
+           D   0.000000
+        00004093..000040d3 P
+           S EmissiveFactor
+           S Number
+           S 
+           S A
+           D   1.000000
+        000040d3..00004122 P
+           S AmbientColor
+           S Color
+           S 
+           S A
+           D   0.200000
+           D   0.200000
+           D   0.200000
+        00004122..00004161 P
+           S AmbientFactor
+           S Number
+           S 
+           S A
+           D   1.000000
+        00004161..000041b0 P
+           S DiffuseColor
+           S Color
+           S 
+           S A
+           D   0.800000
+           D   0.800000
+           D   0.800000
+        000041b0..000041ef P
+           S DiffuseFactor
+           S Number
+           S 
+           S A
+           D   1.000000
+        000041ef..00004242 P
+           S TransparentColor
+           S Color
+           S 
+           S A
+           D   0.000000
+           D   0.000000
+           D   0.000000
+        00004242..00004286 P
+           S TransparencyFactor
+           S Number
+           S 
+           S A
+           D   0.000000
+        00004286..000042bf P
+           S Opacity
+           S Number
+           S 
+           S A
+           D   1.000000
+        000042bf..00004313 P
+           S NormalMap
+           S Vector3D
+           S Vector
+           S 
+           D   0.000000
+           D   0.000000
+           D   0.000000
+        00004313..00004362 P
+           S Bump
+           S Vector3D
+           S Vector
+           S 
+           D   0.000000
+           D   0.000000
+           D   0.000000
+        00004362..000043a3 P
+           S BumpFactor
+           S double
+           S Number
+           S 
+           D   1.000000
+        000043a3..000043fe P
+           S DisplacementColor
+           S ColorRGB
+           S Color
+           S 
+           D   0.000000
+           D   0.000000
+           D   0.000000
+        000043fe..00004447 P
+           S DisplacementFactor
+           S double
+           S Number
+           S 
+           D   1.000000
+        00004447..000044a8 P
+           S VectorDisplacementColor
+           S ColorRGB
+           S Color
+           S 
+           D   0.000000
+           D   0.000000
+           D   0.000000
+        000044a8..000044f7 P
+           S VectorDisplacementFactor
+           S double
+           S Number
+           S 
+           D   1.000000
+        000044f7..00004547 P
+           S SpecularColor
+           S Color
+           S 
+           S A
+           D   0.200000
+           D   0.200000
+           D   0.200000
+        00004547..00004587 P
+           S SpecularFactor
+           S Number
+           S 
+           S A
+           D   1.000000
+        00004587..000045c2 P
+           S Shininess
+           S Number
+           S 
+           S A
+           D  20.000000
+        000045c2..00004605 P
+           S ShininessExponent
+           S Number
+           S 
+           S A
+           D  20.000000
+        00004605..00004657 P
+           S ReflectionColor
+           S Color
+           S 
+           S A
+           D   0.000000
+           D   0.000000
+           D   0.000000
+        00004657..00004699 P
+           S ReflectionFactor
+           S Number
+           S 
+           S A
+           D   1.000000
+  000046c0..00004bcc ObjectType
+     S Texture
+    000046e3..000046fa Count
+       I 1
+    000046fa..00004bbf PropertyTemplate
+       S FbxFileTexture
+      0000472a..00004bb2 Properties70
+        00004743..0000477c P
+           S TextureTypeUse
+           S enum
+           S 
+           S 
+           I 0
+        0000477c..000047b2 P
+           S AlphaSource
+           S enum
+           S 
+           S 
+           I 2
+        000047b2..000047f6 P
+           S Texture alpha
+           S double
+           S Number
+           S 
+           D   1.000000
+        000047f6..00004831 P
+           S PremultiplyAlpha
+           S bool
+           S 
+           S 
+           I 1
+        00004831..00004873 P
+           S CurrentTextureBlendMode
+           S enum
+           S 
+           S 
+           I 1
+        00004873..000048b0 P
+           S CurrentMappingType
+           S enum
+           S 
+           S 
+           I 0
+        000048b0..000048ea P
+           S UVSet
+           S KString
+           S 
+           S 
+           S default
+        000048ea..0000491e P
+           S WrapModeU
+           S enum
+           S 
+           S 
+           I 0
+        0000491e..00004952 P
+           S WrapModeV
+           S enum
+           S 
+           S 
+           I 0
+        00004952..00004983 P
+           S UVSwap
+           S bool
+           S 
+           S 
+           I 0
+        00004983..000049d9 P
+           S Translation
+           S Vector3D
+           S Vector
+           S 
+           D   0.000000
+           D   0.000000
+           D   0.000000
+        000049d9..00004a2c P
+           S Rotation
+           S Vector3D
+           S Vector
+           S 
+           D   0.000000
+           D   0.000000
+           D   0.000000
+        00004a2c..00004a7e P
+           S Scaling
+           S Vector3D
+           S Vector
+           S 
+           D   1.000000
+           D   1.000000
+           D   1.000000
+        00004a7e..00004add P
+           S TextureRotationPivot
+           S Vector3D
+           S Vector
+           S 
+           D   0.000000
+           D   0.000000
+           D   0.000000
+        00004add..00004b3b P
+           S TextureScalingPivot
+           S Vector3D
+           S Vector
+           S 
+           D   0.000000
+           D   0.000000
+           D   0.000000
+        00004b3b..00004b71 P
+           S UseMaterial
+           S bool
+           S 
+           S 
+           I 0
+        00004b71..00004ba5 P
+           S UseMipMap
+           S bool
+           S 
+           S 
+           I 0
+  00004bcc..00004fc7 ObjectType
+     S Video
+    00004bed..00004c04 Count
+       I 1
+    00004c04..00004fba PropertyTemplate
+       S FbxVideo
+      00004c2e..00004fad Properties70
+        00004c47..00004c7d P
+           S Width
+           S int
+           S Integer
+           S 
+           I 0
+        00004c7d..00004cb4 P
+           S Height
+           S int
+           S Integer
+           S 
+           I 0
+        00004cb4..00004ce9 P
+           S Path
+           S KString
+           S Url
+           S 
+           S 
+        00004ce9..00004d1e P
+           S AccessMode
+           S enum
+           S 
+           S 
+           I 0
+        00004d1e..00004d59 P
+           S StartFrame
+           S int
+           S Integer
+           S 
+           I 0
+        00004d59..00004d93 P
+           S StopFrame
+           S int
+           S Integer
+           S 
+           I 0
+        00004d93..00004dcd P
+           S Offset
+           S KTime
+           S Time
+           S 
+           L 0
+        00004dcd..00004e0d P
+           S PlaySpeed
+           S double
+           S Number
+           S 
+           D   0.000000
+        00004e0d..00004e43 P
+           S FreeRunning
+           S bool
+           S 
+           S 
+           I 0
+        00004e43..00004e72 P
+           S Loop
+           S bool
+           S 
+           S 
+           I 0
+        00004e72..00004eaa P
+           S InterlaceMode
+           S enum
+           S 
+           S 
+           I 0
+        00004eaa..00004ee2 P
+           S ImageSequence
+           S bool
+           S 
+           S 
+           I 0
+        00004ee2..00004f26 P
+           S ImageSequenceOffset
+           S int
+           S Integer
+           S 
+           I 0
+        00004f26..00004f66 P
+           S FrameRate
+           S double
+           S Number
+           S 
+           D   0.000000
+        00004f66..00004fa0 P
+           S LastFrame
+           S int
+           S Integer
+           S 
+           I 0
+00004fd4..00067c9f Objects
+  00004fe8..0000529e NodeAttribute
+     L 323890436
+     S Lamp
+     S Light
+    0000502d..0000504e GeometryVersion
+       I 124
+    0000504e..00005291 Properties70
+      00005067..0000509b P
+         S LightType
+         S enum
+         S 
+         S 
+         I 0
+      0000509b..000050cf P
+         S CastLight
+         S bool
+         S 
+         S 
+         I 1
+      000050cf..00005117 P
+         S Color
+         S Color
+         S 
+         S A
+         D   1.000000
+         D   1.000000
+         D   1.000000
+      00005117..00005152 P
+         S Intensity
+         S Number
+         S 
+         S A
+         D 100.000000
+      00005152..00005186 P
+         S DecayType
+         S enum
+         S 
+         S 
+         I 2
+      00005186..000051c7 P
+         S DecayStart
+         S double
+         S Number
+         S 
+         D 2999.998283
+      000051c7..000051fd P
+         S CastShadows
+         S bool
+         S 
+         S 
+         I 1
+      000051fd..0000524b P
+         S ShadowColor
+         S Color
+         S 
+         S A
+         D   0.000000
+         D   0.000000
+         D   0.000000
+      0000524b..00005284 P
+         S AreaLightShape
+         S enum
+         S 
+         S 
+         I 0
+  0000529e..00005ac8 NodeAttribute
+     L 992645338
+     S Camera
+     S Camera
+    000052e6..0000595d Properties70
+      000052ff..0000534b P
+         S Position
+         S Vector
+         S 
+         S A
+         D 748.113159
+         D 534.366516
+         D 650.763977
+      0000534b..00005397 P
+         S UpVector
+         S Vector
+         S 
+         S A
+         D  -0.317370
+         D   0.895343
+         D  -0.312469
+      00005397..000053eb P
+         S InterestPosition
+         S Vector
+         S 
+         S A
+         D 747.427307
+         D 534.377319
+         D 651.491638
+      000053eb..0000543d P
+         S BackgroundColor
+         S Color
+         S 
+         S A
+         D   0.000000
+         D   0.000000
+         D   0.000000
+      0000543d..0000547c P
+         S DisplayTurnTableIcon
+         S bool
+         S 
+         S 
+         I 1
+      0000547c..000054b6 P
+         S AspectRatioMode
+         S enum
+         S 
+         S 
+         I 2
+      000054b6..000054f8 P
+         S AspectWidth
+         S double
+         S Number
+         S 
+         D 1920.000000
+      000054f8..0000553b P
+         S AspectHeight
+         S double
+         S Number
+         S 
+         D 1080.000000
+      0000553b..0000557b P
+         S FilmWidth
+         S double
+         S Number
+         S 
+         D   1.259843
+      0000557b..000055bc P
+         S FilmHeight
+         S double
+         S Number
+         S 
+         D   0.708661
+      000055bc..00005602 P
+         S FilmAspectRatio
+         S double
+         S Number
+         S 
+         D   1.777778
+      00005602..00005645 P
+         S FilmOffsetX
+         S double
+         S Number
+         S A
+         D   0.000000
+      00005645..00005688 P
+         S FilmOffsetY
+         S double
+         S Number
+         S A
+         D   0.000000
+      00005688..000056bf P
+         S ApertureMode
+         S enum
+         S 
+         S 
+         I 3
+      000056bf..000056f1 P
+         S GateFit
+         S enum
+         S 
+         S 
+         I 2
+      000056f1..00005733 P
+         S FieldOfView
+         S FieldOfView
+         S 
+         S A
+         D  49.134342
+      00005733..00005777 P
+         S FieldOfViewX
+         S FieldOfViewX
+         S 
+         S A
+         D  49.134342
+      00005777..000057bb P
+         S FieldOfViewY
+         S FieldOfViewY
+         S 
+         S A
+         D  28.841546
+      000057bb..000057fe P
+         S FocalLength
+         S double
+         S Number
+         S A
+         D  35.000000
+      000057fe..00005848 P
+         S SafeAreaAspectRatio
+         S double
+         S Number
+         S 
+         D   1.777778
+      00005848..00005888 P
+         S OrthoZoom
+         S double
+         S Number
+         S 
+         D   7.314286
+      00005888..000058c8 P
+         S NearPlane
+         S double
+         S Number
+         S 
+         D  10.000000
+      000058c8..00005907 P
+         S FarPlane
+         S double
+         S Number
+         S 
+         D 10000.000000
+      00005907..00005950 P
+         S BackPlaneDistance
+         S double
+         S Number
+         S A
+         D 10000.000000
+    0000595d..0000597e TypeFlags
+       S Camera
+    0000597e..0000599f GeometryVersion
+       I 124
+    0000599f..000059cf Position
+       D 748.113159
+       D 534.366516
+       D 650.763977
+    000059cf..000059f9 Up
+       D  -0.317370
+       D   0.895343
+       D  -0.312469
+    000059f9..00005a27 LookAt
+       D  -0.685881
+       D   0.010817
+       D   0.727634
+    00005a27..00005a49 ShowInfoOnMoving
+       I 1
+    00005a49..00005a64 ShowAudio
+       I 0
+    00005a64..00005a96 AudioColor
+       D   0.000000
+       D   1.000000
+       D   0.000000
+    00005a96..00005abb CameraOrthoZoom
+       D   1.000000
+  00005ac8..0006686e Geometry
+     L 803301244
+     S Base
+     S Mesh
+    00005b02..00005b28 Properties70
+    00005b28..00005b49 GeometryVersion
+       I 124
+    00005b49..00018724 Vertices
+       d <array>
+    00018724..00024fcf PolygonVertexIndex
+       i <array>
+    00024fcf..0002a648 Edges
+       i <array>
+    0002a648..000480a5 LayerElementNormal
+       I 0
+      0002a66c..0002a685 Version
+         I 101
+      0002a685..0002a69b Name
+         S 
+      0002a69b..0002a6d2 MappingInformationType
+         S ByPolygonVertex
+      0002a6d2..0002a702 ReferenceInformationType
+         S Direct
+      0002a702..00048098 Normals
+         d <array>
+    000480a5..00066548 LayerElementUV
+       I 0
+      000480c5..000480de Version
+         I 101
+      000480de..000480f9 Name
+         S UVMap
+      000480f9..00048130 MappingInformationType
+         S ByPolygonVertex
+      00048130..00048167 ReferenceInformationType
+         S IndexToDirect
+      00048167..0005a592 UV
+         d <array>
+      0005a592..0006653b UVIndex
+         i <array>
+    00066548..000666e8 LayerElementMaterial
+       I 0
+      0006656e..00066587 Version
+         I 101
+      00066587..0006659d Name
+         S 
+      0006659d..000665ce MappingInformationType
+         S ByPolygon
+      000665ce..00066605 ReferenceInformationType
+         S IndexToDirect
+      00066605..000666db Materials
+         i <array>
+    000666e8..00066861 Layer
+       I 0
+      000666ff..00066718 Version
+         I 100
+      00066718..00066782 LayerElement
+        00066731..00066759 Type
+           S LayerElementNormal
+        00066759..00066775 TypedIndex
+           I 0
+      00066782..000667e8 LayerElement
+        0006679b..000667bf Type
+           S LayerElementUV
+        000667bf..000667db TypedIndex
+           I 0
+      000667e8..00066854 LayerElement
+        00066801..0006682b Type
+           S LayerElementMaterial
+        0006682b..00066847 TypedIndex
+           I 0
+  0006686e..00066a84 Model
+     L 612347060
+     S Base
+     S Mesh
+    000668a2..000668bb Version
+       I 232
+    000668bb..00066a07 Properties70
+      000668d4..0006692a P
+         S Lcl Rotation
+         S Lcl Rotation
+         S 
+         S A
+         D   0.000009
+         D  -0.000000
+         D   0.000000
+      0006692a..0006697e P
+         S Lcl Scaling
+         S Lcl Scaling
+         S 
+         S A
+         D   2.592532
+         D   2.592532
+         D   2.592532
+      0006697e..000669c4 P
+         S DefaultAttributeIndex
+         S int
+         S Integer
+         S 
+         I 0
+      000669c4..000669fa P
+         S InheritType
+         S enum
+         S 
+         S 
+         I 1
+    00066a07..00066a23 MultiLayer
+       I 0
+    00066a23..00066a3e MultiTake
+       I 0
+    00066a3e..00066a54 Shading
+       C true
+    00066a54..00066a77 Culling
+       S CullingOff
+  00066a84..00066cf7 Model
+     L 672520542
+     S Lamp
+     S Light
+    00066ab9..00066ad2 Version
+       I 232
+    00066ad2..00066c7a Properties70
+      00066aeb..00066b47 P
+         S Lcl Translation
+         S Lcl Translation
+         S 
+         S A
+         D 407.624542
+         D 590.386230
+         D -100.545395
+      00066b47..00066b9d P
+         S Lcl Rotation
+         S Lcl Rotation
+         S 
+         S A
+         D  47.533564
+         D 107.220767
+         D  10.743661
+      00066b9d..00066bf1 P
+         S Lcl Scaling
+         S Lcl Scaling
+         S 
+         S A
+         D 100.000008
+         D 100.000000
+         D 100.000000
+      00066bf1..00066c37 P
+         S DefaultAttributeIndex
+         S int
+         S Integer
+         S 
+         I 0
+      00066c37..00066c6d P
+         S InheritType
+         S enum
+         S 
+         S 
+         I 1
+    00066c7a..00066c96 MultiLayer
+       I 0
+    00066c96..00066cb1 MultiTake
+       I 0
+    00066cb1..00066cc7 Shading
+       C true
+    00066cc7..00066cea Culling
+       S CullingOff
+  00066cf7..000670d1 Model
+     L 796324031
+     S Camera
+     S Camera
+    00066d2f..00066d48 Version
+       I 232
+    00066d48..00067054 Properties70
+      00066d61..00066dbd P
+         S Lcl Translation
+         S Lcl Translation
+         S 
+         S A
+         D 748.113159
+         D 534.366516
+         D 650.763977
+      00066dbd..00066e13 P
+         S Lcl Rotation
+         S Lcl Rotation
+         S 
+         S A
+         D  23.240202
+         D 142.362330
+         D  34.212079
+      00066e13..00066e67 P
+         S Lcl Scaling
+         S Lcl Scaling
+         S 
+         S A
+         D 100.000000
+         D 100.000000
+         D 100.000000
+      00066e67..00066ead P
+         S DefaultAttributeIndex
+         S int
+         S Integer
+         S 
+         I 0
+      00066ead..00066ee3 P
+         S InheritType
+         S enum
+         S 
+         S 
+         I 1
+      00066ee3..00066f1c P
+         S ResolutionMode
+         S enum
+         S 
+         S 
+         I 0
+      00066f1c..00066f5a P
+         S AspectW
+         S double
+         S Number
+         S 
+         D 1920.000000
+      00066f5a..00066f98 P
+         S AspectH
+         S double
+         S Number
+         S 
+         D 1080.000000
+      00066f98..00066fce P
+         S ViewFrustum
+         S bool
+         S 
+         S 
+         I 1
+      00066fce..00067007 P
+         S BackgroundMode
+         S enum
+         S 
+         S 
+         I 0
+      00067007..00067047 P
+         S ForegroundTransparent
+         S bool
+         S 
+         S 
+         I 1
+    00067054..00067070 MultiLayer
+       I 0
+    00067070..0006708b MultiTake
+       I 0
+    0006708b..000670a1 Shading
+       C true
+    000670a1..000670c4 Culling
+       S CullingOff
+  000670d1..000674b8 Material
+     L 999983541
+     S default
+     S 
+    0006710a..00067123 Version
+       I 102
+    00067123..00067146 ShadingModel
+       S Phong
+    00067146..00067162 MultiLayer
+       I 0
+    00067162..000674ab Properties70
+      0006717b..000671cb P
+         S EmissiveColor
+         S Color
+         S 
+         S A
+         D   1.000000
+         D   1.000000
+         D   1.000000
+      000671cb..0006720b P
+         S EmissiveFactor
+         S Number
+         S 
+         S A
+         D   0.000000
+      0006720b..0006725a P
+         S AmbientColor
+         S Color
+         S 
+         S A
+         D   0.000000
+         D   0.000000
+         D   0.000000
+      0006725a..000672a9 P
+         S DiffuseColor
+         S Color
+         S 
+         S A
+         D   1.000000
+         D   1.000000
+         D   1.000000
+      000672a9..000672fc P
+         S TransparentColor
+         S Color
+         S 
+         S A
+         D   1.000000
+         D   1.000000
+         D   1.000000
+      000672fc..0006734c P
+         S SpecularColor
+         S Color
+         S 
+         S A
+         D   0.200000
+         D   0.200000
+         D   0.200000
+      0006734c..0006738c P
+         S SpecularFactor
+         S Number
+         S 
+         S A
+         D   0.500000
+      0006738c..000673c7 P
+         S Shininess
+         S Number
+         S 
+         S A
+         D   0.980392
+      000673c7..0006740a P
+         S ShininessExponent
+         S Number
+         S 
+         S A
+         D   0.980392
+      0006740a..0006745c P
+         S ReflectionColor
+         S Color
+         S 
+         S A
+         D   1.000000
+         D   1.000000
+         D   1.000000
+      0006745c..0006749e P
+         S ReflectionFactor
+         S Number
+         S 
+         S A
+         D   0.000000
+  000674b8..000678de Material
+     L 553183436
+     S Default
+     S 
+    000674f1..0006750a Version
+       I 102
+    0006750a..0006752d ShadingModel
+       S Phong
+    0006752d..00067549 MultiLayer
+       I 0
+    00067549..000678d1 Properties70
+      00067562..000675b2 P
+         S EmissiveColor
+         S Color
+         S 
+         S A
+         D   0.800000
+         D   0.800000
+         D   0.800000
+      000675b2..000675f2 P
+         S EmissiveFactor
+         S Number
+         S 
+         S A
+         D   0.000000
+      000675f2..00067641 P
+         S AmbientColor
+         S Color
+         S 
+         S A
+         D   0.000000
+         D   0.000000
+         D   0.000000
+      00067641..00067690 P
+         S DiffuseColor
+         S Color
+         S 
+         S A
+         D   0.800000
+         D   0.800000
+         D   0.800000
+      00067690..000676cf P
+         S DiffuseFactor
+         S Number
+         S 
+         S A
+         D   0.800000
+      000676cf..00067722 P
+         S TransparentColor
+         S Color
+         S 
+         S A
+         D   1.000000
+         D   1.000000
+         D   1.000000
+      00067722..00067772 P
+         S SpecularColor
+         S Color
+         S 
+         S A
+         D   1.000000
+         D   1.000000
+         D   1.000000
+      00067772..000677b2 P
+         S SpecularFactor
+         S Number
+         S 
+         S A
+         D   0.250000
+      000677b2..000677ed P
+         S Shininess
+         S Number
+         S 
+         S A
+         D   9.607843
+      000677ed..00067830 P
+         S ShininessExponent
+         S Number
+         S 
+         S A
+         D   9.607843
+      00067830..00067882 P
+         S ReflectionColor
+         S Color
+         S 
+         S A
+         D   1.000000
+         D   1.000000
+         D   1.000000
+      00067882..000678c4 P
+         S ReflectionFactor
+         S Number
+         S 
+         S A
+         D   0.000000
+  000678de..00067b00 Texture
+     L 868443859
+     S Kd
+     S 
+    00067910..00067936 Type
+       S TextureVideoClip
+    00067936..0006794f Version
+       I 202
+    0006794f..00067977 Textur

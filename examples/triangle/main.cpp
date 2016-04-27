@@ -5,7 +5,7 @@
 // 
 
 // vulkan utilities.
-#include "../../include/vku.hpp"
+#include <vku/vku.hpp>
 
 class triangle_example : public vku::window
 {
