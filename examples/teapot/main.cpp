@@ -47,27 +47,15 @@ public:
   teapot_example(int argc, const char **argv) : vku::window(argc, argv, false, 1280, 720, -2.5f, "triangle") {
     mesh = vku::mesh("../data/teapot.fbx");
 
-    // Vertices
-    struct Vertex { float pos[3]; float col[3]; };
-
-    static const Vertex vertex_data[] = {
-      { { 1.0f,  1.0f, 0.0f }, { 1.0f, 0.0f, 0.0f } },
-      { { -1.0f,  1.0f, 0.0f }, { 0.0f, 1.0f, 0.0f } },
-      { { 0.0f, -1.0f, 0.0f }, { 0.0f, 0.0f, 1.0f} }
-    };
-
-    vertex_buffer = vku::buffer(device(), (void*)vertex_data, sizeof(vertex_data), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
+    vertex_buffer = vku::buffer(device(), (void*)mesh.vertices(), mesh.numVertices()*sizeof(vku::mesh::Vertex), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
 
     // Indices
     static const uint32_t index_data[] = { 0, 1, 2 };
-    index_buffer = vku::buffer(device(), (void*)index_data, sizeof(index_data), VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
-    num_indices = 3;
+    index_buffer = vku::buffer(device(), (void*)mesh.indices(), mesh.numIndices() * sizeof(uint32_t), VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
+    num_indices = 3; //mesh.numIndices();
 
-    // Vertex format
     vku::pipelineCreateHelper pipeHelper;
-    pipeHelper.binding(vertex_buffer_bind_id, sizeof(Vertex), VK_VERTEX_INPUT_RATE_VERTEX);
-    pipeHelper.attrib(0, vertex_buffer_bind_id, VK_FORMAT_R32G32B32_SFLOAT, 0);
-    pipeHelper.attrib(1, vertex_buffer_bind_id, VK_FORMAT_R32G32B32_SFLOAT, sizeof(float) * 3);
+    mesh.getVertexFormat(pipeHelper, vertex_buffer_bind_id);
 
     // Matrices
     uniform_buffer = vku::buffer(device(), (void*)nullptr, sizeof(uniform_data), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);

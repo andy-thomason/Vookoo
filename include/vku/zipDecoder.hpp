@@ -354,6 +354,8 @@ namespace vku {
         default: return false;
         }
       } while( !is_last_block && bitptr != ~0);
+      if (debug) printf("%p %p\n", dest, dest_max);
+      if (debug) printf("%p %p\n", src + bitptr / 8, src_max);
       return is_last_block && bitptr != ~0 && dest == dest_max;
     }
   };
