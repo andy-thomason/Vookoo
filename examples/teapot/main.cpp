@@ -13,9 +13,11 @@ class teapot_example : public vku::window
 public:
   // these matrices transform rotate and position the triangle
   struct {
-    glm::mat4 projectionMatrix;
-    glm::mat4 modelMatrix;
-    glm::mat4 viewMatrix;
+	  glm::mat4 viewToProjection;
+	  glm::mat4 modelToWorld;
+	  glm::mat4 worldToView;
+	  glm::mat4 normalToWorld;
+	  glm::vec4 lightPosition;
   } uniform_data;
 
   vku::mesh mesh;
@@ -52,7 +54,7 @@ public:
     // Indices
     static const uint32_t index_data[] = { 0, 1, 2 };
     index_buffer = vku::buffer(device(), (void*)mesh.indices(), mesh.numIndices() * sizeof(uint32_t), VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
-    num_indices = 3; //mesh.numIndices();
+    num_indices = mesh.numIndices();
 
     vku::pipelineCreateHelper pipeHelper;
     mesh.getVertexFormat(pipeHelper, vertex_buffer_bind_id);
@@ -105,9 +107,9 @@ public:
   // Recalculate the matrices and upload to the card.
   void updateUniformBuffers()
   {
-    uniform_data.projectionMatrix = defaultProjectionMatrix();
-    uniform_data.viewMatrix = defaultViewMatrix();
-    uniform_data.modelMatrix = defaultModelMatrix();
+    uniform_data.viewToProjection = defaultProjectionMatrix();
+    uniform_data.worldToView = defaultViewMatrix();
+    uniform_data.modelToWorld = defaultModelMatrix();
 
     void *dest = uniform_buffer.map();
     memcpy(dest, &uniform_data, sizeof(uniform_data));
@@ -129,8 +131,6 @@ public:
     updateUniformBuffers();
   }
 };
-
-
 
 int main(const int argc, const char *argv[]) {
   // create a window.

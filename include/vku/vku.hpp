@@ -322,8 +322,21 @@ public:
   }
 
   /// instance that does owns (and creates) its pointer
-  instance(const char *name) : resource((VkDevice)VK_NULL_HANDLE) {
-    bool enableValidation = false;
+  instance(const char *name, bool enableValidation = true) : resource((VkDevice)VK_NULL_HANDLE) {
+    // sadly none of these seem to work on the windows version
+	  static const char *validationLayerNames[] = 
+	  {
+		  "VK_LAYER_LUNARG_threading",
+		  "VK_LAYER_LUNARG_mem_tracker",
+		  "VK_LAYER_LUNARG_object_tracker",
+		  "VK_LAYER_LUNARG_draw_state",
+		  "VK_LAYER_LUNARG_param_checker",
+		  "VK_LAYER_LUNARG_swapchain",
+		  "VK_LAYER_LUNARG_device_limits",
+		  "VK_LAYER_LUNARG_image",
+		  "VK_LAYER_GOOGLE_unique_objects",
+	  };
+
     VkApplicationInfo appInfo = {};
     appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
     appInfo.pApplicationName = "vku";
@@ -360,8 +373,8 @@ public:
     }
     if (enableValidation)
     {
-      //instanceCreateInfo.enabledLayerCount = vkDebug::validationLayerCount; // todo : change validation layer names!
-      //instanceCreateInfo.ppEnabledLayerNames = vkDebug::validationLayerNames;
+      instanceCreateInfo.enabledLayerCount = 0; //sizeof(validationLayerNames)/sizeof(validationLayerNames[0]);
+      instanceCreateInfo.ppEnabledLayerNames = validationLayerNames;
     }
 
     VkInstance inst = VK_NULL_HANDLE;
@@ -431,8 +444,8 @@ public:
     }
     if (enableValidation)
     {
-      //deviceCreateInfo.enabledLayerCount = vkDebug::validationLayerCount; // todo : validation layer names
-      //deviceCreateInfo.ppEnabledLayerNames = vkDebug::validationLayerNames;
+      deviceCreateInfo.enabledLayerCount = 0; //sizeof(validationLayerNames)/sizeof(validationLayerNames[0]);
+      deviceCreateInfo.ppEnabledLayerNames = validationLayerNames;
     }
 
     err = vkCreateDevice(physicalDevice_, &deviceCreateInfo, VK_NULL_HANDLE, &dev_);
@@ -1084,12 +1097,6 @@ public:
     multisampleState.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
   }
 
-  pipelineCreateHelper &operator=(pipelineCreateHelper && rhs) {
-    vi = rhs.vi;
-    bindingDescriptions = std::move(rhs.bindingDescriptions);
-    attributeDescriptions = std::move(rhs.attributeDescriptions);
-  }
-
   pipelineCreateHelper &attrib(uint32_t location, uint32_t binding, VkFormat format, uint32_t offset) {
     VkVertexInputAttributeDescription desc = {};
     desc.location = location;
@@ -1174,6 +1181,17 @@ public:
     return &pipelineCreateInfo;
   }
 
+  /*pipelineCreateHelper &operator=(pipelineCreateHelper && rhs) {
+    vi = rhs.vi;
+    descriptorLayout_ = rhs.descriptorLayout_;
+    bindingDescriptions = std::move(rhs.bindingDescriptions);
+    attributeDescriptions = std::move(rhs.attributeDescriptions);
+    layoutBindings_ = std::move(rhs.layoutBindings_);
+    shaderStages_ = std::move(rhs.shaderStages_);
+    dynamicStateEnables = std::move(rhs.dynamicStateEnables);
+  }*/
+
+  pipelineCreateHelper &operator=(pipelineCreateHelper && rhs) = default;
 private:
   VkPipelineVertexInputStateCreateInfo vi = {};
   VkDescriptorSetLayoutCreateInfo descriptorLayout_ = {};
@@ -1181,6 +1199,7 @@ private:
   std::vector<VkVertexInputAttributeDescription> attributeDescriptions;
   std::vector<VkDescriptorSetLayoutBinding> layoutBindings_;
   std::vector<VkPipelineShaderStageCreateInfo> shaderStages_;
+  std::vector<VkDynamicState> dynamicStateEnables;
 
   VkPipelineInputAssemblyStateCreateInfo inputAssemblyState = {};
   VkPipelineRasterizationStateCreateInfo rasterizationState = {};
@@ -1188,7 +1207,6 @@ private:
   VkPipelineColorBlendAttachmentState blendAttachmentState[1] = {};
   VkPipelineViewportStateCreateInfo viewportState = {};
   VkPipelineDynamicStateCreateInfo dynamicState = {};
-  std::vector<VkDynamicState> dynamicStateEnables;
   VkPipelineDepthStencilStateCreateInfo depthStencilState = {};
   VkPipelineMultisampleStateCreateInfo multisampleState = {};
   VkGraphicsPipelineCreateInfo pipelineCreateInfo = {};
@@ -1439,7 +1457,6 @@ public:
   // Create an image memory barrier for changing the layout of
   // an image and put it into an active command buffer
   // See chapter 11.4 "Image Layout" for details
-  //todo : rename
   void setImageLayout(VkImage image, VkImageAspectFlags aspectMask, VkImageLayout oldImageLayout, VkImageLayout newImageLayout) const {
     // Create an image barrier object
     VkImageMemoryBarrier imageMemoryBarrier = {};

@@ -320,16 +320,11 @@ namespace vku {
               // map the fbx data to real indices
               // todo: add a function to re-index
               for (size_t i = 0, j = 0; i != fbxIndices.size(); ++i) {
-                int32_t vi = fbxIndices[i];
-                if (vi < 0) {
-                  int32_t i0 = fbxIndices[j];
-                  int32_t i1 = fbxIndices[j+1];
-                  for (size_t k = j+2; k < i+1; ++k) {
-                    int32_t i2 = fbxIndices[k];
-                    indices.push_back(i0);
-                    indices.push_back(i1);
-                    indices.push_back(i2);
-                    i1 = i2;
+                if (fbxIndices[i] < 0) {
+                  for (size_t k = j+2; k <= i; ++k) {
+                    indices.push_back((uint32_t)j);
+                    indices.push_back((uint32_t)k-1);
+                    indices.push_back((uint32_t)k);
                   }
                   j = i + 1;
                 }
