@@ -233,8 +233,11 @@ namespace vku {
       return result;
     };
 
-    template <class Vertex>
-    bool loadFirstMesh(std::vector<Vertex> &vertices, std::vector<uint32_t> &indices) {
+    template <class MeshTraits>
+    bool loadFirstMesh(std::vector<typename MeshTraits::vertex_t> &vertices, std::vector<typename MeshTraits::index_t> &indices) {
+      typedef typename MeshTraits::vertex_t vertex_t;
+      typedef typename MeshTraits::index_t index_t;
+
       vku::zipDecoder decoder;
 
       std::vector<double> fbxVertices;
@@ -306,7 +309,7 @@ namespace vku {
                 int32_t vi = fbxIndices[i];
                 if (vi < 0) vi = -1 - vi;
 
-                Vertex vtx = {};
+                vertex_t vtx = {};
                 vtx.pos = glm::vec3(fbxVertices[vi*3+0], fbxVertices[vi*3+1], fbxVertices[vi*3+2]);
                 if (normalMapping == fbxFile::Mapping::ByPolygonVertex) {
                   vtx.normal = glm::vec3(fbxNormals[ni*3+0], fbxNormals[ni*3+1], fbxNormals[ni*3+2]);

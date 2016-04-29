@@ -20,7 +20,7 @@ public:
 	  glm::vec4 lightPosition;
   } uniform_data;
 
-  vku::mesh mesh;
+  vku::simple_mesh mesh;
 
   // These buffers represent data on the GPU card.
   vku::buffer vertex_buffer;
@@ -47,13 +47,13 @@ public:
 
   // This is the constructor for a window containing our example
   teapot_example(int argc, const char **argv) : vku::window(argc, argv, false, 1280, 720, -2.5f, "triangle") {
-    mesh = vku::mesh("../data/teapot.fbx");
+    mesh = vku::simple_mesh("../data/teapot.fbx");
 
-    vertex_buffer = vku::buffer(device(), (void*)mesh.vertices(), mesh.numVertices()*sizeof(vku::mesh::Vertex), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
+    vertex_buffer = vku::buffer(device(), (void*)mesh.vertices(), mesh.numVertices()*mesh.vertexSize(), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
 
     // Indices
     static const uint32_t index_data[] = { 0, 1, 2 };
-    index_buffer = vku::buffer(device(), (void*)mesh.indices(), mesh.numIndices() * sizeof(uint32_t), VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
+    index_buffer = vku::buffer(device(), (void*)mesh.indices(), mesh.numIndices() * mesh.indexSize(), VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
     num_indices = mesh.numIndices();
 
     vku::pipelineCreateHelper pipeHelper;
@@ -63,8 +63,8 @@ public:
     uniform_buffer = vku::buffer(device(), (void*)nullptr, sizeof(uniform_data), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
     
     // Shaders
-    vertexShader = vku::shaderModule(device(), "../data/shaders/triangle.vert", VK_SHADER_STAGE_VERTEX_BIT);
-    fragmentShader = vku::shaderModule(device(), "../data/shaders/triangle.frag", VK_SHADER_STAGE_FRAGMENT_BIT);
+    vertexShader = vku::shaderModule(device(), "mesh.vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
+    fragmentShader = vku::shaderModule(device(), "mesh.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
 
     // How many uniform buffers per stage
     pipeHelper.uniformBuffers(1, VK_SHADER_STAGE_VERTEX_BIT);

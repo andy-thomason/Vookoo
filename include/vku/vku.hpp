@@ -322,7 +322,7 @@ public:
   }
 
   /// instance that does owns (and creates) its pointer
-  instance(const char *name, bool enableValidation = true) : resource((VkDevice)VK_NULL_HANDLE) {
+  instance(const char *name, bool enableValidation = false) : resource((VkDevice)VK_NULL_HANDLE) {
     // sadly none of these seem to work on the windows version
 	  static const char *validationLayerNames[] = 
 	  {
@@ -373,7 +373,7 @@ public:
     }
     if (enableValidation)
     {
-      instanceCreateInfo.enabledLayerCount = 0; //sizeof(validationLayerNames)/sizeof(validationLayerNames[0]);
+      instanceCreateInfo.enabledLayerCount = sizeof(validationLayerNames)/sizeof(validationLayerNames[0]);
       instanceCreateInfo.ppEnabledLayerNames = validationLayerNames;
     }
 
