@@ -379,6 +379,11 @@ public:
 
     VkInstance inst = VK_NULL_HANDLE;
     VkResult err = vkCreateInstance(&instanceCreateInfo, VK_NULL_HANDLE, &inst);
+    if (err) {
+      #ifdef _WIN32
+        MessageBox(NULL, "Could not open the vulan driver", "oops", MB_ICONHAND);
+      #endif
+    }
     if (err) throw error(err, __FILE__, __LINE__);
     set(inst, true);
 
