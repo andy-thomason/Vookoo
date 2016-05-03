@@ -134,7 +134,18 @@ public:
   }
 };
 
+#include <vku/pngDecoder.hpp>
+
 int main(const int argc, const char *argv[]) {
+  /*vku::pngDecoder png;
+  std::ifstream input("../data/simple.png", std::ios::binary);
+  auto b = std::istreambuf_iterator<char>(input);
+  auto e = std::istreambuf_iterator<char>();
+  std::vector<char> buf(b, e);
+  vku::pngDecoder::result_t result;
+  png.decode(result, buf.data(), buf.data() + buf.size());
+  return 1;*/
+
   // create a window.
   teapot_example my_example(argc, argv);
 

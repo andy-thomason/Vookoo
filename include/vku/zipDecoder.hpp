@@ -32,7 +32,6 @@ namespace vku {
     };
 
     huffman_table fixed_;
-    huffman_table var_;
 
     // on ARM we can do this faster with the "rev" instruction
     inline static uint16_t rev16(uint16_t value) {
@@ -84,7 +83,7 @@ namespace vku {
       //return value;
     }
 
-    bool build_huffman(uint8_t *lengths, unsigned num_lengths, uint8_t &min_length, uint8_t &max_length, uint16_t *codes, uint16_t *limits, uint16_t *base) {
+    static bool build_huffman(uint8_t *lengths, unsigned num_lengths, uint8_t &min_length, uint8_t &max_length, uint16_t *codes, uint16_t *limits, uint16_t *base) {
       min_length = 16;
       max_length = 0;
       for (unsigned i = 0; i != num_lengths; ++i) {
@@ -129,7 +128,7 @@ namespace vku {
     }
 
     /// debug function for dumping bit fields
-    void dump_bits(unsigned value, unsigned bits, const char *name) {
+    static void dump_bits(unsigned value, unsigned bits, const char *name) {
       char tmp[64];
       assert(bits<63);
       for (unsigned i = 0; i != bits; ++i) tmp[i] = ( ( value >> (bits-1-i) ) & 1 ) + '0';
@@ -139,14 +138,14 @@ namespace vku {
 
     /// peek a fixed number of little-endian bits from the bitstream
     /// note: this will have to be fixed on PPC and other big-endian devices
-    unsigned peek(const uint8_t *src, unsigned bitptr, unsigned bits, const char *name) {
+    static unsigned peek(const uint8_t *src, unsigned bitptr, unsigned bits, const char *name) {
       unsigned i = bitptr >> 3, j = bitptr & 7;
       unsigned value = ( (unsigned&)src[i] >> j ) & ( (1u << bits) - 1 );
       if (debug && name) dump_bits(value, bits, name);
       return value;
     }
 
-    unsigned decode_uncompressed(uint8_t *&dest, uint8_t *dest_max, const uint8_t *src, const uint8_t *src_max, unsigned bitptr) {
+    unsigned decode_uncompressed(uint8_t *&dest, uint8_t *dest_max, const uint8_t *src, const uint8_t *src_max, unsigned bitptr) const {
       bitptr = ( bitptr + 7 ) & ~7;
       unsigned bytes_to_copy = peek(src, bitptr, 16, "bytes_to_copy");
       unsigned clength = peek(src, bitptr + 16, 16, "store length check");
@@ -162,7 +161,7 @@ namespace vku {
       return bitptr;
     }
 
-    unsigned decode_lz77(uint8_t *&dest, uint8_t *dest_max, const uint8_t *src, const uint8_t *src_max, unsigned bitptr, huffman_table *table_) {
+    static unsigned decode_lz77(uint8_t *&dest, uint8_t *dest_max, const uint8_t *src, const uint8_t *src_max, unsigned bitptr, const huffman_table *table_) {
       for(;;) {
         if (src + bitptr/8 > src_max) return ~0;
         unsigned peek16 = peek(src, bitptr, 16, NULL);
@@ -240,11 +239,11 @@ namespace vku {
       }
     }
 
-    unsigned decode_fixed(uint8_t *&dest, uint8_t *dest_max, const uint8_t *src, const uint8_t *src_max, unsigned bitptr) {
+    unsigned decode_fixed(uint8_t *&dest, uint8_t *dest_max, const uint8_t *src, const uint8_t *src_max, unsigned bitptr) const {
       return decode_lz77(dest, dest_max, src, src_max, bitptr, &fixed_);
     }
 
-    unsigned decode_variable(uint8_t *&dest, uint8_t *dest_max, const uint8_t *src, const uint8_t *src_max, unsigned bitptr) {
+    unsigned decode_variable(uint8_t *&dest, uint8_t *dest_max, const uint8_t *src, const uint8_t *src_max, unsigned bitptr) const {
       unsigned num_lit_codes = peek(src, bitptr, 5, "num_lit_codes") + 257;
       unsigned num_dist_codes = peek(src, bitptr+5, 5, "num_dist_codes") + 1;
       unsigned num_length_codes = peek(src, bitptr+10, 4, "num_length_codes") + 4;
@@ -311,13 +310,14 @@ namespace vku {
 
       if (debug) printf("lengths done\n");
 
+      huffman_table var;
       if(
-        !build_huffman(lengths, num_lit_codes, var_.min_lit_length, var_.max_lit_length, var_.lit_codes, var_.lit_limits, var_.lit_base) ||
-        !build_huffman(lengths+num_lit_codes, num_dist_codes, var_.min_dist_length, var_.max_dist_length, var_.dist_codes, var_.dist_limits, var_.dist_base)
+        !build_huffman(lengths, num_lit_codes, var.min_lit_length, var.max_lit_length, var.lit_codes, var.lit_limits, var.lit_base) ||
+        !build_huffman(lengths+num_lit_codes, num_dist_codes, var.min_dist_length, var.max_dist_length, var.dist_codes, var.dist_limits, var.dist_base)
       ) {
         return ~0;
       }
-      return decode_lz77(dest, dest_max, src, src_max, bitptr, &var_);
+      return decode_lz77(dest, dest_max, src, src_max, bitptr, &var);
     }
   public:
     zipDecoder() {
@@ -332,7 +332,7 @@ namespace vku {
       build_huffman(dist_lengths, 32, fixed_.min_dist_length, fixed_.max_dist_length, fixed_.dist_codes, fixed_.dist_limits, fixed_.dist_base);
     }
 
-    bool decode(uint8_t *dest, uint8_t *dest_max, const uint8_t *src, const uint8_t *src_max) {
+    bool decode(uint8_t *dest, uint8_t *dest_max, const uint8_t *src, const uint8_t *src_max) const {
       unsigned bitptr = 0;
       unsigned is_last_block;
 
