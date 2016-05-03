@@ -22,7 +22,7 @@
 #include <vku/semaphore.hpp>
 #include <vku/queue.hpp>
 #include <vku/commandPool.hpp>
-#include <vku/cmdBuffer.hpp>
+#include <vku/commandBuffer.hpp>
 
 // Helper classes
 #include <vku/zipDecoder.hpp>

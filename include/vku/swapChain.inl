@@ -12,7 +12,7 @@ namespace vku {
 
 inline void swapChain::build_images(VkCommandBuffer buf) {
   VkDevice d = dev();
-  vku::cmdBuffer cb(buf, d);
+  vku::commandBuffer cb(buf, d);
 
   uint32_t imageCount = 0;
   VkResult err = vkGetSwapchainImagesKHR(dev(), get(), &imageCount, NULL);

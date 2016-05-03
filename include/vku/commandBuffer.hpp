@@ -12,17 +12,17 @@
 
 namespace vku {
 
-class cmdBuffer : public resource<VkCommandBuffer, cmdBuffer> {
+class commandBuffer : public resource<VkCommandBuffer, commandBuffer> {
 public:
-  cmdBuffer() : resource(VK_NULL_HANDLE, VK_NULL_HANDLE) {
+  commandBuffer() : resource(VK_NULL_HANDLE, VK_NULL_HANDLE) {
   }
 
   /// command buffer that does not own its pointer
-  cmdBuffer(VkCommandBuffer value, VkDevice dev) : resource(value, dev) {
+  commandBuffer(VkCommandBuffer value, VkDevice dev) : resource(value, dev) {
   }
 
   /// command buffer that does owns (and creates) its pointer
-  cmdBuffer(VkDevice dev, VkCommandPool cmdPool, VkCommandBufferLevel level = VK_COMMAND_BUFFER_LEVEL_PRIMARY) : resource(dev) {
+  commandBuffer(VkDevice dev, VkCommandPool cmdPool, VkCommandBufferLevel level = VK_COMMAND_BUFFER_LEVEL_PRIMARY) : resource(dev) {
     VkCommandBuffer res = VK_NULL_HANDLE;
     VkCommandBufferAllocateInfo commandBufferAllocateInfo = {};
     commandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
@@ -248,13 +248,13 @@ public:
     return;
   }
 
-  cmdBuffer &operator=(cmdBuffer &&rhs) {
+  commandBuffer &operator=(commandBuffer &&rhs) {
     (resource&)(*this) = (resource&&)rhs;
     pool_ = rhs.pool_;
     return *this;
   }
 
-  /*cmdBuffer &operator=(const cmdBuffer &rhs) {
+  /*commandBuffer &operator=(const commandBuffer &rhs) {
     set(rhs.get(), false);
     pool_ = rhs.pool_;
     return *this;

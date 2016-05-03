@@ -446,7 +446,7 @@ public:
 
     cmdPool_ = vku::commandPool(device_, queueNodeIndex);
 
-    setupCmdBuffer_ = vku::cmdBuffer(device_, cmdPool_);
+    setupCmdBuffer_ = vku::commandBuffer(device_, cmdPool_);
     setupCmdBuffer_.beginCommandBuffer();
 
     swapChain_ = vku::swapChain(device_, width_, height_, surface, setupCmdBuffer_);
@@ -456,10 +456,10 @@ public:
     assert(swapChain_.imageCount() <= 2);
 
     for (size_t i = 0; i != swapChain_.imageCount(); ++i) {
-      drawCmdBuffers_[i] = vku::cmdBuffer(device_, cmdPool_);
+      drawCmdBuffers_[i] = vku::commandBuffer(device_, cmdPool_);
     }
 
-    postPresentCmdBuffer_ = vku::cmdBuffer(device_, cmdPool_);
+    postPresentCmdBuffer_ = vku::commandBuffer(device_, cmdPool_);
 
     depthStencil_ = vku::image(device_, width_, height_, depthFormat_, VK_IMAGE_TYPE_2D, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT);
     depthStencil_.allocate(device_);
@@ -478,7 +478,7 @@ public:
 
     // Recreate setup command buffer for derived class
 
-    setupCmdBuffer_ = vku::cmdBuffer(device_, cmdPool_);
+    setupCmdBuffer_ = vku::commandBuffer(device_, cmdPool_);
     setupCmdBuffer_.beginCommandBuffer();
 
     // Create a simple texture loader class 
@@ -554,9 +554,9 @@ public:
   const vku::device &device() const { return device_; }
   const vku::queue &queue() const { return queue_; }
   const vku::commandPool &cmdPool() const { return cmdPool_; }
-  const vku::cmdBuffer &setupCmdBuffer() const { return setupCmdBuffer_; }
-  const vku::cmdBuffer &postPresentCmdBuffer() const { return postPresentCmdBuffer_; }
-  const vku::cmdBuffer &drawCmdBuffer(size_t i) const { return drawCmdBuffers_[i]; }
+  const vku::commandBuffer &setupCmdBuffer() const { return setupCmdBuffer_; }
+  const vku::commandBuffer &postPresentCmdBuffer() const { return postPresentCmdBuffer_; }
+  const vku::commandBuffer &drawCmdBuffer(size_t i) const { return drawCmdBuffers_[i]; }
   const vku::pipelineCache &pipelineCache() const { return pipelineCache_; }
   const vku::image &depthStencil() const { return depthStencil_; }
   const vku::swapChain &swapChain() const { return swapChain_; }
@@ -589,9 +589,9 @@ private:
   vku::device device_;
   vku::queue queue_;
   vku::commandPool cmdPool_;
-  vku::cmdBuffer setupCmdBuffer_;
-  vku::cmdBuffer postPresentCmdBuffer_;
-  vku::cmdBuffer drawCmdBuffers_[2];
+  vku::commandBuffer setupCmdBuffer_;
+  vku::commandBuffer postPresentCmdBuffer_;
+  vku::commandBuffer drawCmdBuffers_[2];
   vku::pipelineCache pipelineCache_;
   vku::image depthStencil_;
   vku::swapChain swapChain_;

@@ -73,7 +73,7 @@ public:
     if (err) throw error(err, __FILE__, __LINE__);
   }
 
-  void setImageLayout(const vku::cmdBuffer &cmdBuf, VkImageAspectFlags aspectMask, VkImageLayout oldImageLayout, VkImageLayout newImageLayout) {
+  void setImageLayout(const vku::commandBuffer &cmdBuf, VkImageAspectFlags aspectMask, VkImageLayout oldImageLayout, VkImageLayout newImageLayout) {
     cmdBuf.setImageLayout(get(), aspectMask, oldImageLayout, newImageLayout);
   }
 
