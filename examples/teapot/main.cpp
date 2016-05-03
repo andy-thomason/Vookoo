@@ -53,7 +53,7 @@ public:
 
     // Indices
     static const uint32_t index_data[] = { 0, 1, 2 };
-    index_buffer = vku::buffer(device(), (void*)mesh.indices(), mesh.numIndices() * mesh.indexSize(), VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
+    index_buffer = vku::buffer(device(), (void*)mesh.indices(), mesh.numIndices()*mesh.indexSize(), VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
     num_indices = mesh.numIndices();
 
     vku::pipelineCreateHelper pipeHelper;
@@ -108,8 +108,10 @@ public:
   void updateUniformBuffers()
   {
     uniform_data.viewToProjection = defaultProjectionMatrix();
+    uniform_data.modelToWorld = glm::mat4();
     uniform_data.worldToView = defaultViewMatrix();
-    uniform_data.modelToWorld = defaultModelMatrix();
+    uniform_data.normalToWorld = uniform_data.modelToWorld;
+    uniform_data.lightPosition = glm::vec4(10, 10, -10, 1);
 
     void *dest = uniform_buffer.map();
     memcpy(dest, &uniform_data, sizeof(uniform_data));

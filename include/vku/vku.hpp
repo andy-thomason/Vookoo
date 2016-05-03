@@ -1824,26 +1824,18 @@ public:
   window(int argc, const char **argv, bool enableValidation, uint32_t width, uint32_t height, float zoom, const std::string &title) :
     width_(width), height_(height), zoom_(zoom), title_(title), argc_(argc), argv_(argv)
   {
-    // Values not set here are initialized in the base class constructor
-    // Check for validation command line flag
-    #ifdef _WIN32
-      for (int32_t i = 0; i < argc; i++)
-      {
-        if (argv[i] == std::string("-validation"))
-        {
-          enableValidation = true;
-        }
+    for (int32_t i = 0; i < argc; i++) {
+      if (argv[i] == std::string("-validation")) {
+        enableValidation = true;
       }
-    #endif
+    }
 
-    instance_ = vku::instance("vku");
-
-    vku::device dev = instance_.device();
-    device_ = dev;
+    instance_ = vku::instance("vku", enableValidation);
+    device_ = instance_.device();
     queue_ = instance_.queue();
 
     // Find a suitable depth format
-    depthFormat_ = dev.getSupportedDepthFormat();
+    depthFormat_ = device_.getSupportedDepthFormat();
     assert(depthFormat_ != VK_FORMAT_UNDEFINED);
 
     setupWindow();
@@ -2261,7 +2253,13 @@ public:
   }
 
   glm::mat4 defaultViewMatrix() const {
-    return glm::translate(glm::mat4(), glm::vec3(0.0f, 0.0f, zoom()));
+    glm::mat4 m;
+    m = glm::translate(m, glm::vec3(0.0f, 0.0f, zoom()));
+    m = glm::rotate(m, deg_to_rad(rotation().x), glm::vec3(1.0f, 0.0f, 0.0f));
+    m = glm::rotate(m, deg_to_rad(rotation().y), glm::vec3(0.0f, 1.0f, 0.0f));
+    m = glm::rotate(m, deg_to_rad(rotation().z), glm::vec3(0.0f, 0.0f, 1.0f));
+    //return glm::translate(glm::mat4(), glm::vec3(0.0f, 0.0f, zoom()));
+    return m;
   }
 
   glm::mat4 defaultModelMatrix() const {
@@ -2329,6 +2327,7 @@ public:
   virtual void render() = 0;
 
 private:
+  // note that the order of these in important as instance is created before device before queue etc.
   vku::instance instance_;
   vku::device device_;
   vku::queue queue_;
