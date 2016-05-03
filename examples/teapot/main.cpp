@@ -6,7 +6,7 @@
 
 // vulkan utilities.
 #include <vku/vku.hpp>
-#include <vku/mesh.hpp>
+#include <vku/window.hpp>
 
 class teapot_example : public vku::window
 {

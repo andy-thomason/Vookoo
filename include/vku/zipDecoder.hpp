@@ -3,6 +3,8 @@
 // (C) Andy Thomason 2012-2016
 //
 // Vookoo: zip deflate format decoder
+//
+// No dependencies, can be used outside vku
 // 
 
 
@@ -130,10 +132,11 @@ namespace vku {
     /// debug function for dumping bit fields
     static void dump_bits(unsigned value, unsigned bits, const char *name) {
       char tmp[64];
-      assert(bits<63);
-      for (unsigned i = 0; i != bits; ++i) tmp[i] = ( ( value >> (bits-1-i) ) & 1 ) + '0';
-      tmp[bits] = 0;
-      printf("[%s] %s\n", tmp, name);
+      if (bits < sizeof(tmp)-1) {
+        for (unsigned i = 0; i != bits; ++i) tmp[i] = ( ( value >> (bits-1-i) ) & 1 ) + '0';
+        tmp[bits] = 0;
+        printf("[%s] %s\n", tmp, name);
+      }
     }
 
     /// peek a fixed number of little-endian bits from the bitstream

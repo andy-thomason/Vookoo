@@ -9,8 +9,10 @@
 #define VKU_FBXFILE_INCLUDED
 
 #include <iostream>
+#include <fstream>
 #include <string>
 #include <filesystem>
+#include <vector>
 
 #include <vku/zipDecoder.hpp>
 
