@@ -9,7 +9,6 @@
 #define VKU_WINDOW_INCLUDED
 
 
-#include <vku/resource.hpp>
 #include <vku/queue.hpp>
 #include <vku/semaphore.hpp>
 #include <vku/image.hpp>
@@ -221,7 +220,6 @@ public:
       window_ = CreateWindowEx(0,
         name_.c_str(),
         title_.c_str(),
-        //    WS_OVERLAPPEDWINDOW | WS_VISIBLE | WS_SYSMENU,
         dwStyle | WS_CLIPSIBLINGS | WS_CLIPCHILDREN,
         windowRect.left,
         windowRect.top,

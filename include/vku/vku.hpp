@@ -23,6 +23,7 @@
 #include <vku/queue.hpp>
 #include <vku/commandPool.hpp>
 #include <vku/commandBuffer.hpp>
+#include <vku/image.hpp>
 
 // Helper classes
 #include <vku/zipDecoder.hpp>

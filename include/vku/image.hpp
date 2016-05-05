@@ -18,6 +18,7 @@
 #endif
 
 #include <vku/resource.hpp>
+#include <vku/commandBuffer.hpp>
 
 // derived from https://github.com/SaschaWillems/Vulkan
 //

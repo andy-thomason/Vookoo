@@ -1,6 +1,6 @@
 ////////////////////////////////////////////////////////////////////////////////
 //
-// Minimalistic Vulkan Triangle sample
+// Minimalistic Vulkan Mesh sample
 //
 // 
 
@@ -46,7 +46,7 @@ public:
   static const int vertex_buffer_bind_id = 0;
 
   // This is the constructor for a window containing our example
-  teapot_example(int argc, const char **argv) : vku::window(argc, argv, false, 1280, 720, -2.5f, "triangle") {
+  teapot_example(int argc, const char **argv) : vku::window(argc, argv, false, 1280, 720, -2.5f, "teapot") {
     mesh = vku::simple_mesh("../data/teapot.fbx");
 
     vertex_buffer = vku::buffer(device(), (void*)mesh.vertices(), mesh.numVertices()*mesh.vertexSize(), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
@@ -60,6 +60,7 @@ public:
     mesh.getVertexFormat(pipeHelper, vertex_buffer_bind_id);
 
     // Matrices
+
     uniform_buffer = vku::buffer(device(), (void*)nullptr, sizeof(uniform_data), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
     
     // Shaders
@@ -137,15 +138,6 @@ public:
 #include <vku/pngDecoder.hpp>
 
 int main(const int argc, const char *argv[]) {
-  /*vku::pngDecoder png;
-  std::ifstream input("../data/simple.png", std::ios::binary);
-  auto b = std::istreambuf_iterator<char>(input);
-  auto e = std::istreambuf_iterator<char>();
-  std::vector<char> buf(b, e);
-  vku::pngDecoder::result_t result;
-  png.decode(result, buf.data(), buf.data() + buf.size());
-  return 1;*/
-
   // create a window.
   teapot_example my_example(argc, argv);
 
