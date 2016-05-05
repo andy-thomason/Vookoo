@@ -1,8 +1,10 @@
-Vulkan Utititles Library
-========================
+Vookoo: Vulkan Utititles Library
+================================
 
 A simple utilities library in modern C++ for the Vulkan graphics
 API that has sensible defaults and an easy programming interface.
+
+Intended to be a "GLUT" for Vulkan.
 
 The initial implementation is based on Sasch Willem's excellent
 Vulkan examples.
@@ -10,10 +12,10 @@ Vulkan examples.
 Introduction
 ------------
 
-VKU (Vookoo) is a set of C++ classes that loosely wrap
+Vookoo (VKU) is a set of C++ classes that loosely wrap
 Vulkan objects.
 
-VKU handles the creation of Vulkan instances, devices, pipelines,
+Vookoo handles the creation of Vulkan instances, devices, pipelines,
 buffers and images.
 
 For example, the commandBuffer class wraps a VkCommandBuffer object
