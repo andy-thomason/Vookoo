@@ -15,17 +15,52 @@
 
 namespace vku {
 
-class instance : public resource<VkInstance, instance> {
+class instance {
 public:
-  instance() : resource((VkInstance)VK_NULL_HANDLE) {
+  VkSurfaceKHR createSurface(void *window, void *connection) {
+    VkSurfaceKHR result = VK_NULL_HANDLE;
+    // Create surface depending on OS
+    #if defined(_WIN32)
+      VkWin32SurfaceCreateInfoKHR surfaceCreateInfo = {};
+      surfaceCreateInfo.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
+      surfaceCreateInfo.hinstance = (HINSTANCE)connection;
+      surfaceCreateInfo.hwnd = (HWND)window;
+      VkResult err = vkCreateWin32SurfaceKHR(instance_, &surfaceCreateInfo, VK_NULL_HANDLE, &result);
+    #elif defined(__ANDROID__)
+      VkAndroidSurfaceCreateInfoKHR surfaceCreateInfo = {};
+      surfaceCreateInfo.sType = VK_STRUCTURE_TYPE_ANDROID_SURFACE_CREATE_INFO_KHR;
+      surfaceCreateInfo.window = window;
+      VkResult err = vkCreateAndroidSurfaceKHR(instance_, &surfaceCreateInfo, NULL, &result);
+    #else
+      VkXcbSurfaceCreateInfoKHR surfaceCreateInfo = {};
+      surfaceCreateInfo.sType = VK_STRUCTURE_TYPE_XCB_SURFACE_CREATE_INFO_KHR;
+      surfaceCreateInfo.connection = connection;
+      surfaceCreateInfo.window = (xcb_window_t)(intptr_t)window;
+      VkResult err = vkCreateXcbSurfaceKHR(instance_, &surfaceCreateInfo, VK_NULL_HANDLE, &result);
+    #endif
+    if (err) throw error(err, __FILE__, __LINE__);
+    return result;
   }
 
-  /// instance that does not own its pointer
-  instance(VkInstance value) : resource(value, VK_NULL_HANDLE) {
+  void destroy() {
+    vkDestroyInstance(instance_, VK_NULL_HANDLE);
   }
 
-  /// instance that does owns (and creates) its pointer
-  instance(const char *name, bool enableValidation = false) : resource((VkDevice)VK_NULL_HANDLE) {
+  VkPhysicalDevice physicalDevice() const { return physicalDevice_; }
+
+  vku::device device() const { return vku::device(dev_, physicalDevice_); }
+  VkQueue queue() const { return queue_; }
+  VkInstance inst() const { return instance_; }
+
+  // singleton, created on first use.
+  static instance &get() {
+    static instance theInstance;
+    return theInstance;
+  }
+
+private:
+  // There is only one instance. It is created with a singleton instance::get()
+  instance() {
     // sadly none of these seem to work on the windows version
 	  static const char *validationLayerNames[] = 
 	  {
@@ -80,20 +115,18 @@ public:
       instanceCreateInfo.ppEnabledLayerNames = validationLayerNames;
     }
 
-    VkInstance inst = VK_NULL_HANDLE;
-    VkResult err = vkCreateInstance(&instanceCreateInfo, VK_NULL_HANDLE, &inst);
+    VkResult err = vkCreateInstance(&instanceCreateInfo, VK_NULL_HANDLE, &instance_);
     if (err) {
       #ifdef _WIN32
-        MessageBox(NULL, "Could not open the vulan driver", "oops", MB_ICONHAND);
+        MessageBox(NULL, "Could not open the vulkan driver", "oops", MB_ICONHAND);
       #endif
     }
     if (err) throw error(err, __FILE__, __LINE__);
-    set(inst, true);
 
     // Physical device
     uint32_t gpuCount = 0;
     // Get number of available physical devices
-    err = vkEnumeratePhysicalDevices(get(), &gpuCount, VK_NULL_HANDLE);
+    err = vkEnumeratePhysicalDevices(instance_, &gpuCount, VK_NULL_HANDLE);
     if (err) throw error(err, __FILE__, __LINE__);
 
     if (gpuCount == 0) {
@@ -102,7 +135,7 @@ public:
 
     // Enumerate devices
     std::vector<VkPhysicalDevice> physicalDevices(gpuCount);
-    err = vkEnumeratePhysicalDevices(get(), &gpuCount, physicalDevices.data());
+    err = vkEnumeratePhysicalDevices(instance_, &gpuCount, physicalDevices.data());
     if (err) throw error(err, __FILE__, __LINE__);
 
     // Note : 
@@ -163,45 +196,11 @@ public:
     vkGetDeviceQueue(dev_, graphicsQueueIndex, 0, &queue_);
   }
 
-  VkSurfaceKHR createSurface(void *window, void *connection) {
-    VkSurfaceKHR result = VK_NULL_HANDLE;
-    // Create surface depending on OS
-    #if defined(_WIN32)
-      VkWin32SurfaceCreateInfoKHR surfaceCreateInfo = {};
-      surfaceCreateInfo.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
-      surfaceCreateInfo.hinstance = (HINSTANCE)connection;
-      surfaceCreateInfo.hwnd = (HWND)window;
-      VkResult err = vkCreateWin32SurfaceKHR(get(), &surfaceCreateInfo, VK_NULL_HANDLE, &result);
-    #elif defined(__ANDROID__)
-      VkAndroidSurfaceCreateInfoKHR surfaceCreateInfo = {};
-      surfaceCreateInfo.sType = VK_STRUCTURE_TYPE_ANDROID_SURFACE_CREATE_INFO_KHR;
-      surfaceCreateInfo.window = window;
-      VkResult err = vkCreateAndroidSurfaceKHR(get(), &surfaceCreateInfo, NULL, &result);
-    #else
-      VkXcbSurfaceCreateInfoKHR surfaceCreateInfo = {};
-      surfaceCreateInfo.sType = VK_STRUCTURE_TYPE_XCB_SURFACE_CREATE_INFO_KHR;
-      surfaceCreateInfo.connection = connection;
-      surfaceCreateInfo.window = (xcb_window_t)(intptr_t)window;
-      VkResult err = vkCreateXcbSurfaceKHR(get(), &surfaceCreateInfo, VK_NULL_HANDLE, &result);
-    #endif
-    if (err) throw error(err, __FILE__, __LINE__);
-    return result;
-  }
-
-  void destroy() {
-    vkDestroyInstance(get(), VK_NULL_HANDLE);
-  }
-
-  VkPhysicalDevice physicalDevice() const { return physicalDevice_; }
-
-  vku::device device() const { return vku::device(dev_, physicalDevice_); }
-  VkQueue queue() const { return queue_; }
-
-public:
   bool enableValidation = false;
   VkPhysicalDevice physicalDevice_;
   VkDevice dev_;
   VkQueue queue_;
+  VkInstance instance_;
 };
 
 class renderPassLayout {

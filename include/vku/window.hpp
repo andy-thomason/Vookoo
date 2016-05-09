@@ -26,18 +26,18 @@ namespace vku {
 
   inline float deg_to_rad(float deg) { return deg * (3.1415927f / 180); }
 
-  template <class WindowHandle, class Window> Window *map_window(WindowHandle handle, Window *win) {
-    static std::unordered_map<WindowHandle, Window *> map;
-    auto iter = map.find(handle);
-    if (iter == map.end()) {
-      if (win != nullptr) map[handle] = win;
-      return win;
-    } else {
-      return iter->second;
-    }
-  };
-
   #ifdef VK_USE_PLATFORM_WIN32_KHR
+    template <class WindowHandle, class Window> Window *map_window(WindowHandle handle, Window *win) {
+      static std::unordered_map<WindowHandle, Window *> map;
+      auto iter = map.find(handle);
+      if (iter == map.end()) {
+        if (win != nullptr) map[handle] = win;
+        return win;
+      } else {
+        return iter->second;
+      }
+    };
+
     inline static HINSTANCE connection() { return GetModuleHandle(NULL); }
   #else
     inline static xcb_connection_t *connection() {
@@ -86,9 +86,8 @@ public:
       }
     }
 
-    instance_ = vku::instance("vku", enableValidation);
-    device_ = instance_.device();
-    queue_ = instance_.queue();
+    device_ = instance::get().device();
+    queue_ = instance::get().queue();
 
     // Find a suitable depth format
     depthFormat_ = device_.getSupportedDepthFormat();
@@ -116,7 +115,7 @@ public:
       //vkDebug::freeDebugCallback(instance);
     }
 
-    instance_.clear();
+    //instance_.clear();
 
     #ifndef _WIN32
       xcb_destroy_window(connection(), window_);
@@ -431,7 +430,7 @@ public:
 
 
   void prepareWindow() {
-    VkSurfaceKHR surface = instance_.createSurface((void*)(intptr_t)window_, connection());
+    VkSurfaceKHR surface = instance::get().createSurface((void*)(intptr_t)window_, connection());
     uint32_t queueNodeIndex = device_.getGraphicsQueueNodeIndex(surface);
     if (queueNodeIndex == ~(uint32_t)0) throw(std::runtime_error("no graphics and present queue available"));
     auto sf = device_.getSurfaceFormat(surface);
@@ -548,7 +547,6 @@ public:
     queue_.waitIdle();
   }
 
-  const vku::instance &instance() const { return instance_; }
   const vku::device &device() const { return device_; }
   const vku::queue &queue() const { return queue_; }
   const vku::commandPool &cmdPool() const { return cmdPool_; }
@@ -582,8 +580,6 @@ public:
   virtual void render() = 0;
 
 private:
-  // note that the order of these in important as instance is created before device before queue etc.
-  vku::instance instance_;
   vku::device device_;
   vku::queue queue_;
   vku::commandPool cmdPool_;
