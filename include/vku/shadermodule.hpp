@@ -60,7 +60,7 @@ public:
   }
 
   void destroy() {
-    if (get()) vkDestroyShaderModule(dev(), get(), VK_NULL_HANDLE);
+    if (get()) vkDestroyShaderModule(dev(), get(), nullptr);
   }
 
   shaderModule &operator=(shaderModule &&rhs) {

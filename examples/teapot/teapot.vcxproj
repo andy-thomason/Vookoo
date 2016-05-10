@@ -142,6 +142,29 @@
       <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">%(Identity).spv</Outputs>
     </CustomBuild>
   </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\include\vku\commandBuffer.hpp" />
+    <ClInclude Include="..\..\include\vku\commandpool.hpp" />
+    <ClInclude Include="..\..\include\vku\device.hpp" />
+    <ClInclude Include="..\..\include\vku\fbxFile.hpp" />
+    <ClInclude Include="..\..\include\vku\image.hpp" />
+    <ClInclude Include="..\..\include\vku\instance.hpp" />
+    <ClInclude Include="..\..\include\vku\mesh.hpp" />
+    <ClInclude Include="..\..\include\vku\pipeline.hpp" />
+    <ClInclude Include="..\..\include\vku\pngDecoder.hpp" />
+    <ClInclude Include="..\..\include\vku\queue.hpp" />
+    <ClInclude Include="..\..\include\vku\renderPassLayout.hpp" />
+    <ClInclude Include="..\..\include\vku\resource.hpp" />
+    <ClInclude Include="..\..\include\vku\semaphore.hpp" />
+    <ClInclude Include="..\..\include\vku\shadermodule.hpp" />
+    <ClInclude Include="..\..\include\vku\swapchain.hpp" />
+    <ClInclude Include="..\..\include\vku\vku.hpp" />
+    <ClInclude Include="..\..\include\vku\window.hpp" />
+    <ClInclude Include="..\..\include\vku\zipDecoder.hpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\..\include\vku\swapChain.inl" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>

@@ -107,9 +107,6 @@ public:
 
     cmdPool_.clear();
 
-    //vkDestroyDevice(device, VK_NULL_HANDLE); 
-    //device.clear();
-
     if (enableValidation_)
     {
       //vkDebug::freeDebugCallback(instance);

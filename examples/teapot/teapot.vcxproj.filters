@@ -13,6 +13,9 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="Vookoo">
+      <UniqueIdentifier>{9ae8edfd-cefa-42d0-8c08-4942039c2d78}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">
@@ -26,5 +29,66 @@
     <CustomBuild Include="mesh.vert">
       <Filter>Source Files</Filter>
     </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\include\vku\commandBuffer.hpp">
+      <Filter>Vookoo</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\vku\commandpool.hpp">
+      <Filter>Vookoo</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\vku\device.hpp">
+      <Filter>Vookoo</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\vku\fbxFile.hpp">
+      <Filter>Vookoo</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\vku\image.hpp">
+      <Filter>Vookoo</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\vku\instance.hpp">
+      <Filter>Vookoo</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\vku\mesh.hpp">
+      <Filter>Vookoo</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\vku\pipeline.hpp">
+      <Filter>Vookoo</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\vku\pngDecoder.hpp">
+      <Filter>Vookoo</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\vku\queue.hpp">
+      <Filter>Vookoo</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\vku\renderPassLayout.hpp">
+      <Filter>Vookoo</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\vku\resource.hpp">
+      <Filter>Vookoo</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\vku\semaphore.hpp">
+      <Filter>Vookoo</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\vku\shadermodule.hpp">
+      <Filter>Vookoo</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\vku\swapchain.hpp">
+      <Filter>Vookoo</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\vku\vku.hpp">
+      <Filter>Vookoo</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\vku\window.hpp">
+      <Filter>Vookoo</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\vku\zipDecoder.hpp">
+      <Filter>Vookoo</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\..\include\vku\swapChain.inl">
+      <Filter>Vookoo</Filter>
+    </None>
   </ItemGroup>
 </Project>

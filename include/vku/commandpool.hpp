@@ -28,13 +28,13 @@ public:
     cmdPoolInfo.queueFamilyIndex = queueFamilyIndex;
     cmdPoolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
     VkCommandPool cmdPool;
-    VkResult err = vkCreateCommandPool(dev, &cmdPoolInfo, VK_NULL_HANDLE, &cmdPool);
+    VkResult err = vkCreateCommandPool(dev, &cmdPoolInfo, nullptr, &cmdPool);
     if (err) throw error(err, __FILE__, __LINE__);
     set(cmdPool, true);
   }
 
   void destroy() {
-    if (get()) vkDestroyCommandPool(dev(), get(), VK_NULL_HANDLE);
+    if (get()) vkDestroyCommandPool(dev(), get(), nullptr);
   }
 
   commandPool &operator=(commandPool &&rhs) {

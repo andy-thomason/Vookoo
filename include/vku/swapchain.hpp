@@ -10,6 +10,7 @@
 
 #include <vku/resource.hpp>
 #include <vku/instance.hpp>
+#include <vku/renderPassLayout.hpp>
 
 namespace vku {
 
@@ -83,14 +84,12 @@ public:
     if (surfCaps.supportedTransforms & VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR)
     {
       preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
-    }
-    else {
+    } else {
       preTransform = surfCaps.currentTransform;
     }
 
     VkSwapchainCreateInfoKHR swapchainCI = {};
     swapchainCI.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
-    swapchainCI.pNext = NULL;
     swapchainCI.surface = surface;
     swapchainCI.minImageCount = desiredNumberOfSwapchainImages;
     swapchainCI.imageFormat = VK_FORMAT_B8G8R8A8_UNORM;
@@ -99,16 +98,15 @@ public:
     swapchainCI.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
     swapchainCI.preTransform = (VkSurfaceTransformFlagBitsKHR)preTransform;
     swapchainCI.imageArrayLayers = 1;
-    swapchainCI.queueFamilyIndexCount = VK_SHARING_MODE_EXCLUSIVE;
     swapchainCI.queueFamilyIndexCount = 0;
-    swapchainCI.pQueueFamilyIndices = NULL;
+    swapchainCI.pQueueFamilyIndices = nullptr;
     swapchainCI.presentMode = swapchainPresentMode;
     swapchainCI.oldSwapchain = oldSwapchain;
     swapchainCI.clipped = true;
     swapchainCI.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
 
     VkSwapchainKHR res;
-    err = vkCreateSwapchainKHR(dev, &swapchainCI, VK_NULL_HANDLE, &res);
+    err = vkCreateSwapchainKHR(dev, &swapchainCI, nullptr, &res);
     if (err) throw error(err, __FILE__, __LINE__);
     set(res, true);
 
@@ -133,7 +131,6 @@ public:
     VkPresentInfoKHR presentInfo = {};
     VkSwapchainKHR sc = *this;
     presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
-    presentInfo.pNext = NULL;
     presentInfo.swapchainCount = 1;
     presentInfo.pSwapchains = &sc;
     presentInfo.pImageIndices = &currentBuffer;
@@ -165,14 +162,13 @@ public:
     uint32_t color = layout.addAttachment(colorFormat_);
     uint32_t depth = layout.addAttachment(depthFormat);
     layout.addSubpass(color, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, depth, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
-    renderPass_ = layout.create(dev());
+    renderPass_ = layout.createRenderPass(dev());
 
     // Depth/Stencil attachment is the same for all frame buffers
     attachments[1] = depthStencilView;
 
     VkFramebufferCreateInfo frameBufferCreateInfo = {};
     frameBufferCreateInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-    frameBufferCreateInfo.pNext = NULL;
     frameBufferCreateInfo.renderPass = renderPass_;
     frameBufferCreateInfo.attachmentCount = 2;
     frameBufferCreateInfo.pAttachments = attachments;
@@ -185,7 +181,7 @@ public:
     for (uint32_t i = 0; i < frameBuffers_.size(); i++)
     {
       attachments[0] = swapchainViews[i];
-      VkResult err = vkCreateFramebuffer(dev(), &frameBufferCreateInfo, VK_NULL_HANDLE, &frameBuffers_[i]);
+      VkResult err = vkCreateFramebuffer(dev(), &frameBufferCreateInfo, nullptr, &frameBuffers_[i]);
     }
   }
 
@@ -193,7 +189,7 @@ public:
   VkRenderPass renderPass() const { return renderPass_; }
 
   void destroy() {
-    vkDestroySwapchainKHR(dev(), get(), VK_NULL_HANDLE);
+    vkDestroySwapchainKHR(dev(), get(), nullptr);
   }
 
 private:
@@ -222,7 +218,7 @@ public:
     bufInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
     bufInfo.size = size;
     bufInfo.usage = usage;
-    VkResult err = vkCreateBuffer(dev, &bufInfo, VK_NULL_HANDLE, &buf_);
+    VkResult err = vkCreateBuffer(dev, &bufInfo, nullptr, &buf_);
     if (err) throw error(err, __FILE__, __LINE__);
 
     ownsBuffer = true;
@@ -235,7 +231,7 @@ public:
     memAlloc.allocationSize = memReqs.size;
     memAlloc.memoryTypeIndex = dev.getMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
 
-     err = vkAllocateMemory(dev, &memAlloc, VK_NULL_HANDLE, &mem);
+    err = vkAllocateMemory(dev, &memAlloc, VK_NULL_HANDLE, &mem);
     if (err) throw error(err, __FILE__, __LINE__);
 
     if (init) {
@@ -247,7 +243,7 @@ public:
   }
 
   buffer(VkBufferCreateInfo bufInfo, VkDevice dev = VK_NULL_HANDLE) : dev(dev) {
-    vkCreateBuffer(dev, &bufInfo, VK_NULL_HANDLE, &buf_);
+    vkCreateBuffer(dev, &bufInfo, nullptr, &buf_);
   }
 
   // RAII move operator
@@ -265,9 +261,11 @@ public:
   }
 
   ~buffer() {
-    if (buf_ && ownsBuffer) {
-      vkDestroyBuffer(dev, buf_, VK_NULL_HANDLE);
+    if (ownsBuffer) {
+      if (buf_) vkDestroyBuffer(dev, buf_, nullptr);
+      if (mem) vkFreeMemory(dev, mem, nullptr);
       buf_ = VK_NULL_HANDLE;
+      mem = VK_NULL_HANDLE;
     }
   }
 

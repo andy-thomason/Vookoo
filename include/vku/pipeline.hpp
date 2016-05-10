@@ -40,7 +40,7 @@ public:
     // Requesting descriptors beyond maxSets will result in an error
     descriptorPoolInfo.maxSets = num_uniform_buffers * 2;
 
-    VkResult err = vkCreateDescriptorPool(dev_, &descriptorPoolInfo, VK_NULL_HANDLE, &pool_);
+    VkResult err = vkCreateDescriptorPool(dev_, &descriptorPoolInfo, nullptr, &pool_);
     if (err) throw error(err, __FILE__, __LINE__);
 
     ownsResource_ = true;
@@ -76,7 +76,7 @@ public:
 
   ~descriptorPool() {
     if (pool_ && ownsResource_) {
-      vkDestroyDescriptorPool(dev_, pool_, VK_NULL_HANDLE);
+      vkDestroyDescriptorPool(dev_, pool_, nullptr);
       ownsResource_ = false;
     }
   }
@@ -111,13 +111,13 @@ public:
     VkPipelineCacheCreateInfo pipelineCacheCreateInfo = {};
     pipelineCacheCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO;
     VkPipelineCache cache;
-    VkResult err = vkCreatePipelineCache(dev, &pipelineCacheCreateInfo, VK_NULL_HANDLE, &cache);
+    VkResult err = vkCreatePipelineCache(dev, &pipelineCacheCreateInfo, nullptr, &cache);
     if (err) throw error(err, __FILE__, __LINE__);
     set(cache, true);
   }
 
   void destroy() {
-    if (get()) vkDestroyPipelineCache(dev(), get(), VK_NULL_HANDLE);
+    if (get()) vkDestroyPipelineCache(dev(), get(), nullptr);
   }
 
   pipelineCache &operator=(pipelineCache &&rhs) {
@@ -326,13 +326,13 @@ public:
     pPipelineLayoutCreateInfo.setLayoutCount = 1;
     pPipelineLayoutCreateInfo.pSetLayouts = &descriptorSetLayout;
 
-    err = vkCreatePipelineLayout(device, &pPipelineLayoutCreateInfo, VK_NULL_HANDLE, &pipelineLayout);
+    err = vkCreatePipelineLayout(device, &pPipelineLayoutCreateInfo, nullptr, &pipelineLayout);
     if (err) throw error(err, __FILE__, __LINE__);
 
     auto info = pipelineCreateHelper.get(renderPass, pipelineLayout);
 
     // Create rendering pipeline
-    err = vkCreateGraphicsPipelines(device, pipelineCache, 1, info, VK_NULL_HANDLE, &pipe_);
+    err = vkCreateGraphicsPipelines(device, pipelineCache, 1, info, nullptr, &pipe_);
     if (err) throw error(err, __FILE__, __LINE__);
 
     ownsData = true;
@@ -352,9 +352,9 @@ public:
 
   ~pipeline() {
     if (ownsData) {
-      vkDestroyPipeline(dev_, pipe_, VK_NULL_HANDLE);
-      vkDestroyPipelineLayout(dev_, pipelineLayout, VK_NULL_HANDLE);
-      vkDestroyDescriptorSetLayout(dev_, descriptorSetLayout, VK_NULL_HANDLE);
+      vkDestroyPipeline(dev_, pipe_, nullptr);
+      vkDestroyPipelineLayout(dev_, pipelineLayout, nullptr);
+      vkDestroyDescriptorSetLayout(dev_, descriptorSetLayout, nullptr);
     }
   }
 

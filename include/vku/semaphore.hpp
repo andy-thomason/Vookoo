@@ -27,13 +27,13 @@ public:
     info.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 
     VkSemaphore res = VK_NULL_HANDLE;
-    VkResult err = vkCreateSemaphore(dev, &info, VK_NULL_HANDLE, &res);
+    VkResult err = vkCreateSemaphore(dev, &info, nullptr, &res);
     if (err) throw error(err, __FILE__, __LINE__);
     return res;
   }
 
   void destroy() {
-    vkDestroySemaphore(dev(), get(), VK_NULL_HANDLE);
+    vkDestroySemaphore(dev(), get(), nullptr);
   }
 };
 

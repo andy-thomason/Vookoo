@@ -48,7 +48,7 @@ public:
     image.flags = 0;
 
     VkImage result = VK_NULL_HANDLE;
-    VkResult err = vkCreateImage(dev, &image, VK_NULL_HANDLE, &result);
+    VkResult err = vkCreateImage(dev, &image, nullptr, &result);
     if (err) throw error(err, __FILE__, __LINE__);
 
     set(result, true);
@@ -64,7 +64,7 @@ public:
     mem_alloc.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
     mem_alloc.allocationSize = memReqs.size;
     mem_alloc.memoryTypeIndex = device.getMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-    VkResult err = vkAllocateMemory(device, &mem_alloc, VK_NULL_HANDLE, &mem_);
+    VkResult err = vkAllocateMemory(device, &mem_alloc, nullptr, &mem_);
     if (err) throw error(err, __FILE__, __LINE__);
   }
 
@@ -93,21 +93,21 @@ public:
     viewCreateInfo.subresourceRange.baseArrayLayer = 0;
     viewCreateInfo.subresourceRange.layerCount = 1;
     viewCreateInfo.image = get();
-    VkResult err = vkCreateImageView(dev(), &viewCreateInfo, VK_NULL_HANDLE, &view_);
+    VkResult err = vkCreateImageView(dev(), &viewCreateInfo, nullptr, &view_);
     if (err) throw error(err, __FILE__, __LINE__);
   }
 
   void destroy() {
     if (view()) {
-      //vkDestroyImageView(dev(), view(), VK_NULL_HANDLE);
+      //vkDestroyImageView(dev(), view(), nullptr);
     }
 
     if (mem()) {
-      //vkFreeMemory(dev(), mem(), VK_NULL_HANDLE);
+      //vkFreeMemory(dev(), mem(), nullptr);
     }
 
     if (get()) {
-      //vkDestroyImage(dev(), get(), VK_NULL_HANDLE);
+      //vkDestroyImage(dev(), get(), nullptr);
     }
 
     view_ = VK_NULL_HANDLE;

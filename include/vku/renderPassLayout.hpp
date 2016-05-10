@@ -8,7 +8,7 @@
 #ifndef VKU_RENDERPASSLAYOUT_INCLUDED
 #define VKU_RENDERPASSLAYOUT_INCLUDED
 
-#include <vulkan/vulkan.hpp>
+#include <vulkan/vulkan.h>
 #include <vector>
 
 namespace vku {
@@ -41,7 +41,7 @@ public:
     subpasses.push_back(s);
   }
 
-  VkRenderPass create(VkDevice device) {
+  VkRenderPass createRenderPass(VkDevice device) {
     std::vector<VkSubpassDescription> descs;
     for (size_t i = 0; i != subpasses.size(); ++i) {
       subpass &s = subpasses[i];
@@ -59,7 +59,7 @@ public:
     renderPassInfo.pSubpasses = descs.data();
 
     VkRenderPass renderPass = VK_NULL_HANDLE;
-    VkResult err = vkCreateRenderPass(device, &renderPassInfo, VK_NULL_HANDLE, &renderPass);
+    VkResult err = vkCreateRenderPass(device, &renderPassInfo, nullptr, &renderPass);
     return renderPass;
   }
 

@@ -25,25 +25,25 @@ public:
       surfaceCreateInfo.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
       surfaceCreateInfo.hinstance = (HINSTANCE)connection;
       surfaceCreateInfo.hwnd = (HWND)window;
-      VkResult err = vkCreateWin32SurfaceKHR(instance_, &surfaceCreateInfo, VK_NULL_HANDLE, &result);
+      VkResult err = vkCreateWin32SurfaceKHR(instance_, &surfaceCreateInfo, nullptr, &result);
     #elif defined(__ANDROID__)
       VkAndroidSurfaceCreateInfoKHR surfaceCreateInfo = {};
       surfaceCreateInfo.sType = VK_STRUCTURE_TYPE_ANDROID_SURFACE_CREATE_INFO_KHR;
       surfaceCreateInfo.window = window;
-      VkResult err = vkCreateAndroidSurfaceKHR(instance_, &surfaceCreateInfo, NULL, &result);
+      VkResult err = vkCreateAndroidSurfaceKHR(instance_, &surfaceCreateInfo, nullptr, &result);
     #else
       VkXcbSurfaceCreateInfoKHR surfaceCreateInfo = {};
       surfaceCreateInfo.sType = VK_STRUCTURE_TYPE_XCB_SURFACE_CREATE_INFO_KHR;
       surfaceCreateInfo.connection = connection;
       surfaceCreateInfo.window = (xcb_window_t)(intptr_t)window;
-      VkResult err = vkCreateXcbSurfaceKHR(instance_, &surfaceCreateInfo, VK_NULL_HANDLE, &result);
+      VkResult err = vkCreateXcbSurfaceKHR(instance_, &surfaceCreateInfo, nullptr, &result);
     #endif
     if (err) throw error(err, __FILE__, __LINE__);
     return result;
   }
 
   void destroy() {
-    vkDestroyInstance(instance_, VK_NULL_HANDLE);
+    vkDestroyInstance(instance_, nullptr);
   }
 
   VkPhysicalDevice physicalDevice() const { return physicalDevice_; }
@@ -98,7 +98,7 @@ private:
 
     VkInstanceCreateInfo instanceCreateInfo = {};
     instanceCreateInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-    instanceCreateInfo.pNext = NULL;
+    instanceCreateInfo.pNext = nullptr;
     instanceCreateInfo.pApplicationInfo = &appInfo;
     if (enabledExtensions.size() > 0)
     {
@@ -115,10 +115,10 @@ private:
       instanceCreateInfo.ppEnabledLayerNames = validationLayerNames;
     }
 
-    VkResult err = vkCreateInstance(&instanceCreateInfo, VK_NULL_HANDLE, &instance_);
+    VkResult err = vkCreateInstance(&instanceCreateInfo, nullptr, &instance_);
     if (err) {
       #ifdef _WIN32
-        MessageBox(NULL, "Could not open the vulkan driver", "oops", MB_ICONHAND);
+        MessageBox(nullptr, "Could not open the vulkan driver", "oops", MB_ICONHAND);
       #endif
     }
     if (err) throw error(err, __FILE__, __LINE__);
@@ -126,7 +126,7 @@ private:
     // Physical device
     uint32_t gpuCount = 0;
     // Get number of available physical devices
-    err = vkEnumeratePhysicalDevices(instance_, &gpuCount, VK_NULL_HANDLE);
+    err = vkEnumeratePhysicalDevices(instance_, &gpuCount, nullptr);
     if (err) throw error(err, __FILE__, __LINE__);
 
     if (gpuCount == 0) {
@@ -147,7 +147,7 @@ private:
     // Find a queue that supports graphics operations
     uint32_t graphicsQueueIndex = 0;
     uint32_t queueCount;
-    vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice(), &queueCount, NULL);
+    vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice(), &queueCount, nullptr);
     //assert(queueCount >= 1);
 
     std::vector<VkQueueFamilyProperties> queueProps;
@@ -173,10 +173,10 @@ private:
 
     VkDeviceCreateInfo deviceCreateInfo = {};
     deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-    deviceCreateInfo.pNext = NULL;
+    deviceCreateInfo.pNext = nullptr;
     deviceCreateInfo.queueCreateInfoCount = 1;
     deviceCreateInfo.pQueueCreateInfos = &queueCreateInfo;
-    deviceCreateInfo.pEnabledFeatures = NULL;
+    deviceCreateInfo.pEnabledFeatures = nullptr;
 
     if (enabledExtensions.size() > 0)
     {
@@ -189,7 +189,7 @@ private:
       deviceCreateInfo.ppEnabledLayerNames = validationLayerNames;
     }
 
-    err = vkCreateDevice(physicalDevice_, &deviceCreateInfo, VK_NULL_HANDLE, &dev_);
+    err = vkCreateDevice(physicalDevice_, &deviceCreateInfo, nullptr, &dev_);
     if (err) throw error(err, __FILE__, __LINE__);
 
     // Get the graphics queue

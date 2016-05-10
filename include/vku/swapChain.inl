@@ -50,7 +50,7 @@ inline void swapChain::build_images(VkCommandBuffer buf) {
 
     colorAttachmentView.image = image(i);
 
-    err = vkCreateImageView(dev(), &colorAttachmentView, VK_NULL_HANDLE, &swapchainViews[i]);
+    err = vkCreateImageView(dev(), &colorAttachmentView, nullptr, &swapchainViews[i]);
     if (err) throw error(err, __FILE__, __LINE__);
   }
 }
