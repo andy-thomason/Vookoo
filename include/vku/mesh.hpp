@@ -49,28 +49,115 @@ public:
   }
 
   void getVertexFormat(vku::pipelineCreateHelper &pipeHelper, uint32_t vertex_buffer_bind_id) const {
-    return MeshTraits::getVertexFormat(pipeHelper, vertex_buffer_bind_id);
+    return MeshTraits::vertex_t::getVertexFormat(pipeHelper, vertex_buffer_bind_id);
+  }
+
+  void reindex(bool recalcNormals = false) {
+    std::vector<expandedVertex> expanded = expand();
+    if (recalcNormals) {
+      std::sort(
+        expanded.begin(), expanded.end(),
+        [](const expandedVertex &a, const expandedVertex &b) {
+          glm::vec4 apos = a.vtx.pos();
+          glm::vec4 bpos = b.vtx.pos();
+          return memcmp(&apos, &bpos, sizeof(apos)) < 0;
+        }
+      );
+
+      size_t imax = expanded.size();
+      for (size_t i = 0, idx = 0; i != imax; ) {
+        auto &v0 = expanded[i];
+        glm::vec4 normal = v0.vtx.normal();
+        glm::vec4 pos = v0.vtx.pos();
+        size_t j = i + 1;
+        for (; j < imax && pos == expanded[j].vtx.pos(); ++j) {
+          normal += expanded[j].vtx.normal();
+        }
+
+        normal = glm::normalize(normal);
+
+        while (i < j) {
+          expanded[i++].vtx.normal(normal);
+        }
+      }
+    }
+    compact(expanded);
   }
 private:
+  struct expandedVertex {
+    vertex_t vtx;
+    size_t order;
+  };
+
+  // convert the indexed form to the expanded form.
+  std::vector<expandedVertex> expand() const {
+    std::vector<expandedVertex> result;
+    result.reserve(indices_.size());
+    for (size_t i = 0; i != indices_.size(); ++i) {
+      result.push_back(expandedVertex{vertices_[indices_[i]], i});
+    }
+    return std::move(result);
+  }
+
+  // convert the expanded form to the indexed form.
+  void compact(std::vector<expandedVertex> &expanded) {
+    std::sort(
+      expanded.begin(), expanded.end(),
+      [](const expandedVertex &a, const expandedVertex &b) {
+        return memcmp(&a.vtx, &b.vtx, sizeof(a.vtx)) < 0;
+      }
+    );
+
+    vertices_.resize(0);
+    size_t imax = expanded.size();
+    for (size_t i = 0; i != imax; ) {
+      auto &v0 = expanded[i];
+      size_t idx = vertices_.size();
+      vertices_.emplace_back(expanded[i].vtx);
+      indices_[expanded[i].order] = (index_t)idx;
+      for (++i; i < imax && !memcmp(&v0.vtx, &expanded[i].vtx, sizeof(v0.vtx)); ++i) {
+        indices_[expanded[i].order] = (index_t)idx;
+      }
+    }
+  }
+
   std::vector<vertex_t> vertices_;
-  std::vector<uint32_t> indices_;
+  std::vector<index_t> indices_;
 };
 
 struct simple_mesh_traits {
-  struct vertex_t {
-    glm::vec3 pos;
-    glm::vec3 normal;
-    glm::vec2 uv;
+  class vertex_t {
+  public:
+    vertex_t() {}
+
+    vertex_t(const glm::vec4 &pos, const glm::vec4 &normal, const glm::vec4 &uv) {
+      pos_ = glm::vec3(pos);
+      normal_ = glm::vec3(normal);
+      uv_ = glm::vec2(uv);
+    }
+
+    static void getVertexFormat(vku::pipelineCreateHelper &pipeHelper, uint32_t vertex_buffer_bind_id) {
+      pipeHelper.binding(vertex_buffer_bind_id, sizeof(vertex_t), VK_VERTEX_INPUT_RATE_VERTEX);
+      pipeHelper.attrib(0, vertex_buffer_bind_id, VK_FORMAT_R32G32B32_SFLOAT, 0);
+      pipeHelper.attrib(1, vertex_buffer_bind_id, VK_FORMAT_R32G32B32_SFLOAT, sizeof(vertex_t::pos_));
+      pipeHelper.attrib(2, vertex_buffer_bind_id, VK_FORMAT_R32G32_SFLOAT, sizeof(vertex_t::pos_) + sizeof(vertex_t::normal_));
+    }
+
+    glm::vec4 pos() const { return glm::vec4(pos_, 1); }
+    glm::vec4 normal() const { return glm::vec4(normal_, 0); }
+    glm::vec4 uv() const { return glm::vec4(uv_, 0, 1); }
+
+    vertex_t pos(const glm::vec4 &value) { pos_ = glm::vec3(value); return *this; }
+    vertex_t normal(const glm::vec4 &value) { normal_ = glm::vec3(value); return *this; }
+    vertex_t uv(const glm::vec4 &value) { uv_ = glm::vec2(value); return *this; }
+  private:
+    glm::vec3 pos_;
+    glm::vec3 normal_;
+    glm::vec2 uv_;
   };
 
   typedef uint32_t index_t;
 
-  static void getVertexFormat(vku::pipelineCreateHelper &pipeHelper, uint32_t vertex_buffer_bind_id) {
-    pipeHelper.binding(vertex_buffer_bind_id, sizeof(vertex_t), VK_VERTEX_INPUT_RATE_VERTEX);
-    pipeHelper.attrib(0, vertex_buffer_bind_id, VK_FORMAT_R32G32B32_SFLOAT, 0);
-    pipeHelper.attrib(1, vertex_buffer_bind_id, VK_FORMAT_R32G32B32_SFLOAT, sizeof(vertex_t::pos));
-    pipeHelper.attrib(2, vertex_buffer_bind_id, VK_FORMAT_R32G32_SFLOAT, sizeof(vertex_t::pos) + sizeof(vertex_t::normal));
-  }
 };
 
 typedef mesh<simple_mesh_traits> simple_mesh;

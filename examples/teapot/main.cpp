@@ -48,6 +48,7 @@ public:
   // This is the constructor for a window containing our example
   teapot_example(int argc, const char **argv) : vku::window(argc, argv, false, 1280, 720, -2.5f, "teapot") {
     mesh = vku::simple_mesh("../data/teapot.fbx");
+    mesh.reindex(true);
 
     vertex_buffer = vku::buffer(device(), (void*)mesh.vertices(), mesh.numVertices()*mesh.vertexSize(), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
 

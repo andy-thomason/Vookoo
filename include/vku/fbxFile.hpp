@@ -311,15 +311,16 @@ namespace vku {
                 int32_t vi = fbxIndices[i];
                 if (vi < 0) vi = -1 - vi;
 
-                vertex_t vtx = {};
-                vtx.pos = glm::vec3(fbxVertices[vi*3+0], fbxVertices[vi*3+1], fbxVertices[vi*3+2]);
+                glm::vec4 pos(fbxVertices[vi*3+0], fbxVertices[vi*3+1], fbxVertices[vi*3+2], 1);
+                glm::vec4 normal(1, 0, 0, 0);
+                glm::vec4 uv(0, 0, 0, 1);
                 if (normalMapping == fbxFile::Mapping::ByPolygonVertex) {
-                  vtx.normal = glm::vec3(fbxNormals[ni*3+0], fbxNormals[ni*3+1], fbxNormals[ni*3+2]);
+                  normal = glm::vec4(fbxNormals[ni*3+0], fbxNormals[ni*3+1], fbxNormals[ni*3+2], 0);
                 }
                 if (uvMapping == fbxFile::Mapping::ByPolygonVertex) {
-                  vtx.uv = glm::vec2(fbxUVs[uvi*2+0], fbxUVs[uvi*2+1]);
+                  uv = glm::vec4(fbxUVs[uvi*2+0], fbxUVs[uvi*2+1], 0, 1);
                 }
-                vertices.push_back(vtx);
+                vertices.emplace_back(pos, normal, uv);
               }
 
               // map the fbx data to real indices
