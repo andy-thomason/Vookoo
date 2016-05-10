@@ -8,7 +8,7 @@
 #include <vku/vku.hpp>
 #include <vku/window.hpp>
 
-class teapot_example : public vku::window
+class mc_example : public vku::window
 {
 public:
   // these matrices transform rotate and position the triangle
@@ -19,8 +19,6 @@ public:
 	  glm::mat4 normalToWorld;
 	  glm::vec4 lightPosition;
   } uniform_data;
-
-  vku::simple_mesh mesh;
 
   // These buffers represent data on the GPU card.
   vku::buffer vertex_buffer;
@@ -46,33 +44,26 @@ public:
   static const int vertex_buffer_bind_id = 0;
 
   // This is the constructor for a window containing our example
-  teapot_example(int argc, const char **argv) : vku::window(argc, argv, false, 1280, 720, -2.5f, "teapot") {
-    //mesh = vku::simple_mesh("../data/teapot.fbx");
-    //mesh.reindex(true);
-    mesh = vku::simple_mesh(
-      10, 10, 10,
-      [](float x, float y, float z) {
-        glm::vec3 pos1 = glm::vec3(x, y, z) - glm::vec3(5, 5, 5);
-        glm::vec2 pos2 = glm::vec2(x, y) - glm::vec2(5, 5);
-        float v1 = std::max(std::min(glm::dot(pos1, pos1)/16 - 1.0f, 1.0f), -1.0f);
-        float v2 = std::max(std::min(glm::dot(pos2, pos2)/8 - 1.0f, 1.0f), -1.0f);
-        return v2;
-      },
-      [](float x, float y, float z) {
-        glm::vec3 pos = glm::vec3(x, y, z) - glm::vec3(5, 5, 5);
-        return vku::simple_mesh_traits::vertex_t(pos * 0.1f, glm::normalize(pos), glm::vec2(pos));
-      }
-    );
+  mc_example(int argc, const char **argv) : vku::window(argc, argv, false, 1280, 720, -2.5f, "teapot") {
+    static const uint32_t indices[] = { 0, 1, 2 };
+    static const float vertices[] = {
+      -1, -1, 0, 0, 0, 1, 0, 0,
+       0,  1, 0, 0, 0, 1, 0, 0,
+       1, -1, 0, 0, 0, 1, 0, 0,
+    };
 
-    if (mesh.numVertices()) vertex_buffer = vku::buffer(device(), (void*)mesh.vertices(), mesh.numVertices()*mesh.vertexSize(), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
+    vertex_buffer = vku::buffer(device(), (void*)vertices, sizeof(vertices), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
 
     // Indices
     static const uint32_t index_data[] = { 0, 1, 2 };
-    if (mesh.numIndices()) index_buffer = vku::buffer(device(), (void*)mesh.indices(), mesh.numIndices()*mesh.indexSize(), VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
-    num_indices = mesh.numIndices();
+    index_buffer = vku::buffer(device(), (void*)indices, sizeof(indices), VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
+    num_indices = 3;
 
     vku::pipelineCreateHelper pipeHelper;
-    mesh.getVertexFormat(pipeHelper, vertex_buffer_bind_id);
+    pipeHelper.binding(vertex_buffer_bind_id, sizeof(float)*8, VK_VERTEX_INPUT_RATE_VERTEX);
+    pipeHelper.attrib(0, vertex_buffer_bind_id, VK_FORMAT_R32G32B32_SFLOAT, 0);
+    pipeHelper.attrib(1, vertex_buffer_bind_id, VK_FORMAT_R32G32B32_SFLOAT, sizeof(float)*3);
+    pipeHelper.attrib(2, vertex_buffer_bind_id, VK_FORMAT_R32G32_SFLOAT, sizeof(float)*6);
 
     // Matrices
 
@@ -152,7 +143,7 @@ public:
 
 int main(const int argc, const char *argv[]) {
   // create a window.
-  teapot_example my_example(argc, argv);
+  mc_example my_example(argc, argv);
 
   // poll the windows until they are all closed
   while (vku::window::poll()) {
