@@ -106,17 +106,17 @@ public:
   void bindVertexBuffer(buffer &buf, int bindId) const {
     VkDeviceSize offsets[] = { 0 };
     VkBuffer bufs[] = { buf.buf() };
-    vkCmdBindVertexBuffers(get(), bindId, 1, bufs, offsets);
+    if (bufs[0] != VK_NULL_HANDLE) vkCmdBindVertexBuffers(get(), bindId, 1, bufs, offsets);
   }
 
   void bindIndexBuffer(buffer &buf) const {
     // Bind triangle indices
-    vkCmdBindIndexBuffer(get(), buf.buf(), 0, VK_INDEX_TYPE_UINT32);
+    if (buf.buf() != VK_NULL_HANDLE) vkCmdBindIndexBuffer(get(), buf.buf(), 0, VK_INDEX_TYPE_UINT32);
   }
 
   void drawIndexed(uint32_t indexCount, uint32_t instanceCount, uint32_t firstIndex, int32_t vertexOffset, uint32_t firstInstance) const {
     // Draw indexed triangle
-    vkCmdDrawIndexed(get(), indexCount, instanceCount, firstIndex, vertexOffset, firstInstance);
+    if (indexCount != 0) vkCmdDrawIndexed(get(), indexCount, instanceCount, firstIndex, vertexOffset, firstInstance);
   }
 
   void endRenderPass() const {
