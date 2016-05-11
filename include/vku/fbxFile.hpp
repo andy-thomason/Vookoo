@@ -311,14 +311,14 @@ namespace vku {
                 int32_t vi = fbxIndices[i];
                 if (vi < 0) vi = -1 - vi;
 
-                glm::vec4 pos(fbxVertices[vi*3+0], fbxVertices[vi*3+1], fbxVertices[vi*3+2], 1);
-                glm::vec4 normal(1, 0, 0, 0);
-                glm::vec4 uv(0, 0, 0, 1);
+                glm::vec3 pos(fbxVertices[vi*3+0], fbxVertices[vi*3+1], fbxVertices[vi*3+2]);
+                glm::vec3 normal(1, 0, 0);
+                glm::vec2 uv(0, 0);
                 if (normalMapping == fbxFile::Mapping::ByPolygonVertex) {
-                  normal = glm::vec4(fbxNormals[ni*3+0], fbxNormals[ni*3+1], fbxNormals[ni*3+2], 0);
+                  normal = glm::vec3(fbxNormals[ni*3+0], fbxNormals[ni*3+1], fbxNormals[ni*3+2]);
                 }
                 if (uvMapping == fbxFile::Mapping::ByPolygonVertex) {
-                  uv = glm::vec4(fbxUVs[uvi*2+0], fbxUVs[uvi*2+1], 0, 1);
+                  uv = glm::vec2(fbxUVs[uvi*2+0], fbxUVs[uvi*2+1]);
                 }
                 vertices.emplace_back(pos, normal, uv);
               }

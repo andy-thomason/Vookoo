@@ -47,22 +47,8 @@ public:
 
   // This is the constructor for a window containing our example
   teapot_example(int argc, const char **argv) : vku::window(argc, argv, false, 1280, 720, -2.5f, "teapot") {
-    //mesh = vku::simple_mesh("../data/teapot.fbx");
-    //mesh.reindex(true);
-    mesh = vku::simple_mesh(
-      10, 10, 10,
-      [](float x, float y, float z) {
-        glm::vec3 pos1 = glm::vec3(x, y, z) - glm::vec3(5, 5, 5);
-        glm::vec2 pos2 = glm::vec2(x, y) - glm::vec2(5, 5);
-        float v1 = std::max(std::min(glm::dot(pos1, pos1)/16 - 1.0f, 1.0f), -1.0f);
-        float v2 = std::max(std::min(glm::dot(pos2, pos2)/8 - 1.0f, 1.0f), -1.0f);
-        return v2;
-      },
-      [](float x, float y, float z) {
-        glm::vec3 pos = glm::vec3(x, y, z) - glm::vec3(5, 5, 5);
-        return vku::simple_mesh_traits::vertex_t(pos * 0.1f, glm::normalize(pos), glm::vec2(pos));
-      }
-    );
+    mesh = vku::simple_mesh("../data/teapot.fbx");
+    mesh.reindex(true);
 
     if (mesh.numVertices()) vertex_buffer = vku::buffer(device(), (void*)mesh.vertices(), mesh.numVertices()*mesh.vertexSize(), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
 
