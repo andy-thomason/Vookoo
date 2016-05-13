@@ -68,35 +68,17 @@ public:
   }
 
   /// image that does owns (and creates) its pointer
-  image(VkDevice dev, imageLayoutHelper &layout) : resource(VK_NULL_HANDLE, dev) {
+  image(const vku::device &device, imageLayoutHelper &layout) : resource(VK_NULL_HANDLE, device) {
     //  uint32_t width, uint32_t height, uint32_t depth, VkFormat format=VK_FORMAT_R8G8B8_UNORM, VkImageType type=VK_IMAGE_TYPE_2D, VkImageUsageFlags usage=VK_IMAGE_USAGE_SAMPLED_BIT, VkImageTiling tiling=VK_IMAGE_TILING_LINEAR) : resource(VK_NULL_HANDLE, dev) {
     VkImage result = VK_NULL_HANDLE;
-    VkResult err = vkCreateImage(dev, layout.get(), nullptr, &result);
+    VkResult err = vkCreateImage(dev(), layout.get(), nullptr, &result);
     if (err) throw error(err, __FILE__, __LINE__);
 
     set(result, true);
     format_ = layout.get()->format;
-  }
 
-  /// allocate device memory
-  void allocate(const vku::device &device) {
-    VkMemoryRequirements memReqs;
-    vkGetImageMemoryRequirements(device, get(), &memReqs);
-
-    VkMemoryAllocateInfo mem_alloc = {};
-    mem_alloc.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-    mem_alloc.allocationSize = memReqs.size;
-    mem_alloc.memoryTypeIndex = device.getMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-    VkResult err = vkAllocateMemory(device, &mem_alloc, nullptr, &mem_);
-    if (err) throw error(err, __FILE__, __LINE__);
-
-    size_ = (size_t)memReqs.size;
-  }
-
-  /// bind device memory to the image object
-  void bindMemoryToImage() {
-    VkResult err = vkBindImageMemory(dev(), get(), mem(), 0);
-    if (err) throw error(err, __FILE__, __LINE__);
+    allocate(device);
+    bindMemoryToImage();
   }
 
   void setImageLayout(const vku::commandBuffer &cmdBuf, VkImageAspectFlags aspectMask, VkImageLayout oldImageLayout, VkImageLayout newImageLayout) {
@@ -144,7 +126,7 @@ public:
   VkImageView view() const { return view_; }
 
   void *map() {
-    void *dest = VK_NULL_HANDLE;
+    void *dest = nullptr;
     VkResult err = vkMapMemory(dev(), mem_, 0, size(), 0, &dest);
     if (err) throw error(err, __FILE__, __LINE__);
     return dest;
@@ -167,6 +149,27 @@ public:
     return *this;
   }
 public:
+  /// allocate device memory
+  void allocate(const vku::device &device) {
+    VkMemoryRequirements memReqs;
+    vkGetImageMemoryRequirements(device, get(), &memReqs);
+
+    VkMemoryAllocateInfo mem_alloc = {};
+    mem_alloc.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    mem_alloc.allocationSize = memReqs.size;
+    mem_alloc.memoryTypeIndex = device.getMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+    VkResult err = vkAllocateMemory(device, &mem_alloc, nullptr, &mem_);
+    if (err) throw error(err, __FILE__, __LINE__);
+
+    size_ = (size_t)memReqs.size;
+  }
+
+  /// bind device memory to the image object
+  void bindMemoryToImage() {
+    VkResult err = vkBindImageMemory(dev(), get(), mem(), 0);
+    if (err) throw error(err, __FILE__, __LINE__);
+  }
+
   VkFormat format_ = VK_FORMAT_UNDEFINED;
   VkDeviceMemory mem_ = VK_NULL_HANDLE;
   VkImageView view_ = VK_NULL_HANDLE;

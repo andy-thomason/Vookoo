@@ -462,8 +462,8 @@ public:
     layout.initialLayout(VK_IMAGE_LAYOUT_UNDEFINED);
 
     depthStencil_ = vku::image(device_, layout);
-    depthStencil_.allocate(device_);
-    depthStencil_.bindMemoryToImage();
+    //depthStencil_.allocate(device_);
+    //depthStencil_.bindMemoryToImage();
     depthStencil_.setImageLayout(setupCmdBuffer_, VK_IMAGE_ASPECT_DEPTH_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
     depthStencil_.createView();
 

@@ -75,7 +75,7 @@ public:
   }
 
   void *map() {
-    void *dest = VK_NULL_HANDLE;
+    void *dest = nullptr;
     VkResult err = vkMapMemory(dev, mem, 0, size(), 0, &dest);
     if (err) throw error(err, __FILE__, __LINE__);
     return dest;

@@ -47,20 +47,18 @@ public:
 
   // This is the constructor for a window containing our example
   texture_example(int argc, const char **argv) : vku::window(argc, argv, false, 1280, 720, -2.5f, "texture") {
-    //texture = vku::image(device(), 2, 2, VK_FORMAT_BC3_UNORM_BLOCK, VK_IMAGE_TYPE_2D, VK_IMAGE_USAGE_SAMPLED_BIT, VK_IMAGE_TILING_LINEAR);
+    vku::imageLayoutHelper layout(32, 32);
+    layout.format(VK_FORMAT_BC3_UNORM_BLOCK);
 
-    vku::imageLayoutHelper layout(2, 2);
     texture = vku::image(device(), layout);
-    texture.allocate(device());
-    texture.bindMemoryToImage();
 
-    static const uint8_t data[] = {
+    static const uint8_t data[1024] = {
       0xff, 0x00, 0x00,  0xff, 0xff, 0x00,  
       0x00, 0x00, 0xff,  0xff, 0xff, 0xff,  
     };
 
     uint8_t *dest = (uint8_t *)texture.map();
-    memcpy(dest, data, texture.size());
+    memcpy(dest, data, sizeof(data));
     texture.unmap();
 
     static const uint32_t indices[] = { 0, 1, 2 };
