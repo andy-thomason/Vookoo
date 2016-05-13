@@ -9,6 +9,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "triangle", "triangle\triang
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "marching_cubes", "marching_cubes\marching_cubes.vcxproj", "{056270B5-0242-4106-92B0-E9DBFBA0CA61}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "texture", "texture\texture.vcxproj", "{D6C8FB0A-9B02-43DD-91FC-BB462E1911A0}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -27,6 +29,10 @@ Global
 		{056270B5-0242-4106-92B0-E9DBFBA0CA61}.Debug|x64.Build.0 = Debug|x64
 		{056270B5-0242-4106-92B0-E9DBFBA0CA61}.Release|x64.ActiveCfg = Release|x64
 		{056270B5-0242-4106-92B0-E9DBFBA0CA61}.Release|x64.Build.0 = Release|x64
+		{D6C8FB0A-9B02-43DD-91FC-BB462E1911A0}.Debug|x64.ActiveCfg = Debug|x64
+		{D6C8FB0A-9B02-43DD-91FC-BB462E1911A0}.Debug|x64.Build.0 = Debug|x64
+		{D6C8FB0A-9B02-43DD-91FC-BB462E1911A0}.Release|x64.ActiveCfg = Release|x64
+		{D6C8FB0A-9B02-43DD-91FC-BB462E1911A0}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

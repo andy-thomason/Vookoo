@@ -108,7 +108,7 @@ public:
           // x edges
           if (i != xdim-1) {
             float v1 = fn(fi+1, fj, fk);
-            if (v0 < 0 != v1 < 0) {
+            if (v0 * v1 <= 0) {
               float lambda = v0 / (v0 - v1);
               edge_indices[idx*3+0] = (int)vertices_.size();
               vertices_.push_back(vertex_generator(fi + lambda, fj, fk));
@@ -118,7 +118,7 @@ public:
           // y edges
           if (j != ydim-1) {
             float v1 = fn(fi, fj+1, fk);
-            if (v0 < 0 != v1 < 0) {
+            if (v0 * v1 <= 0) {
               float lambda = v0 / (v0 - v1);
               edge_indices[idx*3+1] = (int)vertices_.size();
               vertices_.push_back(vertex_generator(fi, fj + lambda, fk));
@@ -128,7 +128,7 @@ public:
           // z edges
           if (k != zdim-1) {
             float v1 = fn(fi, fj, fk+1);
-            if (v0 < 0 != v1 < 0) {
+            if (v0 * v1 <= 0) {
               float lambda = v0 / (v0 - v1);
               edge_indices[idx*3+2] = (int)vertices_.size();
               vertices_.push_back(vertex_generator(fi, fj, fk + lambda));
@@ -282,7 +282,8 @@ private:
       0x3B2784A65CCCCCCCull,0x5A647242027BCCCCull,0x01947823B5A6CCCCull,0x9219B294B7B45A6Cull,0x8473B53515B6CCCCull,0x51B5B610B7B404BCull,0x059065036B63847Cull,0x65969B4797B9CCCCull,
       0xA4964ACCCCCCCCCCull,0x4A649A083CCCCCCCull,0xA01A60640CCCCCCCull,0x83181686461ACCCCull,0x149124264CCCCCCCull,0x308129249264CCCCull,0x024426CCCCCCCCCCull,0x832824426CCCCCCCull,
       0xA49A64B23CCCCCCCull,0x08228B49A4A6CCCCull,0x3B201606461ACCCCull,0x64161A48121B8B1Cull,0x964936913B63CCCCull,0x8B1810B61914641Cull,0x3B6360064CCCCCCCull,0x648B68CCCCCCCCCCull,
-      0x7A678A89ACCCCCCCull,0x0730A709A67ACCCCull,0xA671A7178180CCCCull,0xA67A71173CCCCCCCull,0x126168189867CCCCull,0x269291679093739Cull,0x780706602CCCCCCCull,0x732672CCCCCCCCCCull,      0x23BA68A89867CCCCull,0x20727B09767A9A7Cull,0x1801781A767A23BCull,0xB21B17A61671CCCCull,0x896867916B63136Cull,0x091B67CCCCCCCCCCull,0x7807063B0B60CCCCull,0x7B6CCCCCCCCCCCCCull,
+      0x7A678A89ACCCCCCCull,0x0730A709A67ACCCCull,0xA671A7178180CCCCull,0xA67A71173CCCCCCCull,0x126168189867CCCCull,0x269291679093739Cull,0x780706602CCCCCCCull,0x732672CCCCCCCCCCull,
+      0x23BA68A89867CCCCull,0x20727B09767A9A7Cull,0x1801781A767A23BCull,0xB21B17A61671CCCCull,0x896867916B63136Cull,0x091B67CCCCCCCCCCull,0x7807063B0B60CCCCull,0x7B6CCCCCCCCCCCCCull,
       0x76BCCCCCCCCCCCCCull,0x308B76CCCCCCCCCCull,0x019B76CCCCCCCCCCull,0x819831B76CCCCCCCull,0xA126B7CCCCCCCCCCull,0x12A3086B7CCCCCCCull,0x2902A96B7CCCCCCCull,0x6B72A3A83A98CCCCull,
       0x723627CCCCCCCCCCull,0x708760620CCCCCCCull,0x276237019CCCCCCCull,0x162186198876CCCCull,0xA76A17137CCCCCCCull,0xA7617A187108CCCCull,0x03707A0A96A7CCCCull,0x76A7A88A9CCCCCCCull,
       0x684B86CCCCCCCCCCull,0x36B306046CCCCCCCull,0x86B846901CCCCCCCull,0x946963931B36CCCCull,0x6846B82A1CCCCCCCull,0x12A30B06B046CCCCull,0x4B846B0292A9CCCCull,0xA93A32943B36463Cull,
