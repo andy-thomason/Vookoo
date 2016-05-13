@@ -96,6 +96,7 @@ public:
       edge_indices [i] = -1;
     }
 
+    // Build the vertices first. One for each edge that changes sign.
     for (int k = 0; k != zdim; ++k) {
       for (int j = 0; j != ydim; ++j) {
         for (int i = 0; i != xdim; ++i) {
@@ -154,21 +155,21 @@ public:
     int dy = xdim * 3;
     int dz = xdim * ydim * 3;
     int edge_offsets[] = {
-      0*dx+0*dy+0*dz+0,  // 0,1,
-      1*dx+0*dy+0*dz+1,  // 1,2,
-      0*dx+1*dy+0*dz+0,  // 2,3,
-      0*dx+0*dy+0*dz+1,  // 3,0,
-      0*dx+0*dy+1*dz+0,  // 4,5,
-      1*dx+0*dy+1*dz+1,  // 5,6,
-      0*dx+1*dy+1*dz+0,  // 6,7,
-      0*dx+0*dy+1*dz+1,  // 7,4,
-      0*dx+0*dy+0*dz+2,  // 0,4,
-      1*dx+0*dy+0*dz+2,  // 1,5,
-      1*dx+1*dy+0*dz+2,  // 2,6,
-      0*dx+1*dy+0*dz+2,  // 3,7
+      0 * dx + 0 * dy + 0 * dz + 0,  // 0,1, (this cube, x component)
+      1 * dx + 0 * dy + 0 * dz + 1,  // 1,2,
+      0 * dx + 1 * dy + 0 * dz + 0,  // 2,3,
+      0 * dx + 0 * dy + 0 * dz + 1,  // 3,0, (this cube, y component)
+      0 * dx + 0 * dy + 1 * dz + 0,  // 4,5,
+      1 * dx + 0 * dy + 1 * dz + 1,  // 5,6,
+      0 * dx + 1 * dy + 1 * dz + 0,  // 6,7,
+      0 * dx + 0 * dy + 1 * dz + 1,  // 7,4,
+      0 * dx + 0 * dy + 0 * dz + 2,  // 0,4, (this cube, z component)
+      1 * dx + 0 * dy + 0 * dz + 2,  // 1,5,
+      1 * dx + 1 * dy + 0 * dz + 2,  // 2,6,
+      0 * dx + 1 * dy + 0 * dz + 2,  // 3,7
     };
         
-    // loop over all cubes
+    // Build the indices. Use the mc_triangles table to choose triangles depending on sign.
     for (int k = 0; k != zdim-1; ++k) {
       for (int j = 0; j != ydim-1; ++j) {
         for (int i = 0; i != xdim-1; ++i) {
@@ -182,6 +183,7 @@ public:
           //   00000001 means only vertex 0 is outside the surface.
           //   10000000 means only vertex 7 is outside the surface.
           //   11111111 all vertices are outside the surface.
+          // todo: the mask can be built incrementally.
           float v000 = fn(fi, fj, fk);
           float v100 = fn(fi+1, fj, fk);
           float v010 = fn(fi, fj+1, fk);
@@ -205,6 +207,7 @@ public:
 
           uint64_t triangles = mc_triangles()[mask];
           while ((triangles >> 60) != 0xc) {
+            // t0, t1, t2 choose one of twelve cube edges.
             int t0 = triangles >> 60;
             triangles <<= 4;
             int t1 = triangles >> 60;

@@ -18,6 +18,7 @@
 #include <vku/instance.hpp>
 #include <vku/swapChain.hpp>
 #include <vku/shaderModule.hpp>
+#include <vku/buffer.hpp>
 #include <vku/pipeline.hpp>
 #include <vku/semaphore.hpp>
 #include <vku/queue.hpp>

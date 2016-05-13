@@ -455,7 +455,13 @@ public:
 
     postPresentCmdBuffer_ = vku::commandBuffer(device_, cmdPool_);
 
-    depthStencil_ = vku::image(device_, width_, height_, depthFormat_, VK_IMAGE_TYPE_2D, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT);
+    imageLayoutHelper layout(width_, height_);
+    layout.format(depthFormat_);
+    layout.tiling(VK_IMAGE_TILING_OPTIMAL);
+    layout.usage(VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT);
+    layout.initialLayout(VK_IMAGE_LAYOUT_UNDEFINED);
+
+    depthStencil_ = vku::image(device_, layout);
     depthStencil_.allocate(device_);
     depthStencil_.bindMemoryToImage();
     depthStencil_.setImageLayout(setupCmdBuffer_, VK_IMAGE_ASPECT_DEPTH_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
