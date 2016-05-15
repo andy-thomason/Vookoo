@@ -48,7 +48,7 @@ public:
 
   VkPhysicalDevice physicalDevice() const { return physicalDevice_; }
 
-  vku::device device() const { return vku::device(dev_, physicalDevice_); }
+  vku::device &device() const { return vku::device(dev_, physicalDevice_); }
   VkQueue queue() const { return queue_; }
   VkInstance inst() const { return instance_; }
 

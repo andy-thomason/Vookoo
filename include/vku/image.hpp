@@ -121,6 +121,8 @@ public:
   VkDeviceMemory mem_ = VK_NULL_HANDLE;
   VkImageView view_ = VK_NULL_HANDLE;
 
+  image(image &rhs) = default;
+
   image &operator=(image &&rhs) {
     (resource&)(*this) = (resource&&)rhs;
     format_ = rhs.format_;

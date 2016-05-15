@@ -1,0 +1,125 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="14.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{3FE4577A-9CE0-44FA-84FD-5CC97C2C949E}</ProjectGuid>
+    <RootNamespace>teapot</RootNamespace>
+    <WindowsTargetPlatformVersion>8.1</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v140</PlatformToolset>
+    <CharacterSet>MultiByte</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v140</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>MultiByte</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="Shared">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <IntDir>$(ProjectDir)\$(Platform)\$(Configuration)\</IntDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <IntDir>$(ProjectDir)\$(Platform)\$(Configuration)\</IntDir>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>Disabled</Optimization>
+      <SDLCheck>true</SDLCheck>
+      <AdditionalIncludeDirectories>..\..\include;..\..\external</AdditionalIncludeDirectories>
+    </ClCompile>
+    <Link>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalLibraryDirectories>..\..\external\vulkan</AdditionalLibraryDirectories>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>MaxSpeed</Optimization>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <SDLCheck>true</SDLCheck>
+      <AdditionalIncludeDirectories>..\..\include;..\..\external</AdditionalIncludeDirectories>
+    </ClCompile>
+    <Link>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+      <AdditionalLibraryDirectories>..\..\external\vulkan</AdditionalLibraryDirectories>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="main.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="mesh.frag">
+      <FileType>Document</FileType>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">glslangValidator -V %(Identity) -o %(Identity).spv</Command>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">%(Identity).spv</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</LinkObjects>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">glslangValidator -V %(Identity) -o %(Identity).spv</Command>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">%(Identity).spv</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</LinkObjects>
+    </CustomBuild>
+    <CustomBuild Include="mesh.vert">
+      <FileType>Document</FileType>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">glslangValidator -V %(Identity) -o %(Identity).spv</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">glslangValidator -V %(Identity) -o %(Identity).spv</Command>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">%(Identity).spv</Outputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">%(Identity).spv</Outputs>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\include\vku\commandBuffer.hpp" />
+    <ClInclude Include="..\..\include\vku\commandpool.hpp" />
+    <ClInclude Include="..\..\include\vku\device.hpp" />
+    <ClInclude Include="..\..\include\vku\fbxFile.hpp" />
+    <ClInclude Include="..\..\include\vku\image.hpp" />
+    <ClInclude Include="..\..\include\vku\instance.hpp" />
+    <ClInclude Include="..\..\include\vku\mesh.hpp" />
+    <ClInclude Include="..\..\include\vku\pipeline.hpp" />
+    <ClInclude Include="..\..\include\vku\pngDecoder.hpp" />
+    <ClInclude Include="..\..\include\vku\queue.hpp" />
+    <ClInclude Include="..\..\include\vku\renderPassLayout.hpp" />
+    <ClInclude Include="..\..\include\vku\resource.hpp" />
+    <ClInclude Include="..\..\include\vku\semaphore.hpp" />
+    <ClInclude Include="..\..\include\vku\shadermodule.hpp" />
+    <ClInclude Include="..\..\include\vku\swapchain.hpp" />
+    <ClInclude Include="..\..\include\vku\vku.hpp" />
+    <ClInclude Include="..\..\include\vku\window.hpp" />
+    <ClInclude Include="..\..\include\vku\zipDecoder.hpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\..\include\vku\swapChain.inl" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>

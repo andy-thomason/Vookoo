@@ -12,12 +12,8 @@ namespace vku {
 
 class queue : public resource<VkQueue, queue> {
 public:
-  /// queue that does not own its pointer
+  /// queue that does not own its pointer (queues are obtained from devices)
   queue(VkQueue value = VK_NULL_HANDLE, VkDevice dev = VK_NULL_HANDLE) : resource(value, dev) {
-  }
-
-  /// queue that does owns (and creates) its pointer
-  queue(VkDevice dev) : resource(dev) {
   }
 
   void submit(VkSemaphore sema, VkCommandBuffer buffer) const {
