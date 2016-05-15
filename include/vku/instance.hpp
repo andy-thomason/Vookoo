@@ -46,9 +46,7 @@ public:
     vkDestroyInstance(instance_, nullptr);
   }
 
-  VkPhysicalDevice physicalDevice() const { return physicalDevice_; }
-
-  vku::device &device() const { return vku::device(dev_, physicalDevice_); }
+  vku::device &device() { return dev_; }
   VkQueue queue() const { return queue_; }
   VkInstance inst() const { return instance_; }
 
@@ -56,6 +54,9 @@ public:
   static instance &get() {
     static instance theInstance;
     return theInstance;
+  }
+
+  ~instance() {
   }
 
 private:
@@ -142,17 +143,15 @@ private:
     // This example will always use the first physical device reported, 
     // change the vector index if you have multiple Vulkan devices installed 
     // and want to use another one
-    physicalDevice_ = physicalDevices[0];
-
     // Find a queue that supports graphics operations
     uint32_t graphicsQueueIndex = 0;
     uint32_t queueCount;
-    vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice(), &queueCount, nullptr);
+    vkGetPhysicalDeviceQueueFamilyProperties(physicalDevices[0], &queueCount, nullptr);
     //assert(queueCount >= 1);
 
     std::vector<VkQueueFamilyProperties> queueProps;
     queueProps.resize(queueCount);
-    vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice(), &queueCount, queueProps.data());
+    vkGetPhysicalDeviceQueueFamilyProperties(physicalDevices[0], &queueCount, queueProps.data());
 
     for (graphicsQueueIndex = 0; graphicsQueueIndex < queueCount; graphicsQueueIndex++)
     {
@@ -189,16 +188,18 @@ private:
       deviceCreateInfo.ppEnabledLayerNames = validationLayerNames;
     }
 
-    err = vkCreateDevice(physicalDevice_, &deviceCreateInfo, nullptr, &dev_);
+    VkDevice dev = VK_NULL_HANDLE;
+    err = vkCreateDevice(physicalDevices[0], &deviceCreateInfo, nullptr, &dev);
     if (err) throw error(err, __FILE__, __LINE__);
+
+    dev_ = vku::device(dev, physicalDevices[0]);
 
     // Get the graphics queue
     vkGetDeviceQueue(dev_, graphicsQueueIndex, 0, &queue_);
   }
 
   bool enableValidation = false;
-  VkPhysicalDevice physicalDevice_;
-  VkDevice dev_;
+  vku::device dev_;
   VkQueue queue_;
   VkInstance instance_;
 };

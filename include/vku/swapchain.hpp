@@ -213,7 +213,7 @@ public:
   buffer(VkDevice dev = VK_NULL_HANDLE, VkBuffer buf = VK_NULL_HANDLE) : buf_(buf), dev(dev) {
   }
 
-  buffer(device dev, void *init, VkDeviceSize size, VkBufferUsageFlags usage) : dev(dev), size_(size) {
+  buffer(device &dev, void *init, VkDeviceSize size, VkBufferUsageFlags usage) : dev(dev), size_(size) {
     VkBufferCreateInfo bufInfo = {};
     bufInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
     bufInfo.size = size;

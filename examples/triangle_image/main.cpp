@@ -14,7 +14,8 @@ class triangle_image
 {
 public:
   // This is the constructor for a window containing our example
-  triangle_image(int argc, const char **argv) : device_(vku::instance::get().device()) {
+  triangle_image(int argc, const char **argv) {
+    vku::device &device_ =  vku::instance::get().device();
 
     static const uint32_t indices[] = { 0, 1, 2 };
     static const float vertices[] = {
@@ -102,6 +103,8 @@ public:
   // Recalculate the matrices and upload to the card.
   void updateUniformBuffers()
   {
+    vku::device &device_ =  vku::instance::get().device();
+
     printf("%p\n", (VkDevice)device_);
     uniform_data.viewToProjection = glm::perspective(60.0f * (3.14159f/180), (float)width / (float)height, 0.1f, 256.0f);
     uniform_data.modelToWorld = glm::mat4();
@@ -120,6 +123,8 @@ public:
   // Sumbit the command buffer to draw.
   void render()
   {
+    vku::device &device_ =  vku::instance::get().device();
+
     printf("%p\n", (VkDevice)device_);
     updateUniformBuffers();
     printf("%p\n", (VkDevice)device_);
@@ -162,8 +167,6 @@ private:
 
   // This is the number of points on the triangle (ie. 3)
   size_t num_indices;
-
-  vku::device &device_;
 
   // This tells the pipeline where to get the vertices from
   static const int vertex_buffer_bind_id = 0;
