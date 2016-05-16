@@ -21,7 +21,7 @@ public:
   commandPool(VkCommandPool value, VkDevice dev) : resource(value, dev) {
   }
 
-  /// command pool that does owns (and creates) its pointer
+  /// command pool that does own (and creates) its pointer
   commandPool(VkDevice dev, uint32_t queueFamilyIndex) : resource(dev) {
     VkCommandPoolCreateInfo cmdPoolInfo = {};
     cmdPoolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;

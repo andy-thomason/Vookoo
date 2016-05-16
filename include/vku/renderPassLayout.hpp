@@ -33,9 +33,9 @@ public:
   void addSubpass(uint32_t colorAttachment, VkImageLayout colorLayout, uint32_t depthAttachment, VkImageLayout depthLayout) {
     subpass s = {};
     s.num_color = 1;
-    s.color[0].attachment = 0;
+    s.color[0].attachment = colorAttachment;
     s.color[0].layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-    s.depth.attachment = 1;
+    s.depth.attachment = depthAttachment;
     s.depth.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
     s.desc.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
     subpasses.push_back(s);

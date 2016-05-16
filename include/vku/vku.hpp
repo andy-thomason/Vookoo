@@ -19,12 +19,15 @@
 #include <vku/swapChain.hpp>
 #include <vku/shaderModule.hpp>
 #include <vku/buffer.hpp>
+#include <vku/renderPassLayout.hpp>
+#include <vku/renderPass.hpp>
 #include <vku/pipeline.hpp>
 #include <vku/semaphore.hpp>
 #include <vku/queue.hpp>
 #include <vku/commandPool.hpp>
 #include <vku/commandBuffer.hpp>
 #include <vku/image.hpp>
+#include <vku/framebuffer.hpp>
 
 // Helper classes
 #include <vku/zipDecoder.hpp>

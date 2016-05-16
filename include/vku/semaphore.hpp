@@ -17,7 +17,7 @@ public:
   semaphore(VkSemaphore value = VK_NULL_HANDLE, VkDevice dev = VK_NULL_HANDLE) : resource(value, dev) {
   }
 
-  /// semaphore that does owns (and creates) its pointer
+  /// semaphore that does own (and creates) its pointer
   semaphore(VkDevice dev) : resource(dev) {
   }
 

@@ -106,7 +106,7 @@ public:
   pipelineCache(VkPipelineCache value, VkDevice dev) : resource(value, dev) {
   }
 
-  /// descriptor pool that does owns (and creates) its pointer
+  /// descriptor pool that does own (and creates) its pointer
   pipelineCache(VkDevice dev) : resource(dev) {
     VkPipelineCacheCreateInfo pipelineCacheCreateInfo = {};
     pipelineCacheCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO;
@@ -145,6 +145,7 @@ public:
     rasterizationState.depthClampEnable = VK_FALSE;
     rasterizationState.rasterizerDiscardEnable = VK_FALSE;
     rasterizationState.depthBiasEnable = VK_FALSE;
+    rasterizationState.lineWidth = 1.0f;
 
     // Color blend state
     // Describes blend modes and color masks
@@ -322,7 +323,6 @@ public:
     // descriptor set layouts that could be reused
     VkPipelineLayoutCreateInfo pPipelineLayoutCreateInfo = {};
     pPipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    pPipelineLayoutCreateInfo.pNext = NULL;
     pPipelineLayoutCreateInfo.setLayoutCount = 1;
     pPipelineLayoutCreateInfo.pSetLayouts = &descriptorSetLayout;
 

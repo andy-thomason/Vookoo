@@ -16,11 +16,11 @@ namespace vku {
 
 class swapChain : public resource<VkSwapchainKHR, swapChain> {
 public:
-  /// semaphore that does not own its pointer
+  /// swap chain that does not own its pointer
   swapChain(VkSwapchainKHR value = VK_NULL_HANDLE, VkDevice dev = VK_NULL_HANDLE) : resource(value, dev) {
   }
 
-  /// semaphore that does owns (and creates) its pointer
+  /// swap chain that does own (and creates) its pointer
   swapChain(const vku::device dev, uint32_t width, uint32_t height, VkSurfaceKHR surface, VkCommandBuffer buf) : resource(dev) {
     VkResult err;
     VkSwapchainKHR oldSwapchain = *this;

@@ -84,6 +84,14 @@ public:
   resource(VkDevice dev) : dev_(dev), ownsResource(false) {
   }
 
+  // when a resource is copied in the normal way, the ownership is not transfered.
+  void operator=(resource &rhs) {
+    clear();
+    value_ = rhs.value_;
+    dev_ = rhs.dev_;
+    ownsResource = false;
+  }
+
   // every resource is moveable transfering ownership of the
   // object to the copy. The former owner loses ownership.
   void operator=(resource &&rhs) {

@@ -21,7 +21,7 @@ public:
   commandBuffer(VkCommandBuffer value, VkDevice dev) : resource(value, dev) {
   }
 
-  /// command buffer that does owns (and creates) its pointer
+  /// command buffer that does own (and creates) its pointer
   commandBuffer(VkDevice dev, VkCommandPool cmdPool, VkCommandBufferLevel level = VK_COMMAND_BUFFER_LEVEL_PRIMARY) : resource(dev) {
     VkCommandBuffer res = VK_NULL_HANDLE;
     VkCommandBufferAllocateInfo commandBufferAllocateInfo = {};
@@ -44,6 +44,10 @@ public:
     endRenderPass();
     addPrePresentationBarrier(image);
     endCommandBuffer();
+  }
+
+  void reset(VkCommandBufferResetFlags flags) const {
+    vkResetCommandBuffer(get(), flags);
   }
 
   void beginCommandBuffer() const {
@@ -114,14 +118,161 @@ public:
     if (buf.buf() != VK_NULL_HANDLE) vkCmdBindIndexBuffer(get(), buf.buf(), 0, VK_INDEX_TYPE_UINT32);
   }
 
-  void drawIndexed(uint32_t indexCount, uint32_t instanceCount, uint32_t firstIndex, int32_t vertexOffset, uint32_t firstInstance) const {
+  void setLineWidth(float width) const {
+    vkCmdSetLineWidth(get(), width);
+  }
+
+  void setDepthBias(float depthBiasConstantFactor, float depthBiasClamp, float depthBiasSlopeFactor) const {
+    vkCmdSetDepthBias(get(), depthBiasConstantFactor, depthBiasClamp, depthBiasSlopeFactor);
+  }
+
+  void setBlendConstants(float blendConstants[4]) const {
+    vkCmdSetBlendConstants(get(), blendConstants);
+  }
+
+  void setStencilCompareMask(VkStencilFaceFlags faceMask, uint32_t  compareMask) const {
+    vkCmdSetStencilCompareMask(get(), faceMask, compareMask);
+  }
+
+  void setStencilWriteMask(VkStencilFaceFlags faceMask,uint32_t  writeMask) const {
+    vkCmdSetStencilWriteMask(get(), faceMask, writeMask);
+  }
+
+  void setStencilReference(VkStencilFaceFlags faceMask, uint32_t  reference) const {
+    vkCmdSetStencilReference(get(), faceMask, reference);
+  }
+
+  void draw(uint32_t vertexCount,uint32_t instanceCount,uint32_t firstVertex,uint32_t firstInstance) const {
+    vkCmdDraw(get(),vertexCount,instanceCount,firstVertex,firstInstance);
+  }
+
+  void drawIndexed(uint32_t indexCount,uint32_t instanceCount,uint32_t firstIndex,int32_t vertexOffset,uint32_t firstInstance) const {
+    vkCmdDrawIndexed(get(),indexCount,instanceCount,firstIndex,vertexOffset,firstInstance);
+  }
+
+  void drawIndirect(VkBuffer buffer,VkDeviceSize offset,uint32_t drawCount,uint32_t stride) const {
+    vkCmdDrawIndirect(get(),buffer,offset,drawCount,stride);
+  }
+
+  void drawIndexedIndirect(VkBuffer buffer,VkDeviceSize offset,uint32_t drawCount,uint32_t stride) const {
+    vkCmdDrawIndexedIndirect(get(),buffer,offset,drawCount,stride);
+  }
+
+  void dispatch(uint32_t x,uint32_t y,uint32_t z) const {
+    vkCmdDispatch(get(),x,y,z);
+  }
+
+  void dispatchIndirect(VkBuffer buffer,VkDeviceSize offset) const {
+    vkCmdDispatchIndirect(get(),buffer,offset);
+  }
+
+  void copyBuffer(VkBuffer srcBuffer,VkBuffer dstBuffer,uint32_t regionCount,const VkBufferCopy* pRegions) const {
+    vkCmdCopyBuffer(get(),srcBuffer,dstBuffer,regionCount,pRegions);
+  }
+
+  void copyImage(VkImage srcImage,VkImageLayout srcImageLayout,VkImage dstImage,VkImageLayout dstImageLayout,uint32_t regionCount,const VkImageCopy* pRegions) const {
+    vkCmdCopyImage(get(),srcImage,srcImageLayout,dstImage,dstImageLayout,regionCount,pRegions);
+  }
+
+  void blitImage(VkImage srcImage,VkImageLayout srcImageLayout,VkImage dstImage,VkImageLayout dstImageLayout,uint32_t regionCount,const VkImageBlit* pRegions,VkFilter filter) const {
+    vkCmdBlitImage(get(),srcImage,srcImageLayout,dstImage,dstImageLayout,regionCount,pRegions,filter);
+  }
+
+  void copyBufferToImage(VkBuffer srcBuffer,VkImage dstImage,VkImageLayout dstImageLayout,uint32_t regionCount,const VkBufferImageCopy* pRegions) const {
+    vkCmdCopyBufferToImage(get(),srcBuffer,dstImage,dstImageLayout,regionCount,pRegions);
+  }
+
+  void copyImageToBuffer(VkImage srcImage,VkImageLayout srcImageLayout,VkBuffer dstBuffer,uint32_t regionCount,const VkBufferImageCopy* pRegions) const {
+    vkCmdCopyImageToBuffer(get(),srcImage,srcImageLayout,dstBuffer,regionCount,pRegions);
+  }
+
+  void updateBuffer(VkBuffer dstBuffer,VkDeviceSize dstOffset,VkDeviceSize dataSize,const uint32_t* pData) const {
+    vkCmdUpdateBuffer(get(),dstBuffer,dstOffset,dataSize,pData);
+  }
+
+  void fillBuffer(VkBuffer dstBuffer,VkDeviceSize dstOffset,VkDeviceSize size,uint32_t data) const {
+    vkCmdFillBuffer(get(),dstBuffer,dstOffset,size,data);
+  }
+
+  void clearColorImage(VkImage image,VkImageLayout imageLayout,const VkClearColorValue* pColor,uint32_t rangeCount,const VkImageSubresourceRange* pRanges) const {
+    vkCmdClearColorImage(get(),image,imageLayout,pColor,rangeCount,pRanges);
+  }
+
+  void clearDepthStencilImage(VkImage image,VkImageLayout imageLayout,const VkClearDepthStencilValue* pDepthStencil,uint32_t rangeCount,const VkImageSubresourceRange* pRanges) const {
+    vkCmdClearDepthStencilImage(get(),image,imageLayout,pDepthStencil,rangeCount,pRanges);
+  }
+
+  void clearAttachments(uint32_t attachmentCount,const VkClearAttachment* pAttachments,uint32_t rectCount,const VkClearRect* pRects) const {
+    vkCmdClearAttachments(get(),attachmentCount,pAttachments,rectCount,pRects);
+  }
+
+  void resolveImage(VkImage srcImage,VkImageLayout srcImageLayout,VkImage dstImage,VkImageLayout dstImageLayout,uint32_t regionCount,const VkImageResolve* pRegions) const {
+    vkCmdResolveImage(get(),srcImage,srcImageLayout,dstImage,dstImageLayout,regionCount,pRegions);
+  }
+
+  void setEvent(VkEvent event,VkPipelineStageFlags stageMask) const {
+    vkCmdSetEvent(get(),event,stageMask);
+  }
+
+  void resetEvent(VkEvent event,VkPipelineStageFlags stageMask) const {
+  }
+
+  void waitEvents(uint32_t eventCount,const VkEvent* pEvents,VkPipelineStageFlags srcStageMask,VkPipelineStageFlags dstStageMask,uint32_t memoryBarrierCount,const VkMemoryBarrier* pMemoryBarriers,uint32_t bufferMemoryBarrierCount,const VkBufferMemoryBarrier* pBufferMemoryBarriers,uint32_t imageMemoryBarrierCount,const VkImageMemoryBarrier* pImageMemoryBarriers) const {
+  }
+
+  void pipelineBarrier(VkPipelineStageFlags srcStageMask,VkPipelineStageFlags dstStageMask,VkDependencyFlags dependencyFlags,uint32_t memoryBarrierCount,const VkMemoryBarrier* pMemoryBarriers,uint32_t bufferMemoryBarrierCount,const VkBufferMemoryBarrier* pBufferMemoryBarriers,uint32_t imageMemoryBarrierCount,const VkImageMemoryBarrier* pImageMemoryBarriers) const {
+    vkCmdPipelineBarrier(get(),srcStageMask,dstStageMask,dependencyFlags,memoryBarrierCount,pMemoryBarriers,bufferMemoryBarrierCount,pBufferMemoryBarriers,imageMemoryBarrierCount,pImageMemoryBarriers);
+  }
+
+  void beginQuery(VkQueryPool queryPool,uint32_t query,VkQueryControlFlags flags) const {
+    vkCmdBeginQuery(get(),queryPool,query,flags);
+  }
+
+  void endQuery(VkQueryPool queryPool,uint32_t query) const {
+    vkCmdEndQuery(get(),queryPool,query);
+  }
+
+  void resetQueryPool(VkQueryPool queryPool,uint32_t firstQuery,uint32_t queryCount) const {
+    vkCmdResetQueryPool(get(),queryPool,firstQuery,queryCount);
+  }
+
+  void writeTimestamp(VkPipelineStageFlagBits pipelineStage,VkQueryPool queryPool,uint32_t query) const {
+    vkCmdWriteTimestamp(get(),pipelineStage,queryPool,query);
+  }
+
+  void copyQueryPoolResults(VkQueryPool queryPool,uint32_t firstQuery,uint32_t queryCount,VkBuffer dstBuffer,VkDeviceSize dstOffset,VkDeviceSize stride,VkQueryResultFlags flags) const {
+    vkCmdCopyQueryPoolResults(get(),queryPool,firstQuery,queryCount,dstBuffer,dstOffset,stride,flags);
+  }
+
+  void pushConstants(VkPipelineLayout layout,VkShaderStageFlags stageFlags,uint32_t offset,uint32_t size,const void* pValues) const {
+    vkCmdPushConstants(get(),layout,stageFlags,offset,size,pValues);
+  }
+
+  void beginRenderPass(const VkRenderPassBeginInfo* pRenderPassBegin,VkSubpassContents contents) const {
+    vkCmdBeginRenderPass(get(),pRenderPassBegin,contents);
+  }
+
+  void nextSubpass(VkSubpassContents contents) const {
+    vkCmdNextSubpass(get(),contents);
+  }
+
+  void endRenderPass() const {
+    vkCmdEndRenderPass(get());
+  }
+
+  void executeCommands(uint32_t commandBufferCount,const VkCommandBuffer* pCommandBuffers) const {
+    vkCmdExecuteCommands(get(), commandBufferCount,pCommandBuffers);
+  }
+
+
+  /*void drawIndexed(uint32_t indexCount, uint32_t instanceCount, uint32_t firstIndex, int32_t vertexOffset, uint32_t firstInstance) const {
     // Draw indexed triangle
     if (indexCount != 0) vkCmdDrawIndexed(get(), indexCount, instanceCount, firstIndex, vertexOffset, firstInstance);
   }
 
   void endRenderPass() const {
     vkCmdEndRenderPass(get());
-  }
+  }*/
 
   // Create an image memory barrier for changing the layout of
   // an image and put it into an active command buffer
@@ -146,6 +297,9 @@ public:
     VkPipelineStageFlags destStageFlags = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
 
     switch (oldImageLayout) {
+      case VK_IMAGE_LAYOUT_GENERAL: {
+      } break;
+
       case VK_IMAGE_LAYOUT_UNDEFINED: {
         // Undefined layout
         // Only allowed as initial layout!
@@ -178,6 +332,9 @@ public:
 
     // Target layouts (new)
     switch (newImageLayout) {
+      case VK_IMAGE_LAYOUT_GENERAL: {
+      } break;
+
       // New layout is transfer destination (copy, blit)
       // Make sure any copyies to the image have been finished
       case VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL: {
@@ -187,7 +344,7 @@ public:
       // New layout is transfer source (copy, blit)
       // Make sure any reads from and writes to the image have been finished
       case VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL: {
-        imageMemoryBarrier.srcAccessMask = imageMemoryBarrier.srcAccessMask | VK_ACCESS_TRANSFER_READ_BIT;
+        imageMemoryBarrier.srcAccessMask |= VK_ACCESS_TRANSFER_READ_BIT;
         imageMemoryBarrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
       } break;
 
@@ -201,7 +358,7 @@ public:
       // New layout is depth attachment
       // Make sure any writes to depth/stencil buffer have been finished
       case VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL: {
-        imageMemoryBarrier.dstAccessMask = imageMemoryBarrier.dstAccessMask | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+        imageMemoryBarrier.dstAccessMask |= VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
       } break;
 
       // New layout is shader read (sampler, input attachment)
@@ -218,6 +375,8 @@ public:
         srcStageFlags = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
       } break;
 
+      case VK_IMAGE_LAYOUT_UNDEFINED:
+      case VK_IMAGE_LAYOUT_PREINITIALIZED:
       default: {
         throw(std::runtime_error("setImageLayout: unsupported destination layout"));
       }
@@ -248,17 +407,16 @@ public:
     return;
   }
 
+  commandBuffer &operator=(commandBuffer &rhs) {
+    (resource&)(*this) = (resource&)rhs;
+  }
+
   commandBuffer &operator=(commandBuffer &&rhs) {
     (resource&)(*this) = (resource&&)rhs;
     pool_ = rhs.pool_;
     return *this;
   }
 
-  /*commandBuffer &operator=(const commandBuffer &rhs) {
-    set(rhs.get(), false);
-    pool_ = rhs.pool_;
-    return *this;
-  }*/
   void destroy() {
     if (dev() && pool_) {
       VkCommandBuffer cb = get();

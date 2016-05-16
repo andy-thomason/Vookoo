@@ -86,8 +86,8 @@ public:
       }
     }
 
-    device_ = instance::get().device();
-    queue_ = instance::get().queue();
+    device_ = instance::singleton().device();
+    queue_ = instance::singleton().queue();
 
     // Find a suitable depth format
     depthFormat_ = device_.getSupportedDepthFormat();
@@ -427,7 +427,7 @@ public:
 
 
   void prepareWindow() {
-    VkSurfaceKHR surface = instance::get().createSurface((void*)(intptr_t)window_, connection());
+    VkSurfaceKHR surface = createSurface(instance::singleton().get(), (void*)(intptr_t)window_, connection());
     uint32_t queueNodeIndex = device_.getGraphicsQueueNodeIndex(surface);
     if (queueNodeIndex == ~(uint32_t)0) throw(std::runtime_error("no graphics and present queue available"));
     auto sf = device_.getSurfaceFormat(surface);
@@ -465,7 +465,7 @@ public:
     //depthStencil_.allocate(device_);
     //depthStencil_.bindMemoryToImage();
     depthStencil_.setImageLayout(setupCmdBuffer_, VK_IMAGE_ASPECT_DEPTH_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
-    depthStencil_.createView();
+    depthStencil_.createView(layout);
 
     pipelineCache_ = vku::pipelineCache(device_);
     //createPipelineCache();
@@ -583,6 +583,31 @@ public:
   virtual void render() = 0;
 
 private:
+  static VkSurfaceKHR createSurface(VkInstance instance, void *window, void *connection) {
+    VkSurfaceKHR result = VK_NULL_HANDLE;
+    // Create surface depending on OS
+    #if defined(_WIN32)
+      VkWin32SurfaceCreateInfoKHR surfaceCreateInfo = {};
+      surfaceCreateInfo.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
+      surfaceCreateInfo.hinstance = (HINSTANCE)connection;
+      surfaceCreateInfo.hwnd = (HWND)window;
+      VkResult err = vkCreateWin32SurfaceKHR(instance, &surfaceCreateInfo, nullptr, &result);
+    #elif defined(__ANDROID__)
+      VkAndroidSurfaceCreateInfoKHR surfaceCreateInfo = {};
+      surfaceCreateInfo.sType = VK_STRUCTURE_TYPE_ANDROID_SURFACE_CREATE_INFO_KHR;
+      surfaceCreateInfo.window = window;
+      VkResult err = vkCreateAndroidSurfaceKHR(instance, &surfaceCreateInfo, nullptr, &result);
+    #else
+      VkXcbSurfaceCreateInfoKHR surfaceCreateInfo = {};
+      surfaceCreateInfo.sType = VK_STRUCTURE_TYPE_XCB_SURFACE_CREATE_INFO_KHR;
+      surfaceCreateInfo.connection = connection;
+      surfaceCreateInfo.window = (xcb_window_t)(intptr_t)window;
+      VkResult err = vkCreateXcbSurfaceKHR(instance, &surfaceCreateInfo, nullptr, &result);
+    #endif
+    if (err) throw error(err, __FILE__, __LINE__);
+    return result;
+  }
+
   vku::device device_;
   vku::queue queue_;
   vku::commandPool cmdPool_;

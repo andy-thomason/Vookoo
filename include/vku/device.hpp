@@ -95,20 +95,6 @@ public:
         }
       }
     }
-
-    /*if (presentQueueNodeIndex == UINT32_MAX) 
-    {  
-      // If there's no queue that supports both present and graphics
-      // try to find a separate present queue
-      for (uint32_t i = 0; i < queueCount; ++i) 
-      {
-        if (supportsPresent[i] == VK_TRUE) 
-        {
-          presentQueueNodeIndex = i;
-          break;
-        }
-      }
-    }*/
     return ~(uint32_t)0;
   }
 
