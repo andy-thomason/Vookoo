@@ -2,34 +2,21 @@
 //
 // (C) Andy Thomason 2016
 //
-// Vookoo: main include file
+// Vookoo: 
 // 
 
 #ifndef VKU_IMAGE_INCLUDED
 #define VKU_IMAGE_INCLUDED
 
-
-#ifdef _WIN32
-  #define VK_USE_PLATFORM_WIN32_KHR 1
-  #pragma comment(lib, "vulkan-1.lib")
-  #define _CRT_SECURE_NO_WARNINGS
-#else
-  #define VK_USE_PLATFORM_XCB_KHR
-#endif
-
 #include <vku/resource.hpp>
 #include <vku/commandBuffer.hpp>
 #include <stdexcept>
-
-// derived from https://github.com/SaschaWillems/Vulkan
-//
-// Many thanks to Sascha, without who this would be a challenge!
 
 namespace vku {
 
 class imageLayoutHelper {
 public:
-  imageLayoutHelper(uint32_t width, uint32_t height) {
+  imageLayoutHelper(uint32_t width=0, uint32_t height=0) {
     info_.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
     info_.imageType = VK_IMAGE_TYPE_2D;
     info_.format = VK_FORMAT_R8G8B8_UNORM;
@@ -57,25 +44,28 @@ public:
   imageLayoutHelper &sharingMode(VkSharingMode value) { info_.sharingMode = value; return *this; }
   imageLayoutHelper &initialLayout(VkImageLayout value) { info_.initialLayout = value; return *this; }
   imageLayoutHelper &memoryPropertyFlag(VkMemoryPropertyFlagBits value) { memoryPropertyFlag_ = value; return *this; }
+  imageLayoutHelper &aspectMask(VkImageAspectFlagBits value) { aspectMask_ = value; return *this; }
 
-  auto format() { return info_.format; }
-  auto width() { return info_.extent.width; }
-  auto height() { return info_.extent.height; }
-  auto depth() { return info_.extent.depth; }
-  auto mipLevels() { return info_.mipLevels; }
-  auto arrayLayers() { return info_.arrayLayers; }
-  auto samples() { return info_.samples; }
-  auto tiling() { return info_.tiling; }
-  auto flags() { return info_.flags; }
-  auto usage() { return info_.usage; }
-  auto sharingMode() { return info_.sharingMode; }
-  auto initialLayout() { return info_.initialLayout; }
-  auto memoryPropertyFlag() { return memoryPropertyFlag_; }
+  auto format() const { return info_.format; }
+  auto width() const { return info_.extent.width; }
+  auto height() const { return info_.extent.height; }
+  auto depth() const { return info_.extent.depth; }
+  auto mipLevels() const { return info_.mipLevels; }
+  auto arrayLayers() const { return info_.arrayLayers; }
+  auto samples() const { return info_.samples; }
+  auto tiling() const { return info_.tiling; }
+  auto flags() const { return info_.flags; }
+  auto usage() const { return info_.usage; }
+  auto sharingMode() const { return info_.sharingMode; }
+  auto initialLayout() const { return info_.initialLayout; }
+  auto memoryPropertyFlag() const { return memoryPropertyFlag_; }
+  auto aspectMask() const { return aspectMask_; }
 
   VkImageCreateInfo *get() { return &info_; }
 private:
   VkImageCreateInfo info_ = {};
   VkMemoryPropertyFlagBits memoryPropertyFlag_ = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+  VkImageAspectFlagBits aspectMask_ = VK_IMAGE_ASPECT_COLOR_BIT;
 };
 
 class image : public resource<VkImage, image> {
@@ -95,7 +85,11 @@ public:
 
     allocate(device, layout);
     bindMemoryToImage();
-    createView(layout);
+    uint32_t view_usage = VK_IMAGE_USAGE_SAMPLED_BIT|VK_IMAGE_USAGE_STORAGE_BIT|VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+    if (layout.usage() & view_usage) {
+      //debugCallback: Invalid usage flag for image 0x1a used by vkCreateImageView(). In this case, image should have VK_IMAGE_USAGE_[SAMPLED|STORAGE|COLOR_ATTACHMENT]_BIT set during creation.
+      createView(layout);
+    }
   }
 
   void setImageLayout(const vku::commandBuffer &cmdBuf, VkImageAspectFlags aspectMask, VkImageLayout oldImageLayout, VkImageLayout newImageLayout) {
@@ -138,17 +132,101 @@ public:
     return size_;
   }
 
-  image(image &rhs) = default;
+  /// move constructor
+  image(image &&rhs) {
+    move(std::move(rhs));
+  }
 
+  /// move operator
   image &operator=(image &&rhs) {
-    (resource&)(*this) = (resource&&)rhs;
-    format_ = rhs.format_;
-    mem_ = rhs.mem_;
-    view_ = rhs.view_;
-    size_ = rhs.size_;
+    move(std::move(rhs));
     return *this;
   }
-public:
+
+  /// copy constructor
+  image(const image &rhs) {
+    copy(rhs);
+  }
+
+  /// copy operator
+  image &operator=(const image &rhs) {
+    copy(rhs);
+    return *this;
+  }
+
+  // https://en.wikipedia.org/wiki/BMP_file_format
+  template <class Writer>
+  void writeBMP(int width, int height, Writer &wr) {
+    if (format_ != VK_FORMAT_R8G8B8A8_UNORM) {
+      throw std::runtime_error("can't write this format");
+    }
+    VkImageSubresource sr = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0 };
+    VkSubresourceLayout layout;
+    vkGetImageSubresourceLayout(dev(), get(), &sr, &layout);
+
+    static const uint8_t hdr_proto[] = {
+      0x42,0x4d,0xaa,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x7a,0x00,0x00,0x00,0x6c,0x00,0x00,0x00,
+      0x04,0x00,0x00,0x00,0x04,0x00,0x00,0x00,0x01,0x00,0x18,0x00,0x00,0x00,0x00,0x00,0x30,0x00,
+      0x00,0x00,0x13,0x0b,0x00,0x00,0x13,0x0b,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+      0x42,0x47,0x52,0x73,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+      0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+      0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x02,0x00,
+      0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+    };
+    uint8_t hdr[sizeof(hdr_proto)];
+    memcpy(hdr, hdr_proto, sizeof(hdr_proto));
+    le4(hdr + 0x2, width * height * 3 + sizeof(hdr));
+    le4(hdr + 0x12, width);
+    le4(hdr + 0x16, height);
+    wr((const char*)hdr, sizeof(hdr));
+    uint8_t *src = (uint8_t *)map() + layout.offset;
+    std::vector<char> line(width*3);
+    for (int y = 0; y != height; ++y) {
+      for (int x = 0; x != width; ++x) {
+        line[x*3+0] = src[x*4+2];
+        line[x*3+1] = src[x*4+1];
+        line[x*3+2] = src[x*4+0];
+      }
+      wr(line.data(), width*3);
+      src += layout.rowPitch;
+    }
+    unmap();
+  }
+
+  /// todo: generalise
+  void createView(imageLayoutHelper &layout) {
+    VkImageViewCreateInfo viewCreateInfo = {};
+    viewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+    viewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+    viewCreateInfo.format = format_;
+    viewCreateInfo.flags = 0;
+    viewCreateInfo.subresourceRange = {};
+    viewCreateInfo.components = { VK_COMPONENT_SWIZZLE_R, VK_COMPONENT_SWIZZLE_G, VK_COMPONENT_SWIZZLE_B, VK_COMPONENT_SWIZZLE_A };
+    viewCreateInfo.subresourceRange.aspectMask = layout.usage() & VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT ? VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
+    viewCreateInfo.subresourceRange.baseMipLevel = 0;
+    viewCreateInfo.subresourceRange.levelCount = 1;
+    viewCreateInfo.subresourceRange.baseArrayLayer = 0;
+    viewCreateInfo.subresourceRange.layerCount = 1;
+    viewCreateInfo.image = get();
+    VkResult err = vkCreateImageView(dev(), &viewCreateInfo, nullptr, &view_);
+    if (err) throw error(err, __FILE__, __LINE__);
+  }
+
+private:
+  uint8_t *le2(uint8_t *d, int value) {
+    *d++ = (uint8_t)value;
+    *d++ = (uint8_t)(value >> 8);
+    return d;
+  }
+
+  uint8_t *le4(uint8_t *d, int value) {
+    *d++ = (uint8_t)value;
+    *d++ = (uint8_t)(value >> 8);
+    *d++ = (uint8_t)(value >> 16);
+    *d++ = (uint8_t)(value >> 24);
+    return d;
+  }
+
   /// allocate device memory
   void allocate(const vku::device &device, imageLayoutHelper &layout) {
     VkMemoryRequirements memReqs;
@@ -173,25 +251,6 @@ public:
     if (err) throw error(err, __FILE__, __LINE__);
   }
 
-  /// todo: generalise
-  void createView(imageLayoutHelper &layout) {
-    VkImageViewCreateInfo viewCreateInfo = {};
-    viewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-    viewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-    viewCreateInfo.format = format_;
-    viewCreateInfo.flags = 0;
-    viewCreateInfo.subresourceRange = {};
-    viewCreateInfo.components = { VK_COMPONENT_SWIZZLE_R, VK_COMPONENT_SWIZZLE_G, VK_COMPONENT_SWIZZLE_B, VK_COMPONENT_SWIZZLE_A };
-    viewCreateInfo.subresourceRange.aspectMask = layout.usage() & VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT ? VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
-    viewCreateInfo.subresourceRange.baseMipLevel = 0;
-    viewCreateInfo.subresourceRange.levelCount = 1;
-    viewCreateInfo.subresourceRange.baseArrayLayer = 0;
-    viewCreateInfo.subresourceRange.layerCount = 1;
-    viewCreateInfo.image = get();
-    VkResult err = vkCreateImageView(dev(), &viewCreateInfo, nullptr, &view_);
-    if (err) throw error(err, __FILE__, __LINE__);
-  }
-
   bool isDepthFormat() const {
     switch (format_) {
       case VK_FORMAT_D16_UNORM:
@@ -204,6 +263,22 @@ public:
       default:
         return false;
     }
+  }
+
+  void move(image &&rhs) {
+    (resource&)*this = (resource&&)rhs;
+    format_ = rhs.format_;
+    size_ = rhs.size_;
+    mem_ = rhs.mem_;
+    view_ = rhs.view_;
+  }
+
+  void copy(const image &rhs) {
+    (resource&)*this = (const resource&)rhs;
+    format_ = rhs.format_;
+    size_ = rhs.size_;
+    mem_ = rhs.mem_;
+    view_ = rhs.view_;
   }
 
   VkFormat format_ = VK_FORMAT_UNDEFINED;

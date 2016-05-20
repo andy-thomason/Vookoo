@@ -25,7 +25,7 @@ public:
   vku::buffer index_buffer;
   vku::buffer uniform_buffer;
 
-  vku::image texture;
+  vku::texture texture;
 
   // The desriptor pool is used to allocate components of the pipeline
   vku::descriptorPool descPool;
@@ -47,19 +47,13 @@ public:
 
   // This is the constructor for a window containing our example
   texture_example(int argc, const char **argv) : vku::window(argc, argv, false, 1280, 720, -2.5f, "texture") {
-    vku::imageLayoutHelper layout(32, 32);
-    layout.format(VK_FORMAT_BC3_UNORM_BLOCK);
+    vku::imageLayoutHelper texture_layout(2, 2);
+    texture_layout.format(VK_FORMAT_R8G8B8A8_UNORM);
+    vku::image texture_image(device(), texture_layout);
 
-    texture = vku::image(device(), layout);
-
-    static const uint8_t data[1024] = {
-      0xff, 0x00, 0x00,  0xff, 0xff, 0x00,  
-      0x00, 0x00, 0xff,  0xff, 0xff, 0xff,  
-    };
-
-    uint8_t *dest = (uint8_t *)texture.map();
-    memcpy(dest, data, sizeof(data));
-    texture.unmap();
+    uint8_t pixels[] = { 0xff, 0x00, 0x00, 0xff, 0xff, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff };
+    texture = vku::texture(device(), texture_layout, pixels, sizeof(pixels));
+    texture.upload(setupCmdBuffer());
 
     static const uint32_t indices[] = { 0, 1, 2 };
     static const float vertices[] = {

@@ -96,7 +96,7 @@ public:
     readBuffer = vku::image(device_, readBufferLayout);
 
     framebuffers[0] = vku::framebuffer(device_, backBuffers[0], depthBuffer, renderPass, width, height);
-    framebuffers[1] = vku::framebuffer(device_, backBuffers[0], depthBuffer, renderPass, width, height);
+    framebuffers[1] = vku::framebuffer(device_, backBuffers[1], depthBuffer, renderPass, width, height);
 
     vku::commandBuffer preRender(device_, cmdPool);
     preRender.beginCommandBuffer();
@@ -181,19 +181,8 @@ public:
     }
 
     uint8_t *bytes = (uint8_t *)readBuffer.map();
-    std::ofstream file("test.ppm");
-    file << "P6\n256 256\n";
-    for (int y = 0; y != 256; ++y) {
-      char line[256*3];
-      for (int x = 0; x != 256; ++x) {
-        line[x*3+0] = *bytes++;
-        line[x*3+1] = *bytes++;
-        line[x*3+2] = *bytes++;
-        bytes++;
-      }
-      file.write(line, 256*3);
-    }
-    readBuffer.unmap();
+    std::ofstream file("test.bmp");
+    readBuffer.writeBMP(width, height, [&file](const char *data, size_t size) { file.write(data, size); });
   }
 private:
   // these matrices transform rotate and position the triangle

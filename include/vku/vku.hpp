@@ -27,6 +27,7 @@
 #include <vku/commandPool.hpp>
 #include <vku/commandBuffer.hpp>
 #include <vku/image.hpp>
+#include <vku/texture.hpp>
 #include <vku/framebuffer.hpp>
 
 // Helper classes

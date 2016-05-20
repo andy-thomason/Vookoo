@@ -17,7 +17,12 @@
 #endif
 
 #include <vulkan/vulkan.h>
-#include <vulkan/vk_platform.h>
+
+#ifdef _WIN32
+  // Fix windows #define badness
+  #undef min
+  #undef max
+#endif
 
 #include <stdexcept>
 
@@ -84,8 +89,22 @@ public:
   resource(VkDevice dev) : dev_(dev), ownsResource(false) {
   }
 
+  resource(const resource &rhs) {
+    value_ = rhs.value_;
+    dev_ = rhs.dev_;
+    ownsResource = false;
+  }
+
+  resource(resource &&rhs) {
+    value_ = rhs.value_;
+    dev_ = rhs.dev_;
+    ownsResource = rhs.ownsResource;
+    rhs.value_ = VK_NULL_HANDLE;
+    rhs.ownsResource = false;
+  }
+
   // when a resource is copied in the normal way, the ownership is not transfered.
-  void operator=(resource &rhs) {
+  void operator=(const resource &rhs) {
     clear();
     value_ = rhs.value_;
     dev_ = rhs.dev_;

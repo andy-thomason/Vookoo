@@ -46,7 +46,7 @@ public:
     endCommandBuffer();
   }
 
-  void reset(VkCommandBufferResetFlags flags) const {
+  void reset(VkCommandBufferResetFlags flags=0) const {
     vkResetCommandBuffer(get(), flags);
   }
 
@@ -296,6 +296,7 @@ public:
     VkPipelineStageFlags srcStageFlags = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
     VkPipelineStageFlags destStageFlags = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
 
+    // todo: this is quite clearly wrong in many places.
     switch (oldImageLayout) {
       case VK_IMAGE_LAYOUT_GENERAL: {
       } break;
@@ -312,6 +313,11 @@ public:
         imageMemoryBarrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
       } break;
       case VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL: {
+        // Old layout is transfer source
+        // Make sure any reads from the image have been finished
+        imageMemoryBarrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+      } break;
+      case VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL: {
         // Old layout is transfer source
         // Make sure any reads from the image have been finished
         imageMemoryBarrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;

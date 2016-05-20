@@ -2,12 +2,11 @@
 //
 // (C) Andy Thomason 2016
 //
-// Vookoo: window class: basic framework for booting vulkan
+// Vookoo: window class: for operating vulkan on desktop machines.
 // 
 
 #ifndef VKU_WINDOW_INCLUDED
 #define VKU_WINDOW_INCLUDED
-
 
 #include <vku/queue.hpp>
 #include <vku/semaphore.hpp>
@@ -15,6 +14,8 @@
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+
+
 
 #include <unordered_map>
 
