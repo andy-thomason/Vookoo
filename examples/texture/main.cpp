@@ -1,6 +1,6 @@
 ////////////////////////////////////////////////////////////////////////////////
 //
-// Minimalistic Vulkan Mesh sample
+// Minimalistic Vulkan Texture sample
 //
 // 
 
@@ -26,6 +26,7 @@ public:
   vku::buffer uniform_buffer;
 
   vku::texture texture;
+  vku::sampler sampler;
 
   // The desriptor pool is used to allocate components of the pipeline
   vku::descriptorPool descPool;
@@ -49,11 +50,12 @@ public:
   texture_example(int argc, const char **argv) : vku::window(argc, argv, false, 1280, 720, -2.5f, "texture") {
     vku::imageLayoutHelper texture_layout(2, 2);
     texture_layout.format(VK_FORMAT_R8G8B8A8_UNORM);
-    vku::image texture_image(device(), texture_layout);
-
-    uint8_t pixels[] = { 0xff, 0x00, 0x00, 0xff, 0xff, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff };
+    uint8_t pixels[] = { 0xff, 0x00, 0x00, 0xff,  0xff, 0xff, 0x00, 0xff,  0x00, 0x00, 0xff, 0xff,  0xff, 0xff, 0xff, 0xff };
     texture = vku::texture(device(), texture_layout, pixels, sizeof(pixels));
     texture.upload(setupCmdBuffer());
+
+    vku::samplerLayout layout(0);
+    sampler = vku::sampler(device(), layout);
 
     static const uint32_t indices[] = { 0, 1, 2 };
     static const float vertices[] = {

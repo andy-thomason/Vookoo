@@ -84,8 +84,9 @@ public:
     cmdBuf.setImageLayout(gpuImage_, aspectMask, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
   }
 
-  const vku::image &gpuImage() const { return gpuImage_; }
-  const vku::image &hostImage() const { return hostImage_; }
+  const image &gpuImage() const { return gpuImage_; }
+  const image &hostImage() const { return hostImage_; }
+  const imageLayoutHelper &layout() const { return layout_; }
 private:
   void copy(const texture &rhs) {
     hostImage_ = rhs.hostImage_;
