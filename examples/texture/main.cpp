@@ -34,6 +34,9 @@ public:
   // The pipeline tells the GPU how to render the triangle
   vku::pipeline pipe;
 
+  //
+  vku::descriptorSet descriptorSet;
+
   // The vertex shader uses the uniforms to transform the points in the triangle
   vku::shaderModule vertexShader;
 
@@ -78,15 +81,17 @@ public:
     pipeHelper.attrib(2, vertex_buffer_bind_id, VK_FORMAT_R32G32_SFLOAT, sizeof(float)*6);
 
     // Matrices
-
     uniform_buffer = vku::buffer(device(), (void*)nullptr, sizeof(uniform_data), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
     
     // Shaders
     vertexShader = vku::shaderModule(device(), "mesh.vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
     fragmentShader = vku::shaderModule(device(), "mesh.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
 
-    // How many uniform buffers per stage
+    // add uniform buffer to vertex stage
     pipeHelper.uniformBuffers(1, VK_SHADER_STAGE_VERTEX_BIT);
+
+    // add sampler to vertex stage
+    pipeHelper.samplers(1, VK_SHADER_STAGE_FRAGMENT_BIT);
 
     // Where the shaders are used.
     pipeHelper.shader(vertexShader, VK_SHADER_STAGE_VERTEX_BIT);
@@ -96,13 +101,16 @@ public:
     pipe = vku::pipeline(device(), swapChain().renderPass(), pipelineCache(), pipeHelper);
 
     // construct the descriptor pool which is used at runtime to allocate descriptor sets
-    uint32_t num_uniform_buffers = 1;
-    descPool = vku::descriptorPool(device(), num_uniform_buffers);
+    vku::descriptorPoolLayout dpLayout;
+    dpLayout.uniformBuffers(1);
+    dpLayout.samplers(1);
+    descPool = vku::descriptorPool(device(), dpLayout);
 
-    // Allocate descriptor sets for the uniform buffer
-    // todo: descriptor sets need a little more work.
-    pipe.allocateDescriptorSets(descPool);
+    vku::descriptorset 
+
+    pipe.allocateDescriptorSets(descPool, 2);
     pipe.updateDescriptorSets(uniform_buffer);
+    //pipe.updateDescriptorSets(sampler);
 
     // We have two command buffers, one for even frames and one for odd frames.
     // This allows us to update one while rendering another.
