@@ -21,8 +21,6 @@
 #include <vku/buffer.hpp>
 #include <vku/renderPassLayout.hpp>
 #include <vku/renderPass.hpp>
-#include <vku/descriptorPool.hpp>
-#include <vku/descriptorSet.hpp>
 #include <vku/pipeline.hpp>
 #include <vku/semaphore.hpp>
 #include <vku/queue.hpp>

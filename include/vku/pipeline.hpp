@@ -9,10 +9,93 @@
 #define VKU_PIPELINE_INCLUDED
 
 #include <vku/resource.hpp>
-#include <vulkan/vulkan.h>
-#include <vector>
 
 namespace vku {
+
+class descriptorPool {
+public:
+  descriptorPool() {
+  }
+
+  descriptorPool(VkDevice dev, uint32_t num_uniform_buffers) : dev_(dev) {
+    // We need to tell the API the number of max. requested descriptors per type
+    VkDescriptorPoolSize typeCounts[1];
+    // This example only uses one descriptor type (uniform buffer) and only
+    // requests one descriptor of this type
+    typeCounts[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    typeCounts[0].descriptorCount = num_uniform_buffers;
+    // For additional types you need to add new entries in the type count list
+    // E.g. for two combined image samplers :
+    // typeCounts[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    // typeCounts[1].descriptorCount = 2;
+
+    // Create the global descriptor pool
+    // All descriptors used in this example are allocated from this pool
+    VkDescriptorPoolCreateInfo descriptorPoolInfo = {};
+    descriptorPoolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    descriptorPoolInfo.pNext = NULL;
+    descriptorPoolInfo.poolSizeCount = 1;
+    descriptorPoolInfo.pPoolSizes = typeCounts;
+    // Set the max. number of sets that can be requested
+    // Requesting descriptors beyond maxSets will result in an error
+    descriptorPoolInfo.maxSets = num_uniform_buffers * 2;
+
+    VkResult err = vkCreateDescriptorPool(dev_, &descriptorPoolInfo, nullptr, &pool_);
+    if (err) throw error(err, __FILE__, __LINE__);
+
+    ownsResource_ = true;
+  }
+
+  // allocate a descriptor set for a buffer
+  VkWriteDescriptorSet *allocateDescriptorSet(const buffer &buffer, const VkDescriptorSetLayout *layout, VkDescriptorSet *descriptorSets) {
+    // Update descriptor sets determining the shader binding points
+    // For every binding point used in a shader there needs to be one
+    // descriptor set matching that binding point
+
+    VkDescriptorSetAllocateInfo allocInfo = {};
+    allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    allocInfo.descriptorPool = pool_;
+    allocInfo.descriptorSetCount = 1;
+    allocInfo.pSetLayouts = layout;
+
+    VkResult err = vkAllocateDescriptorSets(dev_, &allocInfo, descriptorSets);
+    if (err) throw error(err, __FILE__, __LINE__);
+
+    // Binding 0 : Uniform buffer
+    VkDescriptorBufferInfo desc = buffer.desc();
+    writeDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    writeDescriptorSet.dstSet = descriptorSets[0];
+    writeDescriptorSet.descriptorCount = 1;
+    writeDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    writeDescriptorSet.pBufferInfo = &desc;
+    // Binds this uniform buffer to binding point 0
+    writeDescriptorSet.dstBinding = 0;
+
+    return &writeDescriptorSet;
+  }
+
+  ~descriptorPool() {
+    if (pool_ && ownsResource_) {
+      vkDestroyDescriptorPool(dev_, pool_, nullptr);
+      ownsResource_ = false;
+    }
+  }
+
+  descriptorPool &operator=(descriptorPool &&rhs) {
+    ownsResource_ = true;
+    pool_ = rhs.pool_;
+    rhs.ownsResource_ = false;
+    dev_ = rhs.dev_;
+    return *this;
+  }
+
+  operator VkDescriptorPool() { return pool_; }
+private:
+  VkDevice dev_ = VK_NULL_HANDLE;
+  VkDescriptorPool pool_ = VK_NULL_HANDLE;
+  bool ownsResource_ = false;
+  VkWriteDescriptorSet writeDescriptorSet = {};
+};
 
 class pipelineCache : public resource<VkPipelineCache, pipelineCache> {
 public:
@@ -134,21 +217,13 @@ public:
     return *this;
   }
 
-  pipelineCreateHelper &descriptors(VkDescriptorType type, uint32_t count, VkShaderStageFlags stageFlags) {
+  pipelineCreateHelper &uniformBuffers(uint32_t count, VkShaderStageFlags stageFlags) {
     VkDescriptorSetLayoutBinding layoutBinding = {};
-    layoutBinding.descriptorType = type;
+    layoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
     layoutBinding.descriptorCount = count;
     layoutBinding.stageFlags = stageFlags;
     layoutBindings_.push_back(layoutBinding);
     return *this;
-  }
-
-  pipelineCreateHelper &uniformBuffers(uint32_t count, VkShaderStageFlags stageFlags) {
-    return descriptors(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, count, stageFlags);
-  }
-
-  pipelineCreateHelper &samplers(uint32_t count, VkShaderStageFlags stageFlags) {
-    return descriptors(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, count, stageFlags);
   }
 
   pipelineCreateHelper &shader(const vku::shaderModule &module, VkShaderStageFlagBits stage, const char *entrypoint="main") {
