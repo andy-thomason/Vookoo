@@ -82,8 +82,8 @@ public:
     uniform_buffer = vku::buffer(device(), (void*)nullptr, sizeof(uniform_data), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
     
     // Shaders
-    vertexShader = vku::shaderModule(device(), "mesh.vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
-    fragmentShader = vku::shaderModule(device(), "mesh.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
+    vertexShader = vku::shaderModule(device(), "texture.vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
+    fragmentShader = vku::shaderModule(device(), "texture.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
 
     // How many uniform buffers per stage
     pipeHelper.uniformBuffers(1, VK_SHADER_STAGE_VERTEX_BIT);
