@@ -1,7 +1,7 @@
-Vookoo: Vulkan Utititles Library
+Vookoo: Vulkan Utilities Library
 ================================
 
-A simple utilities library in modern C++ for the Vulkan graphics
+A simple utilities library in modern +C+ for the Vulkan graphics
 API that has sensible defaults and an easy programming interface.
 
 Intended to be a "GLUT" for Vulkan.
