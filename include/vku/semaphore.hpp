@@ -13,9 +13,7 @@ namespace vku {
 
 class semaphore : public resource<VkSemaphore, semaphore> {
 public:
-  /// semaphore that does not own its pointer
-  semaphore(VkSemaphore value = VK_NULL_HANDLE, VkDevice dev = VK_NULL_HANDLE) : resource(value, dev) {
-  }
+  VKU_RESOURCE_BOILERPLATE(VkSemaphore, semaphore)
 
   /// semaphore that does own (and creates) its pointer
   semaphore(VkDevice dev) : resource(dev) {
@@ -29,39 +27,10 @@ public:
     set(res, true);
   }
 
-  /// move constructor
-  semaphore(semaphore &&rhs) {
-    move(std::move(rhs));
-  }
-
-  /// move operator
-  semaphore &operator=(semaphore &&rhs) {
-    move(std::move(rhs));
-    return *this;
-  }
-
-  /// copy constructor
-  semaphore(const semaphore &rhs) {
-    copy(rhs);
-  }
-
-  /// copy operator
-  semaphore &operator=(const semaphore &rhs) {
-    copy(rhs);
-    return *this;
-  }
-
   void destroy() {
     vkDestroySemaphore(dev(), get(), nullptr);
   }
 private:
-  void move(semaphore &&rhs) {
-    (resource&)*this = (resource&&)rhs;
-  }
-
-  void copy(const semaphore &rhs) {
-    (resource&)*this = (const resource&)rhs;
-  }
 };
 
 

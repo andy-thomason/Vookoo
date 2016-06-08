@@ -138,12 +138,40 @@ public:
     if (value_ && ownsResource) ((ParentClass*)this)->destroy();
     value_ = VK_NULL_HANDLE; ownsResource = false;
   }
+
+  void move(resource &&rhs) {
+    operator=(std::move(rhs));
+  }
+
+  void copy(const resource &rhs) {
+    operator=(rhs);
+  }
 private:
   // resources have a value, a device and an ownership flag.
   VulkanType value_ = VK_NULL_HANDLE;
   VkDevice dev_ = VK_NULL_HANDLE;
   bool ownsResource = false;
 };
+
+// ghastly boilerplate as a macro
+
+#define VKU_RESOURCE_BOILERPLATE(vktype, vkuclass) \
+  vkuclass(vktype value = VK_NULL_HANDLE, VkDevice dev = VK_NULL_HANDLE) : resource(value, dev) { \
+  } \
+  vkuclass(vkuclass &&rhs) { \
+    move(std::move(rhs)); \
+  } \
+  vkuclass &operator=(vkuclass &&rhs) { \
+    move(std::move(rhs)); \
+    return *this; \
+  } \
+  vkuclass(const vkuclass &rhs) { \
+    copy(rhs); \
+  } \
+  vkuclass &operator=(const vkuclass &rhs) { \
+    copy(rhs); \
+    return *this; \
+  }
 
 
 } // vku

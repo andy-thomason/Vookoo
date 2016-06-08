@@ -70,9 +70,7 @@ private:
 
 class image : public resource<VkImage, image> {
 public:
-  /// image that does not own its pointer
-  image(VkImage value = VK_NULL_HANDLE, VkDevice dev = VK_NULL_HANDLE) : resource(value, dev) {
-  }
+  VKU_RESOURCE_BOILERPLATE(VkImage, image)
 
   /// image that does own (and creates) its pointer
   image(const vku::device &device, imageLayoutHelper &layout) : resource(VK_NULL_HANDLE, device) {
@@ -130,28 +128,6 @@ public:
 
   size_t size() const {
     return size_;
-  }
-
-  /// move constructor
-  image(image &&rhs) {
-    move(std::move(rhs));
-  }
-
-  /// move operator
-  image &operator=(image &&rhs) {
-    move(std::move(rhs));
-    return *this;
-  }
-
-  /// copy constructor
-  image(const image &rhs) {
-    copy(rhs);
-  }
-
-  /// copy operator
-  image &operator=(const image &rhs) {
-    copy(rhs);
-    return *this;
   }
 
   // https://en.wikipedia.org/wiki/BMP_file_format
