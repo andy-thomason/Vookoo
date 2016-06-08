@@ -19,9 +19,6 @@ public:
 
   /// semaphore that does own (and creates) its pointer
   semaphore(VkDevice dev) : resource(dev) {
-  }
-
-  VkSemaphore create(VkDevice dev) {
     VkSemaphoreCreateInfo info = {};
     info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
     info.flags = VK_FENCE_CREATE_SIGNALED_BIT;
@@ -29,7 +26,7 @@ public:
     VkSemaphore res = VK_NULL_HANDLE;
     VkResult err = vkCreateSemaphore(dev, &info, nullptr, &res);
     if (err) throw error(err, __FILE__, __LINE__);
-    return res;
+    set(res, true);
   }
 
   void destroy() {
