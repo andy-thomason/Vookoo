@@ -9,14 +9,77 @@
 #define VKU_PIPELINE_INCLUDED
 
 #include <vku/resource.hpp>
+#include <vector>
 
 namespace vku {
+
+class descriptorPoolHelper {
+public:
+  descriptorPoolHelper(uint32_t maxSets) {
+    info_.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    info_.poolSizeCount = 0;
+    info_.pPoolSizes = nullptr;
+    info_.maxSets = maxSets;
+  }
+
+  descriptorPoolHelper &samplers(uint32_t descriptorCount) {
+    return descriptors(VK_DESCRIPTOR_TYPE_SAMPLER, descriptorCount);
+  }
+
+  descriptorPoolHelper &combinedImageSamplers(uint32_t descriptorCount) {
+    return descriptors(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, descriptorCount);
+  }
+
+  descriptorPoolHelper &uniformBuffers(uint32_t descriptorCount) {
+    return descriptors(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, descriptorCount);
+  }
+
+  /*
+    todo:
+    VK_DESCRIPTOR_TYPE_SAMPLER = 0,
+    VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER = 1,
+    VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE = 2,
+    VK_DESCRIPTOR_TYPE_STORAGE_IMAGE = 3,
+    VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER = 4,
+    VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER = 5,
+    VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER = 6,
+    VK_DESCRIPTOR_TYPE_STORAGE_BUFFER = 7,
+    VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC = 8,
+    VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC = 9,
+  */
+
+  descriptorPoolHelper &descriptors(VkDescriptorType type, uint32_t descriptorCount) {
+    VkDescriptorPoolSize dps = {};
+    dps.type = type;
+    dps.descriptorCount = descriptorCount;
+    typeCounts_.push_back(dps);
+    return *this;
+  }
+
+  VkDescriptorPool createDescriptorPool(const vku::device &dev) const {
+    VkDescriptorPoolCreateInfo descriptorPoolInfo = {};
+    descriptorPoolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    descriptorPoolInfo.pNext = NULL;
+    descriptorPoolInfo.poolSizeCount = (uint32_t)typeCounts_.size();
+    descriptorPoolInfo.pPoolSizes = typeCounts_.data();
+    descriptorPoolInfo.maxSets = (uint32_t)typeCounts_.size() * 2; // todo... what should this be?
+
+    VkDescriptorPool result = VK_NULL_HANDLE;
+    VkResult err = vkCreateDescriptorPool(dev, &descriptorPoolInfo, nullptr, &result);
+    if (err) throw error(err, __FILE__, __LINE__);
+    return result;
+  }
+private:
+  std::vector<VkDescriptorPoolSize> typeCounts_;
+  VkDescriptorPoolCreateInfo info_ = {};
+};
 
 class descriptorPool {
 public:
   descriptorPool() {
   }
 
+  // deprecated
   descriptorPool(VkDevice dev, uint32_t num_uniform_buffers) : dev_(dev) {
     // We need to tell the API the number of max. requested descriptors per type
     VkDescriptorPoolSize typeCounts[1];
@@ -43,6 +106,11 @@ public:
     VkResult err = vkCreateDescriptorPool(dev_, &descriptorPoolInfo, nullptr, &pool_);
     if (err) throw error(err, __FILE__, __LINE__);
 
+    ownsResource_ = true;
+  }
+
+  descriptorPool(const vku::device &dev, vku::descriptorPoolHelper &layout) : dev_(dev) {
+    pool_ = layout.createDescriptorPool(dev);
     ownsResource_ = true;
   }
 

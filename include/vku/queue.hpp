@@ -17,15 +17,14 @@ public:
   }
 
   void submit(VkSemaphore sema, VkCommandBuffer buffer) const {
-    // The submit infor strcuture contains a list of
-    // command buffers and semaphores to be submitted to a queue
-    // If you want to submit multiple command buffers, pass an array
     VkSubmitInfo submitInfo = {};
+    VkPipelineStageFlags flags = VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT;
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
     submitInfo.waitSemaphoreCount = sema ? 1 : 0;
     submitInfo.pWaitSemaphores = &sema;
     submitInfo.commandBufferCount = 1;
     submitInfo.pCommandBuffers = &buffer;
+    submitInfo.pWaitDstStageMask = &flags;
 
     // Submit to the graphics queue
     VkResult err = vkQueueSubmit(get(), 1, &submitInfo, VK_NULL_HANDLE);

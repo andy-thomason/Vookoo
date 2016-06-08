@@ -29,8 +29,38 @@ public:
     set(res, true);
   }
 
+  /// move constructor
+  semaphore(semaphore &&rhs) {
+    move(std::move(rhs));
+  }
+
+  /// move operator
+  semaphore &operator=(semaphore &&rhs) {
+    move(std::move(rhs));
+    return *this;
+  }
+
+  /// copy constructor
+  semaphore(const semaphore &rhs) {
+    copy(rhs);
+  }
+
+  /// copy operator
+  semaphore &operator=(const semaphore &rhs) {
+    copy(rhs);
+    return *this;
+  }
+
   void destroy() {
     vkDestroySemaphore(dev(), get(), nullptr);
+  }
+private:
+  void move(semaphore &&rhs) {
+    (resource&)*this = (resource&&)rhs;
+  }
+
+  void copy(const semaphore &rhs) {
+    (resource&)*this = (const resource&)rhs;
   }
 };
 

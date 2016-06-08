@@ -89,6 +89,7 @@ public:
 
     device_ = instance::singleton().device();
     queue_ = instance::singleton().queue();
+    presentSema_ = vku::semaphore(device_);
 
     // Find a suitable depth format
     depthFormat_ = device_.getSupportedDepthFormat();
@@ -529,14 +530,10 @@ public:
   }
 
   void present() {
-    {
-      vku::semaphore sema(device_);
+    // Get next image in the swap chain (back/front buffer)
+    currentBuffer_ = swapChain_.acquireNextImage(presentSema_);
 
-      // Get next image in the swap chain (back/front buffer)
-      currentBuffer_ = swapChain_.acquireNextImage(sema);
-
-      queue_.submit(sema, drawCmdBuffers_[currentBuffer_]);
-    }
+    queue_.submit(presentSema_, drawCmdBuffers_[currentBuffer_]);
 
     // Present the current buffer to the swap chain
     // This will display the image
@@ -618,6 +615,7 @@ private:
   vku::pipelineCache pipelineCache_;
   vku::image depthStencil_;
   vku::swapChain swapChain_;
+  vku::semaphore presentSema_;
 
   VkFormat colorformat_ = VK_FORMAT_B8G8R8A8_UNORM;
   VkFormat depthFormat_;
