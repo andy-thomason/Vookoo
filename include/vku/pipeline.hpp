@@ -186,6 +186,16 @@ public:
     return *this;
   }
 
+  /*pipelineCreateHelper &combinedImageSampler(uint32_t count, VkShaderStageFlags stageFlags, const VkSampler *samplers) {
+    VkDescriptorSetLayoutBinding layoutBinding = {};
+    layoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    layoutBinding.descriptorCount = count;
+    layoutBinding.stageFlags = stageFlags;
+    layoutBinding.pImmutableSamplers = samplers;
+    layoutBindings_.push_back(layoutBinding);
+    return *this;
+  }*/
+
   pipelineCreateHelper &shader(const vku::shaderModule &module, VkShaderStageFlagBits stage, const char *entrypoint="main") {
     VkPipelineShaderStageCreateInfo shaderStage = {};
     shaderStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -263,7 +273,6 @@ public:
     if (err) throw error(err, __FILE__, __LINE__);
     return result;
   }
-
 
   pipelineCreateHelper &operator=(pipelineCreateHelper && rhs) = delete;
   pipelineCreateHelper &operator=(pipelineCreateHelper & rhs) = delete;

@@ -27,10 +27,4 @@ void main() {
   viewPos_out = viewPos.xyz;
   viewLightPos_out = (modelToView * ubo.worldLightPosition).xyz;
 	gl_Position = ubo.viewToProjection * viewPos;
-
-	/*mat4 modelToView = ubo.worldToView * ubo.modelToWorld;
-	vec4 viewPos = modelToView * pos_in;	
-	eyeDirection_out = -viewPos.xyz;
-	vec4 viewLightPos = ubo.worldToView * ubo.worldLightPosition;
-	lightDirection_out = normalize(viewLightPos.xyz - viewPos.xyz);*/
 }

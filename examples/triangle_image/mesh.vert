@@ -16,6 +16,10 @@ layout (binding = 0) uniform UBO
 	vec4 worldLightPosition;
 } ubo;
 
+out gl_PerVertex {
+    vec4 gl_Position;
+};
+
 void main() {
   mat4 modelToView = ubo.worldToView * ubo.modelToWorld;
 	vec4 viewPos = modelToView * pos_in;

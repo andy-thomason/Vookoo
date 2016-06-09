@@ -298,15 +298,18 @@ public:
 
     // todo: this is quite clearly wrong in many places.
     switch (oldImageLayout) {
+      case VK_IMAGE_LAYOUT_PREINITIALIZED: {
+        imageMemoryBarrier.srcAccessMask = VK_ACCESS_HOST_WRITE_BIT | VK_ACCESS_TRANSFER_WRITE_BIT;
+      } break;
+
       case VK_IMAGE_LAYOUT_GENERAL: {
+        imageMemoryBarrier.srcAccessMask = VK_ACCESS_HOST_WRITE_BIT | VK_ACCESS_TRANSFER_WRITE_BIT;
       } break;
 
       case VK_IMAGE_LAYOUT_UNDEFINED: {
-        // Undefined layout
-        // Only allowed as initial layout!
-        // Make sure any writes to the image have been finished
-        imageMemoryBarrier.srcAccessMask = VK_ACCESS_HOST_WRITE_BIT | VK_ACCESS_TRANSFER_WRITE_BIT;
+        // No access mask must be set
       } break;
+
       case VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL: {
         // Old layout is color attachment
         // Make sure any writes to the color buffer have been finished
