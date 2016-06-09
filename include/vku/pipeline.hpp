@@ -13,6 +13,7 @@
 
 namespace vku {
 
+
 class descriptorPoolHelper {
 public:
   descriptorPoolHelper(uint32_t maxSets) {
@@ -197,17 +198,11 @@ public:
 class pipelineCreateHelper {
 public:
   pipelineCreateHelper() {
-    // Vertex input state
-    // Describes the topoloy used with this pipeline
     inputAssemblyState.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-    // This pipeline renders vertex data as triangle lists
     inputAssemblyState.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 
-    // Rasterization state
     rasterizationState.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
-    // Solid polygon mode
     rasterizationState.polygonMode = VK_POLYGON_MODE_FILL;
-    // No culling
     rasterizationState.cullMode = VK_CULL_MODE_NONE;
     rasterizationState.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
     rasterizationState.depthClampEnable = VK_FALSE;
@@ -215,21 +210,11 @@ public:
     rasterizationState.depthBiasEnable = VK_FALSE;
     rasterizationState.lineWidth = 1.0f;
 
-    // Color blend state
-    // Describes blend modes and color masks
     colorBlendState.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-    // One blend attachment state
-    // Blending is not used in this example
-    blendAttachmentState[0].colorWriteMask = 0xf;
-    blendAttachmentState[0].blendEnable = VK_FALSE;
     colorBlendState.attachmentCount = 1;
-    colorBlendState.pAttachments = blendAttachmentState;
 
-    // Viewport state
     viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
-    // One viewport
     viewportState.viewportCount = 1;
-    // One scissor rectangle
     viewportState.scissorCount = 1;
 
     // Enable dynamic states
@@ -241,11 +226,9 @@ public:
     dynamicStateEnables.push_back(VK_DYNAMIC_STATE_VIEWPORT);
     dynamicStateEnables.push_back(VK_DYNAMIC_STATE_SCISSOR);
     dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
-    dynamicState.pDynamicStates = dynamicStateEnables.data();
-    dynamicState.dynamicStateCount = (uint32_t)dynamicStateEnables.size();
 
     // Depth and stencil state
-    // Describes depth and stenctil test and compare ops
+    // Describes depth and stencil test and compare ops
     // Basic depth compare setup with depth writes and depth test enabled
     // No stencil used 
     depthStencilState.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
@@ -262,7 +245,6 @@ public:
     // Multi sampling state
     multisampleState.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
     multisampleState.pSampleMask = NULL;
-    // No multi sampling used in this example
     multisampleState.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
   }
 
@@ -310,64 +292,34 @@ public:
     return *this;
   }
 
-  // querying functions
-  VkDescriptorSetLayoutCreateInfo *getDescriptorSetLayout() {
+  VkDescriptorSetLayout createDescriptorSetLayout(VkDevice device) {
     descriptorLayout_.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
     descriptorLayout_.bindingCount = (uint32_t)layoutBindings_.size();
     descriptorLayout_.pBindings = layoutBindings_.data();
-    return &descriptorLayout_;
-  }
-
-  /*VkGraphicsPipelineCreateInfo *get(VkRenderPass renderPass, VkPipelineLayout pipelineLayout) {
-    vi.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-    vi.pNext = VK_NULL_HANDLE;
-    vi.vertexBindingDescriptionCount = (uint32_t)bindingDescriptions.size();
-    vi.pVertexBindingDescriptions = bindingDescriptions.data();
-    vi.vertexAttributeDescriptionCount = (uint32_t)attributeDescriptions.size();
-    vi.pVertexAttributeDescriptions = attributeDescriptions.data();
-
-    pipelineCreateInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-    // The layout used for this pipeline
-    pipelineCreateInfo.layout = pipelineLayout;
-    // Renderpass this pipeline is attached to
-    pipelineCreateInfo.renderPass = renderPass;
-
-    // Assign states
-    // Two shader stages
-    pipelineCreateInfo.stageCount = (uint32_t)shaderStages_.size();
-    // Assign pipeline state create information
-    pipelineCreateInfo.pVertexInputState = &vi;
-    pipelineCreateInfo.pInputAssemblyState = &inputAssemblyState;
-    pipelineCreateInfo.pRasterizationState = &rasterizationState;
-    pipelineCreateInfo.pColorBlendState = &colorBlendState;
-    pipelineCreateInfo.pMultisampleState = &multisampleState;
-    pipelineCreateInfo.pViewportState = &viewportState;
-    pipelineCreateInfo.pDepthStencilState = &depthStencilState;
-    pipelineCreateInfo.pStages = shaderStages_.data();
-    pipelineCreateInfo.renderPass = renderPass;
-    pipelineCreateInfo.pDynamicState = &dynamicState;
-
-    return &pipelineCreateInfo;
-  }*/
+    VkDescriptorSetLayout result = VK_NULL_HANDLE;
+    VkResult err = vkCreateDescriptorSetLayout(device, &descriptorLayout_, NULL, &result);
+    if (err) throw error(err, __FILE__, __LINE__);
+    return result; 
+  } 
 
   VkPipeline createGraphicsPipeline(VkDevice device, VkRenderPass renderPass, VkPipelineLayout pipelineLayout, VkPipelineCache pipelineCache) {
+    blendAttachmentState[0].colorWriteMask = 0xf;
+    blendAttachmentState[0].blendEnable = VK_FALSE;
+    colorBlendState.pAttachments = blendAttachmentState;
+    
+    dynamicState.pDynamicStates = dynamicStateEnables.data();
+    dynamicState.dynamicStateCount = (uint32_t)dynamicStateEnables.size();
+
     vi.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-    vi.pNext = VK_NULL_HANDLE;
     vi.vertexBindingDescriptionCount = (uint32_t)bindingDescriptions.size();
     vi.pVertexBindingDescriptions = bindingDescriptions.data();
     vi.vertexAttributeDescriptionCount = (uint32_t)attributeDescriptions.size();
     vi.pVertexAttributeDescriptions = attributeDescriptions.data();
 
     pipelineCreateInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-    // The layout used for this pipeline
     pipelineCreateInfo.layout = pipelineLayout;
-    // Renderpass this pipeline is attached to
     pipelineCreateInfo.renderPass = renderPass;
-
-    // Assign states
-    // Two shader stages
     pipelineCreateInfo.stageCount = (uint32_t)shaderStages_.size();
-    // Assign pipeline state create information
     pipelineCreateInfo.pVertexInputState = &vi;
     pipelineCreateInfo.pInputAssemblyState = &inputAssemblyState;
     pipelineCreateInfo.pRasterizationState = &rasterizationState;
@@ -417,19 +369,14 @@ public:
     const vku::pipelineCache &pipelineCache,
     pipelineCreateHelper &pipelineCreateHelper
   ) : dev_(device) {
-    VkResult err = vkCreateDescriptorSetLayout(device, pipelineCreateHelper.getDescriptorSetLayout(), NULL, &descriptorSetLayout);
-    if (err) throw error(err, __FILE__, __LINE__);
+    descriptorSetLayout = pipelineCreateHelper.createDescriptorSetLayout(device); 
 
-    // Create the pipeline layout that is used to generate the rendering pipelines that
-    // are based on this descriptor set layout
-    // In a more complex scenario you would have different pipeline layouts for different
-    // descriptor set layouts that could be reused
-    VkPipelineLayoutCreateInfo pPipelineLayoutCreateInfo = {};
-    pPipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    pPipelineLayoutCreateInfo.setLayoutCount = 1;
-    pPipelineLayoutCreateInfo.pSetLayouts = &descriptorSetLayout;
+    VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = {};
+    pipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    pipelineLayoutCreateInfo.setLayoutCount = 1;
+    pipelineLayoutCreateInfo.pSetLayouts = &descriptorSetLayout;
 
-    err = vkCreatePipelineLayout(device, &pPipelineLayoutCreateInfo, nullptr, &pipelineLayout);
+    VkResult err = vkCreatePipelineLayout(device, &pipelineLayoutCreateInfo, nullptr, &pipelineLayout);
     if (err) throw error(err, __FILE__, __LINE__);
 
     pipe_ = pipelineCreateHelper.createGraphicsPipeline(device, renderPass, pipelineLayout, pipelineCache);
