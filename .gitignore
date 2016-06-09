@@ -3,3 +3,6 @@ Debug/
 *.opensdf
 *.sdf
 x64/
+examples/bin/triangle_image
+examples/bin
+

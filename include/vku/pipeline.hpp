@@ -318,7 +318,7 @@ public:
     return &descriptorLayout_;
   }
 
-  VkGraphicsPipelineCreateInfo *get(VkRenderPass renderPass, VkPipelineLayout pipelineLayout) {
+  /*VkGraphicsPipelineCreateInfo *get(VkRenderPass renderPass, VkPipelineLayout pipelineLayout) {
     vi.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
     vi.pNext = VK_NULL_HANDLE;
     vi.vertexBindingDescriptionCount = (uint32_t)bindingDescriptions.size();
@@ -348,6 +348,41 @@ public:
     pipelineCreateInfo.pDynamicState = &dynamicState;
 
     return &pipelineCreateInfo;
+  }*/
+
+  VkPipeline createGraphicsPipeline(VkDevice device, VkRenderPass renderPass, VkPipelineLayout pipelineLayout, VkPipelineCache pipelineCache) {
+    vi.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+    vi.pNext = VK_NULL_HANDLE;
+    vi.vertexBindingDescriptionCount = (uint32_t)bindingDescriptions.size();
+    vi.pVertexBindingDescriptions = bindingDescriptions.data();
+    vi.vertexAttributeDescriptionCount = (uint32_t)attributeDescriptions.size();
+    vi.pVertexAttributeDescriptions = attributeDescriptions.data();
+
+    pipelineCreateInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+    // The layout used for this pipeline
+    pipelineCreateInfo.layout = pipelineLayout;
+    // Renderpass this pipeline is attached to
+    pipelineCreateInfo.renderPass = renderPass;
+
+    // Assign states
+    // Two shader stages
+    pipelineCreateInfo.stageCount = (uint32_t)shaderStages_.size();
+    // Assign pipeline state create information
+    pipelineCreateInfo.pVertexInputState = &vi;
+    pipelineCreateInfo.pInputAssemblyState = &inputAssemblyState;
+    pipelineCreateInfo.pRasterizationState = &rasterizationState;
+    pipelineCreateInfo.pColorBlendState = &colorBlendState;
+    pipelineCreateInfo.pMultisampleState = &multisampleState;
+    pipelineCreateInfo.pViewportState = &viewportState;
+    pipelineCreateInfo.pDepthStencilState = &depthStencilState;
+    pipelineCreateInfo.pStages = shaderStages_.data();
+    pipelineCreateInfo.renderPass = renderPass;
+    pipelineCreateInfo.pDynamicState = &dynamicState;
+
+    VkPipeline result = VK_NULL_HANDLE;
+    VkResult err = vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineCreateInfo, nullptr, &result);
+    if (err) throw error(err, __FILE__, __LINE__);
+    return result;
   }
 
   pipelineCreateHelper &operator=(pipelineCreateHelper && rhs) = default;
@@ -397,11 +432,7 @@ public:
     err = vkCreatePipelineLayout(device, &pPipelineLayoutCreateInfo, nullptr, &pipelineLayout);
     if (err) throw error(err, __FILE__, __LINE__);
 
-    auto info = pipelineCreateHelper.get(renderPass, pipelineLayout);
-
-    // Create rendering pipeline
-    err = vkCreateGraphicsPipelines(device, pipelineCache, 1, info, nullptr, &pipe_);
-    if (err) throw error(err, __FILE__, __LINE__);
+    pipe_ = pipelineCreateHelper.createGraphicsPipeline(device, renderPass, pipelineLayout, pipelineCache);
 
     ownsData = true;
   }
