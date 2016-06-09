@@ -12,6 +12,7 @@
 #include <vku/device.hpp>
 #include <array>
 #include <vector>
+#include <string.h>
 
 #ifndef VOOKOO_ENABLE_VALIDATION
   #ifndef NDEBUG

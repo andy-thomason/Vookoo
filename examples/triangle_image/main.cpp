@@ -59,8 +59,9 @@ public:
     pipe = vku::pipeline(device_, renderPass.get(), pipelineCache, pipeHelper);
 
     // construct the descriptor pool which is used at runtime to allocate descriptor sets
-    uint32_t num_uniform_buffers = 1;
-    descPool = vku::descriptorPool(device_, num_uniform_buffers);
+    vku::descriptorPoolHelper dpHelper(2);
+    dpHelper.uniformBuffers(1);
+    descPool = vku::descriptorPool(device_, dpHelper);
 
     // Allocate descriptor sets for the uniform buffer
     // todo: descriptor sets need a little more work.
@@ -182,7 +183,8 @@ public:
 
     uint8_t *bytes = (uint8_t *)readBuffer.map();
     std::ofstream file("test.bmp");
-    readBuffer.writeBMP(width, height, [&file](const char *data, size_t size) { file.write(data, size); });
+    auto writer = [&file](const char *data, size_t size) { file.write(data, size); };
+    readBuffer.writeBMP(width, height, writer);
   }
 private:
   // these matrices transform rotate and position the triangle

@@ -415,6 +415,7 @@ public:
 
   commandBuffer &operator=(commandBuffer &rhs) {
     (resource&)(*this) = (resource&)rhs;
+    return *this;
   }
 
   commandBuffer &operator=(commandBuffer &&rhs) {

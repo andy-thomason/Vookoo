@@ -11,10 +11,11 @@
 #include <iostream>
 #include <fstream>
 #include <string>
-#include <filesystem>
+//#include <filesystem>
 #include <vector>
 
 #include <vku/zipDecoder.hpp>
+#include <glm/glm.hpp>
 
 // see https://code.blender.org/2013/08/fbx-binary-file-format-specification/
 // and https://banexdevblog.wordpress.com/2014/06/23/a-quick-tutorial-about-the-fbx-ascii-format/
@@ -74,7 +75,7 @@ namespace vku {
       node begin() const { size_t new_offset = offset_ + 13 + property_list_len() + len(), end = end_offset(); return node(begin_, new_offset == end ? end-13 : new_offset); }
       node end() const { return node(begin_, end_offset() - 13); }
       node &operator*() { return *this; }
-      props props() { return class props(begin_, offset_); }
+      props props() { return fbxFile::props(begin_, offset_); }
 
       size_t offset() const { return offset_; }
       size_t end_offset() const { return u4(begin_ + offset_); }
@@ -128,7 +129,7 @@ namespace vku {
             case 'I': sprintf(tmp, "%d", (std::int32_t)u4(p)); break;
             case 'F': fv = u4(p); sprintf(tmp, "%8f", (float&)(fv)); break;
             case 'D': dv = u8(p); sprintf(tmp, "%10f", (double&)(dv)); break;
-            case 'L': sprintf(tmp, "%lld", (std::int64_t)u8(p)); break;
+            case 'L': sprintf(tmp, "%lld", (long long)u8(p)); break;
             case 'f': return "<array>"; break;
             case 'd': return "<array>"; break;
             case 'l': return "<array>"; break;
