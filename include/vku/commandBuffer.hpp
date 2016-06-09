@@ -104,7 +104,7 @@ public:
     vkCmdBindDescriptorSets(get(), VK_PIPELINE_BIND_POINT_GRAPHICS, pipe.layout(), 0, 1, pipe.descriptorSets(), 0, NULL);
 
     // Bind the rendering pipeline (including the shaders)
-    vkCmdBindPipeline(get(), VK_PIPELINE_BIND_POINT_GRAPHICS, pipe.pipe());
+    vkCmdBindPipeline(get(), VK_PIPELINE_BIND_POINT_GRAPHICS, pipe.get());
   }
 
   void bindVertexBuffer(buffer &buf, int bindId) const {

@@ -12,9 +12,7 @@ namespace vku {
 
 class queue : public resource<VkQueue, queue> {
 public:
-  /// queue that does not own its pointer (queues are obtained from devices)
-  queue(VkQueue value = VK_NULL_HANDLE, VkDevice dev = VK_NULL_HANDLE) : resource(value, dev) {
-  }
+  VKU_RESOURCE_BOILERPLATE(VkQueue, queue)
 
   void submit(VkSemaphore sema, VkCommandBuffer buffer) const {
     VkSubmitInfo submitInfo = {};
@@ -36,13 +34,8 @@ public:
     if (err) throw error(err, __FILE__, __LINE__);
   }
 
-  VkQueue create(VkDevice dev) {
-    return VK_NULL_HANDLE;
-  }
-
   void destroy() {
   }
-
 };
 
 

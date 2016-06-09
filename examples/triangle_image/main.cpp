@@ -106,8 +106,7 @@ public:
     depthBuffer.setImageLayout(preRender, VK_IMAGE_ASPECT_DEPTH_BIT|VK_IMAGE_ASPECT_STENCIL_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
     preRender.endCommandBuffer();
     vku::queue queue(vku::instance::singleton().queue(), device_);
-    vku::semaphore sema(device_);
-    queue.submit(sema, preRender);
+    queue.submit(VK_NULL_HANDLE, preRender);
 
     // We have two command buffers, one for even frames and one for odd frames.
     // This allows us to update one while rendering another.
@@ -149,10 +148,7 @@ public:
 
     vku::queue queue(vku::instance::singleton().queue(), device_);
 
-    {
-      vku::semaphore sema(device_);
-      queue.submit(sema, commandBuffers[0]);
-    }
+    queue.submit(VK_NULL_HANDLE, commandBuffers[0]);
 
     //present();
     device_.waitIdle();
@@ -176,10 +172,7 @@ public:
     //readBuffer.copy
     postRender.endCommandBuffer();
 
-    {
-      vku::semaphore sema(device_);
-      queue.submit(sema, postRender);
-    }
+    queue.submit(VK_NULL_HANDLE, postRender);
 
     uint8_t *bytes = (uint8_t *)readBuffer.map();
     std::ofstream file("test.bmp");

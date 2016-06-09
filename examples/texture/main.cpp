@@ -96,8 +96,9 @@ public:
     pipe = vku::pipeline(device(), swapChain().renderPass(), pipelineCache(), pipeHelper);
 
     // construct the descriptor pool which is used at runtime to allocate descriptor sets
-    uint32_t num_uniform_buffers = 1;
-    descPool = vku::descriptorPool(device(), num_uniform_buffers);
+    vku::descriptorPoolHelper dpHelper(2);
+    dpHelper.uniformBuffers(1);
+    descPool = vku::descriptorPool(device(), dpHelper);
 
     // Allocate descriptor sets for the uniform buffer
     // todo: descriptor sets need a little more work.

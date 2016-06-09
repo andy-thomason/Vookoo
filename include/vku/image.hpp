@@ -83,7 +83,7 @@ public:
 
     allocate(device, layout);
     bindMemoryToImage();
-    uint32_t view_usage = VK_IMAGE_USAGE_SAMPLED_BIT|VK_IMAGE_USAGE_STORAGE_BIT|VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+    uint32_t view_usage = VK_IMAGE_USAGE_SAMPLED_BIT|VK_IMAGE_USAGE_STORAGE_BIT|VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT|VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
     if (layout.usage() & view_usage) {
       //debugCallback: Invalid usage flag for image 0x1a used by vkCreateImageView(). In this case, image should have VK_IMAGE_USAGE_[SAMPLED|STORAGE|COLOR_ATTACHMENT]_BIT set during creation.
       createView(layout);

@@ -77,57 +77,20 @@ private:
 
 class descriptorPool : public resource<VkDescriptorPool, descriptorPool> {
 public:
-  descriptorPool() {
-  }
+  VKU_RESOURCE_BOILERPLATE(VkDescriptorPool, descriptorPool)
 
   descriptorPool(const vku::device &dev, vku::descriptorPoolHelper &layout) : resource(dev) {
     set(layout.createDescriptorPool(dev), true);
   }
 
   void destroy() {
-    vkDestroyDescriptorPool(device(), get(), nullptr);
-  }
-
-  /// move constructor
-  descriptorPool(descriptorPool &&rhs) {
-    move(std::move(rhs));
-  }
-
-  /// move operator
-  descriptorPool &operator=(descriptorPool &&rhs) {
-    move(std::move(rhs));
-    return *this;
-  }
-
-  /// copy constructor
-  descriptorPool(const descriptorPool &rhs) {
-    copy(rhs);
-  }
-
-  /// copy operator
-  descriptorPool &operator=(const descriptorPool &rhs) {
-    copy(rhs);
-    return *this;
-  }
-
-private:
-  void move(descriptorPool &&rhs) {
-    (resource&)*this = (resource&&)rhs;
-  }
-
-  void copy(const descriptorPool &rhs) {
-    (resource&)*this = (const resource&)rhs;
+    vkDestroyDescriptorPool(dev(), get(), nullptr);
   }
 };
 
 class pipelineCache : public resource<VkPipelineCache, pipelineCache> {
 public:
-  pipelineCache() : resource(VK_NULL_HANDLE, VK_NULL_HANDLE) {
-  }
-
-  /// descriptor pool that does not own its pointer
-  pipelineCache(VkPipelineCache value, VkDevice dev) : resource(value, dev) {
-  }
+  VKU_RESOURCE_BOILERPLATE(VkPipelineCache, pipelineCache)
 
   /// descriptor pool that does own (and creates) its pointer
   pipelineCache(VkDevice dev) : resource(dev) {
@@ -140,12 +103,7 @@ public:
   }
 
   void destroy() {
-    if (get()) vkDestroyPipelineCache(dev(), get(), nullptr);
-  }
-
-  pipelineCache &operator=(pipelineCache &&rhs) {
-    (resource&)(*this) = (resource&&)rhs;
-    return *this;
+    vkDestroyPipelineCache(dev(), get(), nullptr);
   }
 };
 
@@ -326,41 +284,25 @@ private:
   VkPipelineMultisampleStateCreateInfo multisampleState = {};
 };
 
-class pipeline {
+class pipeline : public resource<VkPipeline, pipeline> {
 public:
-  pipeline() {
-  }
+  VKU_RESOURCE_BOILERPLATE(VkPipeline, pipeline)
 
   pipeline(
     const vku::device &device,
     VkRenderPass renderPass,
     const vku::pipelineCache &pipelineCache,
     pipelineCreateHelper &pipelineCreateHelper
-  ) : dev_(device) {
+  ) : resource(device) {
     descriptorSetLayout = pipelineCreateHelper.createDescriptorSetLayout(device); 
     pipelineLayout = pipelineCreateHelper.createPipelineLayout(device, descriptorSetLayout);
-    pipe_ = pipelineCreateHelper.createGraphicsPipeline(device, renderPass, pipelineLayout, pipelineCache);
-    ownsData = true;
+    set(pipelineCreateHelper.createGraphicsPipeline(device, renderPass, pipelineLayout, pipelineCache), true);
   }
 
-  pipeline &operator=(pipeline &&rhs) {
-    pipe_ = rhs.pipe_;
-    pipelineLayout = rhs.pipelineLayout;
-    descriptorSet = rhs.descriptorSet;
-    descriptorSetLayout = rhs.descriptorSetLayout;
-    dev_ = rhs.dev_;
-    shaderModules = std::move(shaderModules);
-    ownsData = true;
-    rhs.ownsData = false;
-    return *this;
-  }
-
-  ~pipeline() {
-    if (ownsData) {
-      vkDestroyPipeline(dev_, pipe_, nullptr);
-      vkDestroyPipelineLayout(dev_, pipelineLayout, nullptr);
-      vkDestroyDescriptorSetLayout(dev_, descriptorSetLayout, nullptr);
-    }
+  void destroy() {
+    vkDestroyPipeline(dev(), get(), nullptr);
+    vkDestroyPipelineLayout(dev(), pipelineLayout, nullptr);
+    vkDestroyDescriptorSetLayout(dev(), descriptorSetLayout, nullptr);
   }
 
   void allocateDescriptorSets(descriptorPool &descPool, uint32_t count=1) {
@@ -371,7 +313,7 @@ public:
     allocInfo.pSetLayouts = &descriptorSetLayout;
 
     descriptorSet = VK_NULL_HANDLE;
-    VkResult err = vkAllocateDescriptorSets(dev_, &allocInfo, &descriptorSet);
+    VkResult err = vkAllocateDescriptorSets(dev(), &allocInfo, &descriptorSet);
     if (err) throw error(err, __FILE__, __LINE__);
   }
 
@@ -388,23 +330,31 @@ public:
     // Binds this uniform buffer to binding point 0
     writeDescriptorSet.dstBinding = 0;
 
-    vkUpdateDescriptorSets(dev_, 1, &writeDescriptorSet, 0, NULL);
+    vkUpdateDescriptorSets(dev(), 1, &writeDescriptorSet, 0, NULL);
   }
 
-  VkPipeline pipe() { return pipe_; }
   VkPipelineLayout layout() const { return pipelineLayout; }
   VkDescriptorSet *descriptorSets() { return &descriptorSet; }
   VkDescriptorSetLayout *descriptorLayouts() { return &descriptorSetLayout; }
 
 private:
+  void move(pipeline &&rhs) {
+    (resource&)*this = (resource&&)rhs;
+    pipelineLayout = rhs.pipelineLayout;
+    descriptorSet = rhs.descriptorSet;
+    descriptorSetLayout = rhs.descriptorSetLayout;
+  }
 
-  VkPipeline pipe_ = VK_NULL_HANDLE;
+  void copy(const pipeline &rhs) {
+    (resource&)*this = (const resource&)rhs;
+    pipelineLayout = rhs.pipelineLayout;
+    descriptorSet = rhs.descriptorSet;
+    descriptorSetLayout = rhs.descriptorSetLayout;
+  }
+
   VkPipelineLayout pipelineLayout = VK_NULL_HANDLE;
   VkDescriptorSet descriptorSet = VK_NULL_HANDLE;
   VkDescriptorSetLayout descriptorSetLayout = VK_NULL_HANDLE;
-  VkDevice dev_ = VK_NULL_HANDLE;
-  std::vector<VkShaderModule> shaderModules;
-  bool ownsData = false;
 };
 
 
