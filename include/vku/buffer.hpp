@@ -10,6 +10,7 @@
 
 #include <vku/resource.hpp>
 #include <vku/instance.hpp>
+#include <cstring>
 
 namespace vku {
 

@@ -182,7 +182,8 @@ public:
 
     uint8_t *bytes = (uint8_t *)readBuffer.map();
     std::ofstream file("test.bmp");
-    readBuffer.writeBMP(width, height, [&file](const char *data, size_t size) { file.write(data, size); });
+    auto writer = [&file](const char *data, size_t size) { file.write(data, size); };
+    readBuffer.writeBMP(width, height, writer);
   }
 private:
   // these matrices transform rotate and position the triangle
