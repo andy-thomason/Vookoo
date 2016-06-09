@@ -75,95 +75,49 @@ private:
   VkDescriptorPoolCreateInfo info_ = {};
 };
 
-class descriptorPool {
+class descriptorPool : public resource<VkDescriptorPool, descriptorPool> {
 public:
   descriptorPool() {
   }
 
-  // deprecated
-  descriptorPool(VkDevice dev, uint32_t num_uniform_buffers) : dev_(dev) {
-    // We need to tell the API the number of max. requested descriptors per type
-    VkDescriptorPoolSize typeCounts[1];
-    // This example only uses one descriptor type (uniform buffer) and only
-    // requests one descriptor of this type
-    typeCounts[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    typeCounts[0].descriptorCount = num_uniform_buffers;
-    // For additional types you need to add new entries in the type count list
-    // E.g. for two combined image samplers :
-    // typeCounts[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    // typeCounts[1].descriptorCount = 2;
-
-    // Create the global descriptor pool
-    // All descriptors used in this example are allocated from this pool
-    VkDescriptorPoolCreateInfo descriptorPoolInfo = {};
-    descriptorPoolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-    descriptorPoolInfo.pNext = NULL;
-    descriptorPoolInfo.poolSizeCount = 1;
-    descriptorPoolInfo.pPoolSizes = typeCounts;
-    // Set the max. number of sets that can be requested
-    // Requesting descriptors beyond maxSets will result in an error
-    descriptorPoolInfo.maxSets = num_uniform_buffers * 2;
-
-    VkResult err = vkCreateDescriptorPool(dev_, &descriptorPoolInfo, nullptr, &pool_);
-    if (err) throw error(err, __FILE__, __LINE__);
-
-    ownsResource_ = true;
+  descriptorPool(const vku::device &dev, vku::descriptorPoolHelper &layout) : resource(dev) {
+    set(layout.createDescriptorPool(dev), true);
   }
 
-  descriptorPool(const vku::device &dev, vku::descriptorPoolHelper &layout) : dev_(dev) {
-    pool_ = layout.createDescriptorPool(dev);
-    ownsResource_ = true;
+  void destroy() {
+    vkDestroyDescriptorPool(device(), get(), nullptr);
   }
 
-  // allocate a descriptor set for a buffer
-  VkWriteDescriptorSet *allocateDescriptorSet(const buffer &buffer, const VkDescriptorSetLayout *layout, VkDescriptorSet *descriptorSets) {
-    // Update descriptor sets determining the shader binding points
-    // For every binding point used in a shader there needs to be one
-    // descriptor set matching that binding point
-
-    VkDescriptorSetAllocateInfo allocInfo = {};
-    allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-    allocInfo.descriptorPool = pool_;
-    allocInfo.descriptorSetCount = 1;
-    allocInfo.pSetLayouts = layout;
-
-    VkResult err = vkAllocateDescriptorSets(dev_, &allocInfo, descriptorSets);
-    if (err) throw error(err, __FILE__, __LINE__);
-
-    // Binding 0 : Uniform buffer
-    VkDescriptorBufferInfo desc = buffer.desc();
-    writeDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    writeDescriptorSet.dstSet = descriptorSets[0];
-    writeDescriptorSet.descriptorCount = 1;
-    writeDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    writeDescriptorSet.pBufferInfo = &desc;
-    // Binds this uniform buffer to binding point 0
-    writeDescriptorSet.dstBinding = 0;
-
-    return &writeDescriptorSet;
+  /// move constructor
+  descriptorPool(descriptorPool &&rhs) {
+    move(std::move(rhs));
   }
 
-  ~descriptorPool() {
-    if (pool_ && ownsResource_) {
-      vkDestroyDescriptorPool(dev_, pool_, nullptr);
-      ownsResource_ = false;
-    }
-  }
-
+  /// move operator
   descriptorPool &operator=(descriptorPool &&rhs) {
-    ownsResource_ = true;
-    pool_ = rhs.pool_;
-    rhs.ownsResource_ = false;
-    dev_ = rhs.dev_;
+    move(std::move(rhs));
     return *this;
   }
 
-  operator VkDescriptorPool() { return pool_; }
+  /// copy constructor
+  descriptorPool(const descriptorPool &rhs) {
+    copy(rhs);
+  }
+
+  /// copy operator
+  descriptorPool &operator=(const descriptorPool &rhs) {
+    copy(rhs);
+    return *this;
+  }
+
 private:
-  VkDevice dev_ = VK_NULL_HANDLE;
-  VkDescriptorPool pool_ = VK_NULL_HANDLE;
-  bool ownsResource_ = false;
-  VkWriteDescriptorSet writeDescriptorSet = {};
+  void move(descriptorPool &&rhs) {
+    (resource&)*this = (resource&&)rhs;
+  }
+
+  void copy(const descriptorPool &rhs) {
+    (resource&)*this = (const resource&)rhs;
+  }
 };
 
 class pipelineCache : public resource<VkPipelineCache, pipelineCache> {
@@ -223,8 +177,6 @@ public:
     // So there is no need to create new pipelines just for changing
     // a viewport's dimensions or a scissor box
     // The dynamic state properties themselves are stored in the command buffer
-    dynamicStateEnables.push_back(VK_DYNAMIC_STATE_VIEWPORT);
-    dynamicStateEnables.push_back(VK_DYNAMIC_STATE_SCISSOR);
     dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
 
     // Depth and stencil state
@@ -293,6 +245,7 @@ public:
   }
 
   VkDescriptorSetLayout createDescriptorSetLayout(VkDevice device) {
+    VkDescriptorSetLayoutCreateInfo descriptorLayout_ = {};
     descriptorLayout_.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
     descriptorLayout_.bindingCount = (uint32_t)layoutBindings_.size();
     descriptorLayout_.pBindings = layoutBindings_.data();
@@ -307,15 +260,19 @@ public:
     blendAttachmentState[0].blendEnable = VK_FALSE;
     colorBlendState.pAttachments = blendAttachmentState;
     
+    dynamicStateEnables.push_back(VK_DYNAMIC_STATE_VIEWPORT);
+    dynamicStateEnables.push_back(VK_DYNAMIC_STATE_SCISSOR);
     dynamicState.pDynamicStates = dynamicStateEnables.data();
     dynamicState.dynamicStateCount = (uint32_t)dynamicStateEnables.size();
 
+    VkPipelineVertexInputStateCreateInfo vi = {};
     vi.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
     vi.vertexBindingDescriptionCount = (uint32_t)bindingDescriptions.size();
     vi.pVertexBindingDescriptions = bindingDescriptions.data();
     vi.vertexAttributeDescriptionCount = (uint32_t)attributeDescriptions.size();
     vi.pVertexAttributeDescriptions = attributeDescriptions.data();
 
+    VkGraphicsPipelineCreateInfo pipelineCreateInfo = {};
     pipelineCreateInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
     pipelineCreateInfo.layout = pipelineLayout;
     pipelineCreateInfo.renderPass = renderPass;
@@ -337,10 +294,22 @@ public:
     return result;
   }
 
-  pipelineCreateHelper &operator=(pipelineCreateHelper && rhs) = default;
+  VkPipelineLayout createPipelineLayout(VkDevice device, VkDescriptorSetLayout descriptorSetLayout) {
+    VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = {};
+    pipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    pipelineLayoutCreateInfo.setLayoutCount = 1;
+    pipelineLayoutCreateInfo.pSetLayouts = &descriptorSetLayout;
+
+    VkPipelineLayout result = VK_NULL_HANDLE; 
+    VkResult err = vkCreatePipelineLayout(device, &pipelineLayoutCreateInfo, nullptr, &result);
+    if (err) throw error(err, __FILE__, __LINE__);
+    return result;
+  }
+
+
+  pipelineCreateHelper &operator=(pipelineCreateHelper && rhs) = delete;
+  pipelineCreateHelper &operator=(pipelineCreateHelper & rhs) = delete;
 private:
-  VkPipelineVertexInputStateCreateInfo vi = {};
-  VkDescriptorSetLayoutCreateInfo descriptorLayout_ = {};
   std::vector<VkVertexInputBindingDescription> bindingDescriptions;
   std::vector<VkVertexInputAttributeDescription> attributeDescriptions;
   std::vector<VkDescriptorSetLayoutBinding> layoutBindings_;
@@ -355,7 +324,6 @@ private:
   VkPipelineDynamicStateCreateInfo dynamicState = {};
   VkPipelineDepthStencilStateCreateInfo depthStencilState = {};
   VkPipelineMultisampleStateCreateInfo multisampleState = {};
-  VkGraphicsPipelineCreateInfo pipelineCreateInfo = {};
 };
 
 class pipeline {
@@ -370,17 +338,8 @@ public:
     pipelineCreateHelper &pipelineCreateHelper
   ) : dev_(device) {
     descriptorSetLayout = pipelineCreateHelper.createDescriptorSetLayout(device); 
-
-    VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = {};
-    pipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    pipelineLayoutCreateInfo.setLayoutCount = 1;
-    pipelineLayoutCreateInfo.pSetLayouts = &descriptorSetLayout;
-
-    VkResult err = vkCreatePipelineLayout(device, &pipelineLayoutCreateInfo, nullptr, &pipelineLayout);
-    if (err) throw error(err, __FILE__, __LINE__);
-
+    pipelineLayout = pipelineCreateHelper.createPipelineLayout(device, descriptorSetLayout);
     pipe_ = pipelineCreateHelper.createGraphicsPipeline(device, renderPass, pipelineLayout, pipelineCache);
-
     ownsData = true;
   }
 
