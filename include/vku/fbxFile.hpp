@@ -75,7 +75,7 @@ namespace vku {
       node begin() const { size_t new_offset = offset_ + 13 + property_list_len() + len(), end = end_offset(); return node(begin_, new_offset == end ? end-13 : new_offset); }
       node end() const { return node(begin_, end_offset() - 13); }
       node &operator*() { return *this; }
-      props props() { return fbxFile::props(begin_, offset_); }
+      fbxFile::props get_props() { return fbxFile::props(begin_, offset_); }
 
       size_t offset() const { return offset_; }
       size_t end_offset() const { return u4(begin_ + offset_); }
@@ -259,13 +259,13 @@ namespace vku {
           for (auto obj : section) {
             if (obj.name() == "Geometry") {
               for (auto comp : obj) {
-                auto vp = comp.props().begin();
+                auto vp = comp.get_props().begin();
                 if (debug) printf("%s %c\n", comp.name().c_str(), vp.kind());
                 if (comp.name() == "Vertices") {
                   vp.getArray<double, 'd'>(fbxVertices, decoder);
                 } else if (comp.name() == "LayerElementNormal") {
                   for (auto sub : comp) {
-                    auto vp = sub.props().begin();
+                    auto vp = sub.get_props().begin();
                     if (debug) printf("  %s %c\n", sub.name().c_str(), vp.kind());
                     if (sub.name() == "MappingInformationType") {
                       vp.getString(fbxNormalMapping);
@@ -279,7 +279,7 @@ namespace vku {
                   }
                 } else if (comp.name() == "LayerElementUV") {
                   for (auto sub : comp) {
-                    auto vp = sub.props().begin();
+                    auto vp = sub.get_props().begin();
                     if (debug) printf("  %s %c\n", sub.name().c_str(), vp.kind());
                     if (sub.name() == "MappingInformationType") {
                       vp.getString(fbxUVMapping);
@@ -371,7 +371,7 @@ namespace vku {
       char tmp[256];
       snprintf(tmp, sizeof(tmp), "%*s%08zx..%08zx %s\n", depth*2, "", n.offset(), n.end_offset(), n.name().c_str());
       os << tmp;
-      for (auto p : n.props()) {
+      for (auto p : n.get_props()) {
           snprintf(tmp, sizeof(tmp), "%*s   %c %s\n", depth*2, "", p.kind(), ((std::string)p).c_str());
           os << tmp;
       }
