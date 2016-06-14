@@ -123,8 +123,8 @@ public:
     rasterizationState.lineWidth = 1.0f;
 
     colorBlendState.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-    colorBlendState.attachmentCount = 1;
 
+    // even if the viewport is dynamic, we must include this structure.
     viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
     viewportState.viewportCount = 1;
     viewportState.scissorCount = 1;
@@ -224,15 +224,19 @@ public:
   } 
 
   VkPipeline createGraphicsPipeline(VkDevice device, VkRenderPass renderPass, VkPipelineLayout pipelineLayout, VkPipelineCache pipelineCache) {
+    // disable blend
     blendAttachmentState[0].colorWriteMask = 0xf;
     blendAttachmentState[0].blendEnable = VK_FALSE;
+    colorBlendState.attachmentCount = 1;
     colorBlendState.pAttachments = blendAttachmentState;
-    
+   
+    // dynamicly changable viewport and scissor 
     dynamicStateEnables.push_back(VK_DYNAMIC_STATE_VIEWPORT);
     dynamicStateEnables.push_back(VK_DYNAMIC_STATE_SCISSOR);
     dynamicState.pDynamicStates = dynamicStateEnables.data();
     dynamicState.dynamicStateCount = (uint32_t)dynamicStateEnables.size();
 
+    // vertex format
     VkPipelineVertexInputStateCreateInfo vi = {};
     vi.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
     vi.vertexBindingDescriptionCount = (uint32_t)bindingDescriptions.size();
@@ -240,6 +244,7 @@ public:
     vi.vertexAttributeDescriptionCount = (uint32_t)attributeDescriptions.size();
     vi.pVertexAttributeDescriptions = attributeDescriptions.data();
 
+    // all states together.
     VkGraphicsPipelineCreateInfo pipelineCreateInfo = {};
     pipelineCreateInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
     pipelineCreateInfo.layout = pipelineLayout;
