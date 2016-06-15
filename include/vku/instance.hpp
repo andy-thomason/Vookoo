@@ -220,7 +220,7 @@ private:
         ;
         callbackCreateInfo.pfnCallback = &debugCallback;
 
-        VkDebugReportCallbackEXT callback = nullptr;
+        VkDebugReportCallbackEXT callback = VK_NULL_HANDLE;
         err = vkCreateDebugReportCallbackEXT(instance_, &callbackCreateInfo, nullptr, &callback);
         if (err) throw error(err, __FILE__, __LINE__);
       }

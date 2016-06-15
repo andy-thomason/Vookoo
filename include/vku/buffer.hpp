@@ -42,7 +42,7 @@ public:
 
     if (init) {
       void *dest = map();
-      std::memcpy(dest, init, size);
+      std::memcpy(dest, init, (size_t)size);
       unmap();
     }
     bind();
@@ -87,7 +87,7 @@ public:
   }
 
   size_t size() const {
-    return size_;
+    return (size_t)size_;
   }
 
   //operator VkBuffer() const { return buf_; }
@@ -110,7 +110,7 @@ private:
   VkBuffer buf_ = VK_NULL_HANDLE;
   VkDevice dev = VK_NULL_HANDLE;
   VkDeviceMemory mem = VK_NULL_HANDLE;
-  size_t size_;
+  VkDeviceSize size_;
   bool ownsBuffer = false;
 };
 

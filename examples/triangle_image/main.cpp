@@ -15,6 +15,10 @@ class triangle_image
 public:
   // This is the constructor for a window containing our example
   triangle_image(int argc, const char **argv) : device_(vku::instance::singleton().device()) {
+    queue_ = vku::queue(vku::instance::singleton().queue(), device_);
+    preRenderBuffer_ = vku::commandBuffer(device_, cmdPool);
+    postRenderBuffer_ = vku::commandBuffer(device_, cmdPool);
+
     static const uint32_t indices[] = { 0, 1, 2 };
     static const float vertices[] = {
       -1, -1, 0, 0, 0, 1, 0, 0,
@@ -99,14 +103,13 @@ public:
     framebuffers[0] = vku::framebuffer(device_, backBuffers[0], depthBuffer, renderPass, width, height);
     framebuffers[1] = vku::framebuffer(device_, backBuffers[1], depthBuffer, renderPass, width, height);
 
-    vku::commandBuffer preRender(device_, cmdPool);
-    preRender.beginCommandBuffer();
-    backBuffers[0].setImageLayout(preRender, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
-    backBuffers[1].setImageLayout(preRender, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
-    depthBuffer.setImageLayout(preRender, VK_IMAGE_ASPECT_DEPTH_BIT|VK_IMAGE_ASPECT_STENCIL_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
-    preRender.endCommandBuffer();
-    vku::queue queue(vku::instance::singleton().queue(), device_);
-    queue.submit(VK_NULL_HANDLE, preRender);
+    preRenderBuffer_.beginCommandBuffer();
+    backBuffers[0].setImageLayout(preRenderBuffer_, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+    backBuffers[1].setImageLayout(preRenderBuffer_, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+    depthBuffer.setImageLayout(preRenderBuffer_, VK_IMAGE_ASPECT_DEPTH_BIT|VK_IMAGE_ASPECT_STENCIL_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+    preRenderBuffer_.endCommandBuffer();
+
+    queue_.submit(preRenderBuffer_);
 
     // We have two command buffers, one for even frames and one for odd frames.
     // This allows us to update one while rendering another.
@@ -146,17 +149,14 @@ public:
     updateUniformBuffers();
     device_.waitIdle();
 
-    vku::queue queue(vku::instance::singleton().queue(), device_);
-
-    queue.submit(VK_NULL_HANDLE, commandBuffers[0]);
+    queue_.submit(commandBuffers[0]);
 
     //present();
     device_.waitIdle();
 
-    vku::commandBuffer postRender(device_, cmdPool);
-    postRender.beginCommandBuffer();
-    backBuffers[0].setImageLayout(postRender, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL );
-    readBuffer.setImageLayout(postRender, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL );
+    postRenderBuffer_.beginCommandBuffer();
+    backBuffers[0].setImageLayout(postRenderBuffer_, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL );
+    readBuffer.setImageLayout(postRenderBuffer_, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL );
 
     VkImageCopy cpy = {};
     cpy.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
@@ -168,11 +168,11 @@ public:
     cpy.dstSubresource.layerCount = 1;
     cpy.dstSubresource.mipLevel = 0;
     cpy.extent = { width, height, 1 };
-    postRender.copyImage(backBuffers[0], VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, readBuffer, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &cpy);
+    postRenderBuffer_.copyImage(backBuffers[0], VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, readBuffer, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &cpy);
     //readBuffer.copy
-    postRender.endCommandBuffer();
+    postRenderBuffer_.endCommandBuffer();
 
-    queue.submit(VK_NULL_HANDLE, postRender);
+    queue_.submit(postRenderBuffer_);
 
     uint8_t *bytes = (uint8_t *)readBuffer.map();
     std::ofstream file("test.bmp");
@@ -213,17 +213,22 @@ private:
   static const int vertex_buffer_bind_id = 0;
 
   vku::commandPool cmdPool;
-  std::array<vku::image, 2> backBuffers;
+  vku::queue queue_;
+
+  vku::commandBuffer preRenderBuffer_;
+  vku::commandBuffer postRenderBuffer_;
+  vku::image backBuffers[2];
   std::array<vku::commandBuffer, 2> commandBuffers;
   std::array<vku::framebuffer, 2> framebuffers;
-  vku::image depthBuffer;
 
+  vku::image depthBuffer;
   vku::image readBuffer;
 
   static const uint32_t width = 256;
   static const uint32_t height = 256;
 
   vku::device &device_;
+
 };
 
 triangle_image *gv;
