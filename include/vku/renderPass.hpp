@@ -15,26 +15,16 @@ namespace vku {
 
 class renderPass : public resource<VkRenderPass, renderPass> {
 public:
-  renderPass() : resource(VK_NULL_HANDLE, VK_NULL_HANDLE) {
-  }
-
-  /// Render pass that does not own its pointer
-  renderPass(VkRenderPass value, VkDevice dev) : resource(value, dev) {
-  }
+  VKU_RESOURCE_BOILERPLATE(VkRenderPass, renderPass)
 
   /// Render pass that does own (and creates) its pointer
-  renderPass(vku::device &dev, renderPassLayout &layout) : resource(dev) {
+  renderPass(const vku::device &dev, const renderPassLayout &layout) : resource(dev) {
     VkRenderPass value = layout.createRenderPass(dev);
     set(value, true);
   }
 
   void destroy() {
     if (get()) vkDestroyRenderPass(dev(), get(), nullptr);
-  }
-
-  renderPass &operator=(renderPass &&rhs) {
-    (resource&)(*this) = (resource&&)rhs;
-    return *this;
   }
 };
 

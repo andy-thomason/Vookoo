@@ -23,11 +23,12 @@ public:
   }
 
   shaderModule(VkDevice dev, const std::string &filename, VkShaderStageFlagBits stage) : resource(dev) {
-    std::ifstream input(filename, std::ios::binary);
-    auto b = std::istreambuf_iterator<char>(input);
-    auto e = std::istreambuf_iterator<char>();
-    if (b == e) throw(std::runtime_error("shaderModule(): shader file empty or not found"));
-    std::vector<uint8_t> buf(b, e);
+    std::ifstream input(filename, std::ios::binary | std::ios::ate);
+    std::vector<uint8_t> buf(input.tellg());
+    input.seekg(0);
+    input.read((char*)buf.data(), buf.size());
+    if (buf.size() == 0) throw(std::runtime_error("shaderModule(): shader file empty or not found"));
+
     create(buf.data(), buf.data() + buf.size(), stage);
   }
 
@@ -43,14 +44,16 @@ public:
       ((uint32_t *)buf.data())[0] = 0x07230203; 
       ((uint32_t *)buf.data())[1] = 0;
       ((uint32_t *)buf.data())[2] = stage;
+      while (b != e) buf.push_back(*b++);
+      buf.push_back(0);
+      b = buf.data();
+      e = b + buf.size();
     }
-    while (b != e) buf.push_back(*b++);
-    buf.push_back(0);
 
     VkShaderModuleCreateInfo moduleCreateInfo = {};
     moduleCreateInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-    moduleCreateInfo.codeSize = buf.size();
-    moduleCreateInfo.pCode = (uint32_t*)buf.data();
+    moduleCreateInfo.codeSize = e - b;
+    moduleCreateInfo.pCode = (uint32_t*)b;
     moduleCreateInfo.flags = 0;
 
     VkShaderModule shaderModule;

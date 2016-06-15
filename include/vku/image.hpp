@@ -115,14 +115,14 @@ public:
   VkDeviceMemory mem() const { return mem_; }
   VkImageView view() const { return view_; }
 
-  void *map() {
+  void *map() const {
     void *dest = nullptr;
     VkResult err = vkMapMemory(dev(), mem_, 0, size(), 0, &dest);
     if (err) throw error(err, __FILE__, __LINE__);
     return dest;
   }
 
-  void unmap() {
+  void unmap() const {
     vkUnmapMemory(dev(), mem_);
   }
 
@@ -132,7 +132,7 @@ public:
 
   // https://en.wikipedia.org/wiki/BMP_file_format
   template <class Writer>
-  void writeBMP(int width, int height, Writer &wr) {
+  void writeBMP(int width, int height, Writer &wr) const {
     if (format_ != VK_FORMAT_R8G8B8A8_UNORM) {
       throw std::runtime_error("can't write this format");
     }
@@ -189,13 +189,13 @@ public:
   }
 
 private:
-  uint8_t *le2(uint8_t *d, int value) {
+  static uint8_t *le2(uint8_t *d, int value) {
     *d++ = (uint8_t)value;
     *d++ = (uint8_t)(value >> 8);
     return d;
   }
 
-  uint8_t *le4(uint8_t *d, int value) {
+  static uint8_t *le4(uint8_t *d, int value) {
     *d++ = (uint8_t)value;
     *d++ = (uint8_t)(value >> 8);
     *d++ = (uint8_t)(value >> 16);

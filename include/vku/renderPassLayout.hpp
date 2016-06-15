@@ -41,14 +41,15 @@ public:
     subpasses.push_back(s);
   }
 
-  VkRenderPass createRenderPass(VkDevice device) {
+  VkRenderPass createRenderPass(VkDevice device) const {
     std::vector<VkSubpassDescription> descs;
     for (size_t i = 0; i != subpasses.size(); ++i) {
-      subpass &s = subpasses[i];
-      s.desc.colorAttachmentCount = s.num_color;
-      s.desc.pColorAttachments = s.color;
-      s.desc.pDepthStencilAttachment = &s.depth;
-      descs.push_back(s.desc);
+      const subpass &s = subpasses[i];
+      VkSubpassDescription desc = s.desc;
+      desc.colorAttachmentCount = s.num_color;
+      desc.pColorAttachments = s.color;
+      desc.pDepthStencilAttachment = &s.depth;
+      descs.push_back(desc);
     }
 
     VkRenderPassCreateInfo renderPassInfo = {};

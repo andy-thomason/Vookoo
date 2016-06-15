@@ -75,14 +75,14 @@ public:
     }
   }
 
-  void *map() {
+  void *map() const {
     void *dest = nullptr;
     VkResult err = vkMapMemory(dev, mem, 0, size(), 0, &dest);
     if (err) throw error(err, __FILE__, __LINE__);
     return dest;
   }
 
-  void unmap() {
+  void unmap() const {
     vkUnmapMemory(dev, mem);
   }
 
