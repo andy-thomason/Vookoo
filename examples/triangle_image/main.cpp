@@ -16,6 +16,8 @@ public:
   // This is the constructor for a window containing our example
   triangle_image(int argc, const char **argv) : device_(vku::instance::singleton().device()) {
     queue_ = vku::queue(vku::instance::singleton().queue(), device_);
+    uint32_t queueFamilyIndex = vku::instance::singleton().graphicsQueueIndex();
+    cmdPool = vku::commandPool(device_, queueFamilyIndex);
     preRenderBuffer_ = vku::commandBuffer(device_, cmdPool);
     postRenderBuffer_ = vku::commandBuffer(device_, cmdPool);
 
@@ -78,8 +80,6 @@ public:
     backBufferLayout.usage(VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT);
     backBufferLayout.initialLayout(VK_IMAGE_LAYOUT_UNDEFINED);
 
-    uint32_t queueFamilyIndex = vku::instance::singleton().graphicsQueueIndex();
-    cmdPool = vku::commandPool(device_, queueFamilyIndex);
     backBuffers[0] = vku::image(device_, backBufferLayout);
     backBuffers[1] = vku::image(device_, backBufferLayout);
     commandBuffers[0] = vku::commandBuffer(device_, cmdPool);
