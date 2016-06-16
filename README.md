@@ -80,3 +80,44 @@ The library
 VKU is a modern C++ library like STL, Boost and GLM and does not need to be pre-built.
 Distribution is source only.
 
+Building the examples
+---------------------
+
+Although you don't need to build the library, you may want to build the examples.
+
+On Windows make a directory called "build" somewhere else and then run
+
+cmake -G "Visual Studio 14 2015 Win64" &lt;path to your Vookoo repository&gt;
+
+This builds a visual studio 2015 project
+
+On Linux you can drop the -G for the default of unix makefiles.
+
+cmake &lt;path to your Vookoo repository&gt;
+
+
+Things to do
+------------
+
+This summer we have a number of things to do. I am hoping that my army of volunteers
+will help out with this:
+
+* Make sure all the examples run and add more examples.
+* Make sure the FBX importer runs on all FBX files.
+* Clean up the interfaces so we have 1:1 from classes to Vulkan objects.
+* Add all available attributes to vku::pipelineLayoutHelper.
+* Complete the "web view" network interface.
+* Build an android app to use the web view interface more efficiently.
+* Test on VR devices: HTC Vive, Occulus, Gear VR and my enormous Huwawei phablet.
+* Support all descriptor set elements.
+* Develop compute elements for image conversion and marching cubes.
+* Develop samples for shadows and deferred rendering.
+
+I plan to rename vku::image to vku::imageMemAndView as basic wrappers such as vku::semaphore
+should only wrap their Vulkan object.
+
+Composite objects such as vku::texture and vku::window should not have names that conflict
+with 
+
+Andy Thomason
+
