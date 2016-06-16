@@ -24,7 +24,12 @@ public:
 
   shaderModule(VkDevice dev, const std::string &filename, VkShaderStageFlagBits stage) : resource(dev) {
     std::ifstream input(filename, std::ios::binary | std::ios::ate);
-    std::vector<uint8_t> buf(input.tellg());
+    std::streampos length = input.tellg();
+    
+    printf("%d\n", (int)length);
+    if (length <= 0) throw(std::runtime_error("shaderModule: file not found or empty"));
+
+    std::vector<uint8_t> buf(length);
     input.seekg(0);
     input.read((char*)buf.data(), buf.size());
     if (buf.size() == 0) throw(std::runtime_error("shaderModule(): shader file empty or not found"));
