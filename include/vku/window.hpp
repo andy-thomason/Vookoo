@@ -475,7 +475,7 @@ public:
     swapChain_.setupFrameBuffer(depthStencil_.view(), depthFormat_);
 
     setupCmdBuffer_.endCommandBuffer();
-    queue_.submit(VK_NULL_HANDLE, setupCmdBuffer_);
+    queue_.submit(setupCmdBuffer_);
     queue_.waitIdle();
 
     // Recreate setup command buffer for derived class
@@ -533,7 +533,7 @@ public:
     // Get next image in the swap chain (back/front buffer)
     currentBuffer_ = swapChain_.acquireNextImage(presentSema_);
 
-    queue_.submit(presentSema_, drawCmdBuffers_[currentBuffer_]);
+    queue_.submit(drawCmdBuffers_[currentBuffer_], presentSema_);
 
     // Present the current buffer to the swap chain
     // This will display the image
@@ -543,7 +543,7 @@ public:
     postPresentCmdBuffer_.addPostPresentBariier(swapChain_.image(currentBuffer()));
     postPresentCmdBuffer_.endCommandBuffer();
 
-    queue_.submit(VK_NULL_HANDLE, postPresentCmdBuffer_);
+    queue_.submit(postPresentCmdBuffer_);
 
     queue_.waitIdle();
   }
