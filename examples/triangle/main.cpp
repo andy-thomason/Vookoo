@@ -73,8 +73,8 @@ public:
     vertexShader = vku::shaderModule(device(), "../shaders/simple.vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
     fragmentShader = vku::shaderModule(device(), "../shaders/simple.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
 
-    // How many uniform buffers per stage
-    pipeHelper.uniformBuffers(1, VK_SHADER_STAGE_VERTEX_BIT);
+    // Add a uniform buffer to the layout binding
+    pipeHelper.uniformBuffer(VK_SHADER_STAGE_VERTEX_BIT, 0);
 
     // Where the shaders are used.
     pipeHelper.shader(vertexShader, VK_SHADER_STAGE_VERTEX_BIT);

@@ -53,7 +53,6 @@ public:
     if (mesh.numVertices()) vertex_buffer = vku::buffer(device(), (void*)mesh.vertices(), mesh.numVertices()*mesh.vertexSize(), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
 
     // Indices
-    static const uint32_t index_data[] = { 0, 1, 2 };
     if (mesh.numIndices()) index_buffer = vku::buffer(device(), (void*)mesh.indices(), mesh.numIndices()*mesh.indexSize(), VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
     num_indices = mesh.numIndices();
 
@@ -68,8 +67,8 @@ public:
     vertexShader = vku::shaderModule(device(), "../shaders/mesh.vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
     fragmentShader = vku::shaderModule(device(), "../shaders/mesh.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
 
-    // How many uniform buffers per stage
-    pipeHelper.uniformBuffers(1, VK_SHADER_STAGE_VERTEX_BIT);
+    // Add a uniform buffer to the layout binding
+    pipeHelper.uniformBuffer(VK_SHADER_STAGE_VERTEX_BIT, 0);
 
     // Where the shaders are used.
     pipeHelper.shader(vertexShader, VK_SHADER_STAGE_VERTEX_BIT);

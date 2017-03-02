@@ -82,11 +82,14 @@ public:
     uniform_buffer = vku::buffer(device(), (void*)nullptr, sizeof(uniform_data), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
     
     // Shaders
-    vertexShader = vku::shaderModule(device(), "texture.vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
-    fragmentShader = vku::shaderModule(device(), "texture.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
+    vertexShader = vku::shaderModule(device(), "../shaders/texture.vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
+    fragmentShader = vku::shaderModule(device(), "../shaders/texture.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
 
-    // How many uniform buffers per stage
-    pipeHelper.uniformBuffers(1, VK_SHADER_STAGE_VERTEX_BIT);
+    // Add a uniform buffer at binding 0 (see texture.vert for details)
+    pipeHelper.uniformBuffer(VK_SHADER_STAGE_VERTEX_BIT, 0);
+
+    // Add a sampler at binding 1 (see texture.frag for details)
+    pipeHelper.combinedImageSampler(VK_SHADER_STAGE_FRAGMENT_BIT, 1);
 
     // Where the shaders are used.
     pipeHelper.shader(vertexShader, VK_SHADER_STAGE_VERTEX_BIT);
@@ -98,12 +101,16 @@ public:
     // construct the descriptor pool which is used at runtime to allocate descriptor sets
     vku::descriptorPoolHelper dpHelper(2);
     dpHelper.uniformBuffers(1);
+    dpHelper.combinedImageSamplers(1);
     descPool = vku::descriptorPool(device(), dpHelper);
 
     // Allocate descriptor sets for the uniform buffer
     // todo: descriptor sets need a little more work.
-    pipe.allocateDescriptorSets(descPool);
-    pipe.updateDescriptorSets(uniform_buffer);
+    /*pipe.allocateDescriptorSets(descPool);
+    pipe.beginDescs();
+    pipe.desc(uniform_buffer, 0);
+    pipe.desc(sampler, 1);
+    pipe.endDescs();*/
 
     // We have two command buffers, one for even frames and one for odd frames.
     // This allows us to update one while rendering another.

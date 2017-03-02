@@ -9,7 +9,10 @@
 #define VKU_PIPELINE_INCLUDED
 
 #include <vku/resource.hpp>
+#include <vku/sampler.hpp>
+#include <vku/texture.hpp>
 #include <vector>
+//#include <deque>
 
 namespace vku {
 
@@ -196,16 +199,6 @@ public:
     return layoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, stageFlags, binding, count, samplers);
   }
 
-  /*pipelineCreateHelper &combinedImageSampler(uint32_t count, VkShaderStageFlags stageFlags, const VkSampler *samplers) {
-    VkDescriptorSetLayoutBinding layoutBinding = {};
-    layoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    layoutBinding.descriptorCount = count;
-    layoutBinding.stageFlags = stageFlags;
-    layoutBinding.pImmutableSamplers = samplers;
-    layoutBindings_.push_back(layoutBinding);
-    return *this;
-  }*/
-
   pipelineCreateHelper &shader(const vku::shaderModule &module, VkShaderStageFlagBits stage, const char *entrypoint="main") {
     VkPipelineShaderStageCreateInfo shaderStage = {};
     shaderStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -357,6 +350,41 @@ public:
     vkUpdateDescriptorSets(dev(), 1, &writeDescriptorSet, 0, NULL);
   }
 
+  /*void beginDescs() {
+    writeDescriptorSets.resize(0);
+  }
+
+  void addDesc(vku::buffer &uniformVS, uint32_t binding) {
+    descriptorBufferInfo.push_back(uniformVS.desc());
+    VkWriteDescriptorSet writeDescriptorSet = {};
+    writeDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    writeDescriptorSet.dstSet = descriptorSet;
+    writeDescriptorSet.descriptorCount = 1;
+    writeDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    writeDescriptorSet.pBufferInfo = &descriptorBufferInfo.back();
+    writeDescriptorSet.dstBinding = binding;
+    writeDescriptorSets.push_back(writeDescriptorSet);
+  }
+
+  void addDesc(vku::sampler &samp, vku::texture &txt, uint32_t binding) {
+    descriptorImageInfo.emplace_back();
+    descriptorImageInfo.back().sampler = samp.get();
+    descriptorImageInfo.back().imageLayout = txt.layout();
+    descriptorImageInfo.back().imageView = txt.view();
+    VkWriteDescriptorSet writeDescriptorSet = {};
+    writeDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    writeDescriptorSet.dstSet = descriptorSet;
+    writeDescriptorSet.descriptorCount = 1;
+    writeDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    writeDescriptorSet.pImageInfo = &descriptorImageInfo.back();
+    writeDescriptorSet.dstBinding = binding;
+    writeDescriptorSets.push_back(writeDescriptorSet);
+  }
+
+  void endDescs() {
+    vkUpdateDescriptorSets(dev(), (uint32_t)writeDescriptorSets.size(), writeDescriptorSets.data(), 0, NULL);
+  }*/
+
   VkPipelineLayout layout() const { return pipelineLayout; }
   VkDescriptorSet *descriptorSets() { return &descriptorSet; }
   VkDescriptorSetLayout *descriptorLayouts() { return &descriptorSetLayout; }
@@ -379,6 +407,9 @@ private:
   VkPipelineLayout pipelineLayout = VK_NULL_HANDLE;
   VkDescriptorSet descriptorSet = VK_NULL_HANDLE;
   VkDescriptorSetLayout descriptorSetLayout = VK_NULL_HANDLE;
+  //std::vector<VkWriteDescriptorSet> writeDescriptorSets;
+  //std::deque<VkDescriptorBufferInfo> descriptorBufferInfo;
+  //std::deque<VkDescriptorImageInfo> descriptorImageInfo;
 };
 
 
