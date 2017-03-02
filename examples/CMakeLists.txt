@@ -1,5 +1,7 @@
 cmake_minimum_required (VERSION 2.6)
 
+add_definitions(-DVOOKOO_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+
 project(examples)
 
 add_subdirectory(shaders)
