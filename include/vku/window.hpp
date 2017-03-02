@@ -18,6 +18,7 @@
 
 
 #include <unordered_map>
+#include <array>
 
 // derived from https://github.com/SaschaWillems/Vulkan
 //
@@ -449,8 +450,6 @@ public:
     width_ = swapChain_.width();
     height_ = swapChain_.height();
 
-    assert(swapChain_.imageCount() <= 2);
-
     for (size_t i = 0; i != swapChain_.imageCount(); ++i) {
       drawCmdBuffers_[i] = vku::commandBuffer(device_, cmdPool_);
     }
@@ -611,7 +610,7 @@ private:
   vku::commandPool cmdPool_;
   vku::commandBuffer setupCmdBuffer_;
   vku::commandBuffer postPresentCmdBuffer_;
-  vku::commandBuffer drawCmdBuffers_[2];
+  std::array<vku::commandBuffer, 4> drawCmdBuffers_;
   vku::pipelineCache pipelineCache_;
   vku::image depthStencil_;
   vku::swapChain swapChain_;

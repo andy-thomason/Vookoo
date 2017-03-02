@@ -31,6 +31,7 @@ public:
     commandBufferAllocateInfo.commandBufferCount = 1;
     VkResult vkRes = vkAllocateCommandBuffers(dev, &commandBufferAllocateInfo, &res);
     set(res, true);
+    pool_ = cmdPool;
   }
 
   void begin(VkRenderPass renderPass, VkFramebuffer framebuffer, int width, int height) const {

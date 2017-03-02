@@ -4,3 +4,4 @@ Debug/
 *.sdf
 *.swp
 x64/
+build/

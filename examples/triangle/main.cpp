@@ -95,7 +95,7 @@ public:
     // We have two command buffers, one for even frames and one for odd frames.
     // This allows us to update one while rendering another.
     // In this example, we only update the command buffers once at the start.
-    for (int32_t i = 0; i < swapChain().imageCount(); ++i) {
+    for (size_t i = 0; i < swapChain().imageCount(); ++i) {
       const vku::commandBuffer &cmdbuf = drawCmdBuffer(i);
       cmdbuf.begin(swapChain().renderPass(), swapChain().frameBuffer(i), width(), height());
 
