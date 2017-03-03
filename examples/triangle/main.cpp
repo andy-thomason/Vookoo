@@ -8,7 +8,7 @@
 #include <vku/vku.hpp>
 #include <vku/window.hpp>
 
-class mc_example : public vku::window
+class triangle_example : public vku::window
 {
 public:
   // these matrices transform rotate and position the triangle
@@ -44,7 +44,7 @@ public:
   static const int vertex_buffer_bind_id = 0;
 
   // This is the constructor for a window containing our example
-  mc_example(int argc, const char **argv) : vku::window(argc, argv, false, 1280, 720, -2.5f, "teapot") {
+  triangle_example(int argc, const char **argv) : vku::window(argc, argv, false, 1280, 720, -2.5f, "triangle") {
     static const uint32_t indices[] = { 0, 1, 2 };
     static const float vertices[] = {
       -1, -1, 0, 0, 0, 1, 0, 0,
@@ -143,7 +143,7 @@ public:
 
 int main(const int argc, const char *argv[]) {
   // create a window.
-  mc_example my_example(argc, argv);
+  triangle_example my_example(argc, argv);
 
   // poll the windows until they are all closed
   while (vku::window::poll()) {

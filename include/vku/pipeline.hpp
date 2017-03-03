@@ -10,9 +10,12 @@
 
 #include <vku/resource.hpp>
 #include <vector>
+#include <queue>
 
 namespace vku {
 
+class sampler;
+class texture;
 
 class descriptorPoolHelper {
 public:
@@ -379,6 +382,9 @@ private:
   VkPipelineLayout pipelineLayout = VK_NULL_HANDLE;
   VkDescriptorSet descriptorSet = VK_NULL_HANDLE;
   VkDescriptorSetLayout descriptorSetLayout = VK_NULL_HANDLE;
+  //std::vector<VkWriteDescriptorSet> writeDescriptorSets;
+  //std::deque<VkDescriptorBufferInfo> descriptorBufferInfo;
+  //std::deque<VkDescriptorImageInfo> descriptorImageInfo;
 };
 
 

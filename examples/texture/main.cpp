@@ -40,6 +40,12 @@ public:
   // The fragment shader decides the colours of pixels.
   vku::shaderModule fragmentShader;
 
+  // A layout for our descriptor set
+  vku::descriptorSetLayout descSetLayout;
+
+  // Our descriptor set
+  vku::descriptorSet descSet;
+
   // This is the number of points on the triangle (ie. 3)
   size_t num_indices;
 
@@ -104,13 +110,9 @@ public:
     dpHelper.combinedImageSamplers(1);
     descPool = vku::descriptorPool(device(), dpHelper);
 
-    // Allocate descriptor sets for the uniform buffer
-    // todo: descriptor sets need a little more work.
-    /*pipe.allocateDescriptorSets(descPool);
-    pipe.beginDescs();
-    pipe.desc(uniform_buffer, 0);
-    pipe.desc(sampler, 1);
-    pipe.endDescs();*/
+    descSetLayout = vku::descriptorSetLayout(pipeHelper);
+    descSet = vku::descriptorSet(descPool, descSetLayout);
+    descSet.update(0, uniform_buffer);
 
     // We have two command buffers, one for even frames and one for odd frames.
     // This allows us to update one while rendering another.

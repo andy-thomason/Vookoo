@@ -30,6 +30,7 @@
 #include <vku/texture.hpp>
 #include <vku/sampler.hpp>
 #include <vku/framebuffer.hpp>
+#include <vku/descriptorSet.hpp>
 
 // Helper classes
 #include <vku/zipDecoder.hpp>
