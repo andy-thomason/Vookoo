@@ -305,37 +305,15 @@ public:
     const vku::device &device,
     VkRenderPass renderPass,
     const vku::pipelineCache &pipelineCache,
-    pipelineCreateHelper &pipelineCreateHelper
+    const vku::pipelineLayout &pipeLayout,
+    vku::pipelineCreateHelper &helper
   ) : resource(device) {
-    descriptorSetLayout = pipelineCreateHelper.createDescriptorSetLayout(device); 
-    pipelineLayout = pipelineCreateHelper.createPipelineLayout(device, descriptorSetLayout);
-    set(pipelineCreateHelper.createGraphicsPipeline(device, renderPass, pipelineLayout, pipelineCache), true);
+    set(helper.createGraphicsPipeline(device, renderPass, pipeLayout.get(), pipelineCache.get()), true);
   }
 
   void destroy() {
     vkDestroyPipeline(dev(), get(), nullptr);
-    vkDestroyPipelineLayout(dev(), pipelineLayout, nullptr);
-    vkDestroyDescriptorSetLayout(dev(), descriptorSetLayout, nullptr);
   }
-
-  VkPipelineLayout layout() const { return pipelineLayout; }
-  VkDescriptorSetLayout *descriptorLayouts() { return &descriptorSetLayout; }
-
-private:
-  void move(pipeline &&rhs) {
-    (resource&)*this = (resource&&)rhs;
-    pipelineLayout = rhs.pipelineLayout;
-    descriptorSetLayout = rhs.descriptorSetLayout;
-  }
-
-  void copy(const pipeline &rhs) {
-    (resource&)*this = (const resource&)rhs;
-    pipelineLayout = rhs.pipelineLayout;
-    descriptorSetLayout = rhs.descriptorSetLayout;
-  }
-
-  VkPipelineLayout pipelineLayout = VK_NULL_HANDLE;
-  VkDescriptorSetLayout descriptorSetLayout = VK_NULL_HANDLE;
 };
 
 

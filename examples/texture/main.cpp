@@ -101,18 +101,19 @@ public:
     pipeHelper.shader(vertexShader, VK_SHADER_STAGE_VERTEX_BIT);
     pipeHelper.shader(fragmentShader, VK_SHADER_STAGE_FRAGMENT_BIT);
 
-    // Use pipeHelper to construct the pipeline
-    pipe = vku::pipeline(device(), swapChain().renderPass(), pipelineCache(), pipeHelper);
+    vku::descriptorSetLayout desc_layout = vku::descriptorSetLayout{pipeHelper.createDescriptorSetLayout(device()), device()};
+    vku::pipelineLayout pipe_layout = vku::pipelineLayout{pipeHelper.createPipelineLayout(device(), desc_layout), device() };
+    pipe = vku::pipeline(device(), swapChain().renderPass(), pipelineCache(), pipe_layout, pipeHelper);
 
-    // construct the descriptor pool which is used at runtime to allocate descriptor sets
     vku::descriptorPoolHelper dpHelper(2);
     dpHelper.uniformBuffers(1);
-    dpHelper.combinedImageSamplers(1);
     descPool = vku::descriptorPool(device(), dpHelper);
 
-    descSetLayout = vku::descriptorSetLayout(pipeHelper);
-    descSet = vku::descriptorSet{device(), descPool, descSetLayout};
-    descSet.update(0, uniform_buffer);
+    // Allocate a descriptor set for the uniform buffer
+    vku::descriptorSet desc_set = vku::descriptorSet(device(), descPool, desc_layout);
+
+    // Update the descriptor set with the uniform buffer
+    desc_set.update(0, uniform_buffer);
 
     // We have two command buffers, one for even frames and one for odd frames.
     // This allows us to update one while rendering another.

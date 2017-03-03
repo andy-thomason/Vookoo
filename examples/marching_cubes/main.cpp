@@ -86,15 +86,13 @@ public:
     pipeHelper.shader(vertexShader, VK_SHADER_STAGE_VERTEX_BIT);
     pipeHelper.shader(fragmentShader, VK_SHADER_STAGE_FRAGMENT_BIT);
 
-    // Use pipeHelper to construct the pipeline
-    pipe = vku::pipeline(device(), swapChain().renderPass(), pipelineCache(), pipeHelper);
+    vku::descriptorSetLayout desc_layout = vku::descriptorSetLayout{pipeHelper.createDescriptorSetLayout(device()), device()};
+    vku::pipelineLayout pipe_layout = vku::pipelineLayout{pipeHelper.createPipelineLayout(device(), desc_layout), device() };
+    pipe = vku::pipeline(device(), swapChain().renderPass(), pipelineCache(), pipe_layout, pipeHelper);
 
     vku::descriptorPoolHelper dpHelper(2);
     dpHelper.uniformBuffers(1);
     descPool = vku::descriptorPool(device(), dpHelper);
-
-    vku::pipelineLayout pipe_layout = vku::pipelineLayout(pipe.layout(), device());
-    vku::descriptorSetLayout desc_layout = vku::descriptorSetLayout(*pipe.descriptorLayouts(), device());
 
     // Allocate a descriptor set for the uniform buffer
     vku::descriptorSet desc_set = vku::descriptorSet(device(), descPool, desc_layout);
