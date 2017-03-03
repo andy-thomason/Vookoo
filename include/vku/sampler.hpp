@@ -117,6 +117,7 @@ public:
   void destroy() {
     if (get()) vkDestroySampler(dev(), get(), nullptr);
   }
+
 private:
   void copy(const sampler &rhs) {
     (resource&)*this = (const resource&)rhs;

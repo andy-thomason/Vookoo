@@ -23,7 +23,7 @@ public:
 
   /// texture defined by layout
   texture(const vku::device &device, imageLayoutHelper &layout, void *pixels, size_t size) : layout_(layout) {
-    layout.usage(VK_IMAGE_USAGE_TRANSFER_DST_BIT);
+    layout.usage(VK_IMAGE_USAGE_TRANSFER_DST_BIT|VK_IMAGE_USAGE_SAMPLED_BIT);
     layout.tiling(VK_IMAGE_TILING_LINEAR);
     layout.memoryPropertyFlag(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
     gpuImage_ = vku::image(device, layout);

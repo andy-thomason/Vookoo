@@ -114,6 +114,7 @@ public:
 
     // Update the descriptor set with the uniform buffer
     desc_set.update(0, uniform_buffer);
+    desc_set.update(1, sampler, texture);
 
     // We have two command buffers, one for even frames and one for odd frames.
     // This allows us to update one while rendering another.
