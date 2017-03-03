@@ -32,6 +32,7 @@
 #include <vku/framebuffer.hpp>
 #include <vku/descriptorSet.hpp>
 
+
 // Helper classes
 #include <vku/zipDecoder.hpp>
 #include <vku/pngDecoder.hpp>
@@ -40,5 +41,10 @@
 
 // forward references
 #include <vku/swapChain.inl>
+
+inline void vku::commandBuffer::bindBindDescriptorSet(vku::pipelineLayout &layout, vku::descriptorSet &set) const {
+  vkCmdBindDescriptorSets(get(), VK_PIPELINE_BIND_POINT_GRAPHICS, layout.get(), 0, 1, set.ref(), 0, NULL);
+}
+
 
 #endif

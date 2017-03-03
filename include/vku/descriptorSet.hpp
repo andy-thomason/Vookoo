@@ -61,7 +61,6 @@ private:
   }
 };
 
-
 } // vku
 
 #endif

@@ -131,6 +131,7 @@ public:
   }
 
   VulkanType get() const { return value_; }
+  VulkanType *ref() { return &value_; }
   VkDevice dev() const { return dev_; }
   resource &set(VulkanType value, bool owns) { value_ = value; ownsResource = owns; return *this; }
 

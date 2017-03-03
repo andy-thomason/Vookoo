@@ -180,34 +180,24 @@ public:
     return *this;
   }
 
-  pipelineCreateHelper &layoutBinding(VkDescriptorType descriptorType, VkShaderStageFlags stageFlags, uint32_t binding = 0, uint32_t count=1, const VkSampler *samplers = nullptr) {
+  pipelineCreateHelper &layoutBinding(VkDescriptorType descriptorType, VkShaderStageFlags stageFlags, uint32_t binding) {
     VkDescriptorSetLayoutBinding layoutBinding = {};
     layoutBinding.binding = binding;
     layoutBinding.descriptorType = descriptorType;
-    layoutBinding.descriptorCount = count;
+    layoutBinding.descriptorCount = 1;
     layoutBinding.stageFlags = stageFlags;
-    layoutBinding.pImmutableSamplers = samplers;
+    layoutBinding.pImmutableSamplers = nullptr;
     layoutBindings_.push_back(layoutBinding);
     return *this;
+  } 
+
+  pipelineCreateHelper &uniformBuffer(VkShaderStageFlags stageFlags, uint32_t binding) {
+    return layoutBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, stageFlags, binding);
   }
 
-  pipelineCreateHelper &uniformBuffer(VkShaderStageFlags stageFlags, uint32_t binding = 0, uint32_t count=1) {
-    return layoutBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, stageFlags, binding, count);
+  pipelineCreateHelper &combinedImageSampler(VkShaderStageFlags stageFlags, uint32_t binding) {
+    return layoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, stageFlags, binding);
   }
-
-  pipelineCreateHelper &combinedImageSampler(VkShaderStageFlags stageFlags, uint32_t binding = 0, uint32_t count=1, const VkSampler *samplers = nullptr) {
-    return layoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, stageFlags, binding, count, samplers);
-  }
-
-  /*pipelineCreateHelper &combinedImageSampler(uint32_t count, VkShaderStageFlags stageFlags, const VkSampler *samplers) {
-    VkDescriptorSetLayoutBinding layoutBinding = {};
-    layoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    layoutBinding.descriptorCount = count;
-    layoutBinding.stageFlags = stageFlags;
-    layoutBinding.pImmutableSamplers = samplers;
-    layoutBindings_.push_back(layoutBinding);
-    return *this;
-  }*/
 
   pipelineCreateHelper &shader(const vku::shaderModule &module, VkShaderStageFlagBits stage, const char *entrypoint="main") {
     VkPipelineShaderStageCreateInfo shaderStage = {};
@@ -311,6 +301,16 @@ private:
   VkPipelineMultisampleStateCreateInfo multisampleState = {};
 };
 
+class pipelineLayout : public resource<VkPipelineLayout, pipelineLayout> {
+public:
+  VKU_RESOURCE_BOILERPLATE(VkPipelineLayout, pipelineLayout)
+
+private:
+  void destroy() {
+    vkDestroyPipelineLayout(dev(), get(), nullptr);
+  }
+};
+
 class pipeline : public resource<VkPipeline, pipeline> {
 public:
   VKU_RESOURCE_BOILERPLATE(VkPipeline, pipeline)
@@ -359,6 +359,41 @@ public:
 
     vkUpdateDescriptorSets(dev(), 1, &writeDescriptorSet, 0, NULL);
   }
+
+  /*void beginDescs() {
+    writeDescriptorSets.resize(0);
+  }
+
+  void addDesc(vku::buffer &uniformVS, uint32_t binding) {
+    descriptorBufferInfo.push_back(uniformVS.desc());
+    VkWriteDescriptorSet writeDescriptorSet = {};
+    writeDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    writeDescriptorSet.dstSet = descriptorSet;
+    writeDescriptorSet.descriptorCount = 1;
+    writeDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    writeDescriptorSet.pBufferInfo = &descriptorBufferInfo.back();
+    writeDescriptorSet.dstBinding = binding;
+    writeDescriptorSets.push_back(writeDescriptorSet);
+  }
+
+  void addDesc(vku::sampler &samp, vku::texture &text, uint32_t binding) {
+    descriptorImageInfo.push_back();
+    descriptorImageInfo.back().sampler = samp.get();
+    //descriptorImageInfo.back().imageLayout = txt.layout();
+    //descriptorImageInfo.back().imageView = txt.view();
+    VkWriteDescriptorSet writeDescriptorSet = {};
+    writeDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    writeDescriptorSet.dstSet = descriptorSet;
+    writeDescriptorSet.descriptorCount = 1;
+    writeDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    writeDescriptorSet.pImageInfo = &descriptorImageInfo.back();
+    writeDescriptorSet.dstBinding = binding;
+    writeDescriptorSets.push_back(writeDescriptorSet);
+  }
+
+  void endDescs() {
+    vkUpdateDescriptorSets(dev(), (uint32_t)writeDescriptorSets.size(), writeDescriptorSets.data(), 0, NULL);
+  }*/
 
   VkPipelineLayout layout() const { return pipelineLayout; }
   VkDescriptorSet *descriptorSets() { return &descriptorSet; }

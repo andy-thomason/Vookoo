@@ -12,6 +12,9 @@
 
 namespace vku {
 
+class pipelineLayout;
+class descriptorSet;
+
 class commandBuffer : public resource<VkCommandBuffer, commandBuffer> {
 public:
   commandBuffer() : resource(VK_NULL_HANDLE, VK_NULL_HANDLE) {
@@ -100,9 +103,11 @@ public:
     vkCmdSetScissor(get(), 0, 1, &scissor);
   }
 
+  void commandBuffer::bindBindDescriptorSet(vku::pipelineLayout &layout, vku::descriptorSet &set) const;
+
   void bindPipeline(pipeline &pipe) const {
     // Bind descriptor sets describing shader binding points
-    vkCmdBindDescriptorSets(get(), VK_PIPELINE_BIND_POINT_GRAPHICS, pipe.layout(), 0, 1, pipe.descriptorSets(), 0, NULL);
+    //vkCmdBindDescriptorSets(get(), VK_PIPELINE_BIND_POINT_GRAPHICS, pipe.layout(), 0, 1, pipe.descriptorSets(), 0, NULL);
 
     // Bind the rendering pipeline (including the shaders)
     vkCmdBindPipeline(get(), VK_PIPELINE_BIND_POINT_GRAPHICS, pipe.get());
@@ -316,25 +321,31 @@ public:
         // Make sure any writes to the color buffer have been finished
         imageMemoryBarrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
       } break;
+
       case VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL: {
         // Old layout is transfer source
         // Make sure any reads from the image have been finished
         imageMemoryBarrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
       } break;
+
       case VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL: {
         // Old layout is transfer source
         // Make sure any reads from the image have been finished
         imageMemoryBarrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
       } break;
+
       case VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL: {
         // Old layout is shader read (sampler, input attachment)
         // Make sure any shader reads from the image have been finished
         imageMemoryBarrier.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
       } break;
+
       case VK_IMAGE_LAYOUT_PRESENT_SRC_KHR: {
         // change the layout back from the surface format to the rendering format.
-        srcStageFlags = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
+        srcStageFlags = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT; // wait for all pipeline stages to complete
+        imageMemoryBarrier.srcAccessMask = VK_ACCESS_MEMORY_READ_BIT;
       } break;
+
       default: {
         throw(std::runtime_error("setImageLayout: unsupported source layout"));
       }
@@ -362,7 +373,7 @@ public:
       // Make sure any writes to the color buffer hav been finished
       case VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL: {
         imageMemoryBarrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-        imageMemoryBarrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+        //imageMemoryBarrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
       } break;
 
       // New layout is depth attachment
@@ -374,7 +385,7 @@ public:
       // New layout is shader read (sampler, input attachment)
       // Make sure any writes to the image have been finished
       case VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL: {
-        imageMemoryBarrier.srcAccessMask = VK_ACCESS_HOST_WRITE_BIT | VK_ACCESS_TRANSFER_WRITE_BIT;
+        //imageMemoryBarrier.srcAccessMask |= VK_ACCESS_HOST_WRITE_BIT | VK_ACCESS_TRANSFER_WRITE_BIT;
         imageMemoryBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
       } break;
 

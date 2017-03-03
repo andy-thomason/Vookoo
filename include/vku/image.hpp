@@ -9,7 +9,6 @@
 #define VKU_IMAGE_INCLUDED
 
 #include <vku/resource.hpp>
-#include <vku/commandBuffer.hpp>
 #include <stdexcept>
 
 namespace vku {
