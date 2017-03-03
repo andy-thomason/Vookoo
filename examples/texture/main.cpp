@@ -111,7 +111,7 @@ public:
     descPool = vku::descriptorPool(device(), dpHelper);
 
     descSetLayout = vku::descriptorSetLayout(pipeHelper);
-    descSet = vku::descriptorSet(descPool, descSetLayout);
+    descSet = vku::descriptorSet{device(), descPool, descSetLayout};
     descSet.update(0, uniform_buffer);
 
     // We have two command buffers, one for even frames and one for odd frames.

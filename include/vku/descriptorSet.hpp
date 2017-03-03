@@ -29,11 +29,11 @@ class descriptorSet : public resource<VkDescriptorSet, descriptorSet> {
 public:
   VKU_RESOURCE_BOILERPLATE(VkDescriptorSet, descriptorSet)
 
-  descriptorSet(descriptorPool &descPool, descriptorSetLayout &descLayout) {
+  descriptorSet(const device &device, descriptorPool &descPool, descriptorSetLayout &descLayout) : resource(device) {
     VkDescriptorSetLayout layout = descLayout.get();
     VkDescriptorSetAllocateInfo allocInfo = {};
     allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-    allocInfo.descriptorPool = descPool;
+    allocInfo.descriptorPool = descPool.get();
     allocInfo.descriptorSetCount = 1;
     allocInfo.pSetLayouts = &layout;
 

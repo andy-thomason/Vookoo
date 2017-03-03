@@ -89,15 +89,18 @@ public:
     // Use pipeHelper to construct the pipeline
     pipe = vku::pipeline(device(), swapChain().renderPass(), pipelineCache(), pipeHelper);
 
-    // construct the descriptor pool which is used at runtime to allocate descriptor sets
     vku::descriptorPoolHelper dpHelper(2);
     dpHelper.uniformBuffers(1);
     descPool = vku::descriptorPool(device(), dpHelper);
 
-    // Allocate descriptor sets for the uniform buffer
-    // todo: descriptor sets need a little more work.
-    pipe.allocateDescriptorSets(descPool);
-    pipe.updateDescriptorSets(uniform_buffer);
+    vku::pipelineLayout pipe_layout = vku::pipelineLayout(pipe.layout(), device());
+    vku::descriptorSetLayout desc_layout = vku::descriptorSetLayout(*pipe.descriptorLayouts(), device());
+
+    // Allocate a descriptor set for the uniform buffer
+    vku::descriptorSet desc_set = vku::descriptorSet(device(), descPool, desc_layout);
+
+    // Update the descriptor set with the uniform buffer
+    desc_set.update(0, uniform_buffer);
 
     // We have two command buffers, one for even frames and one for odd frames.
     // This allows us to update one while rendering another.
@@ -106,6 +109,7 @@ public:
       const vku::commandBuffer &cmdbuf = drawCmdBuffer(i);
       cmdbuf.begin(swapChain().renderPass(), swapChain().frameBuffer(i), width(), height());
 
+      cmdbuf.bindBindDescriptorSet(pipe_layout, desc_set);
       cmdbuf.bindPipeline(pipe);
       cmdbuf.bindVertexBuffer(vertex_buffer, vertex_buffer_bind_id);
       cmdbuf.bindIndexBuffer(index_buffer);

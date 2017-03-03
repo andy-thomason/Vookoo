@@ -38,20 +38,6 @@ public:
     return descriptors(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, descriptorCount);
   }
 
-  /*
-    todo:
-    VK_DESCRIPTOR_TYPE_SAMPLER = 0,
-    VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER = 1,
-    VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE = 2,
-    VK_DESCRIPTOR_TYPE_STORAGE_IMAGE = 3,
-    VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER = 4,
-    VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER = 5,
-    VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER = 6,
-    VK_DESCRIPTOR_TYPE_STORAGE_BUFFER = 7,
-    VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC = 8,
-    VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC = 9,
-  */
-
   descriptorPoolHelper &descriptors(VkDescriptorType type, uint32_t descriptorCount) {
     VkDescriptorPoolSize dps = {};
     dps.type = type;
@@ -332,94 +318,24 @@ public:
     vkDestroyDescriptorSetLayout(dev(), descriptorSetLayout, nullptr);
   }
 
-  void allocateDescriptorSets(descriptorPool &descPool, uint32_t count=1) {
-    VkDescriptorSetAllocateInfo allocInfo = {};
-    allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-    allocInfo.descriptorPool = descPool;
-    allocInfo.descriptorSetCount = count;
-    allocInfo.pSetLayouts = &descriptorSetLayout;
-
-    descriptorSet = VK_NULL_HANDLE;
-    VkResult err = vkAllocateDescriptorSets(dev(), &allocInfo, &descriptorSet);
-    if (err) throw error(err, __FILE__, __LINE__);
-  }
-
-  void updateDescriptorSets(buffer &uniformVS) {
-    VkWriteDescriptorSet writeDescriptorSet = {};
-
-    // Binding 0 : Uniform buffer
-    VkDescriptorBufferInfo desc = uniformVS.desc();
-    writeDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    writeDescriptorSet.dstSet = descriptorSet;
-    writeDescriptorSet.descriptorCount = 1;
-    writeDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    writeDescriptorSet.pBufferInfo = &desc;
-    // Binds this uniform buffer to binding point 0
-    writeDescriptorSet.dstBinding = 0;
-
-    vkUpdateDescriptorSets(dev(), 1, &writeDescriptorSet, 0, NULL);
-  }
-
-  /*void beginDescs() {
-    writeDescriptorSets.resize(0);
-  }
-
-  void addDesc(vku::buffer &uniformVS, uint32_t binding) {
-    descriptorBufferInfo.push_back(uniformVS.desc());
-    VkWriteDescriptorSet writeDescriptorSet = {};
-    writeDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    writeDescriptorSet.dstSet = descriptorSet;
-    writeDescriptorSet.descriptorCount = 1;
-    writeDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    writeDescriptorSet.pBufferInfo = &descriptorBufferInfo.back();
-    writeDescriptorSet.dstBinding = binding;
-    writeDescriptorSets.push_back(writeDescriptorSet);
-  }
-
-  void addDesc(vku::sampler &samp, vku::texture &text, uint32_t binding) {
-    descriptorImageInfo.push_back();
-    descriptorImageInfo.back().sampler = samp.get();
-    //descriptorImageInfo.back().imageLayout = txt.layout();
-    //descriptorImageInfo.back().imageView = txt.view();
-    VkWriteDescriptorSet writeDescriptorSet = {};
-    writeDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    writeDescriptorSet.dstSet = descriptorSet;
-    writeDescriptorSet.descriptorCount = 1;
-    writeDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    writeDescriptorSet.pImageInfo = &descriptorImageInfo.back();
-    writeDescriptorSet.dstBinding = binding;
-    writeDescriptorSets.push_back(writeDescriptorSet);
-  }
-
-  void endDescs() {
-    vkUpdateDescriptorSets(dev(), (uint32_t)writeDescriptorSets.size(), writeDescriptorSets.data(), 0, NULL);
-  }*/
-
   VkPipelineLayout layout() const { return pipelineLayout; }
-  VkDescriptorSet *descriptorSets() { return &descriptorSet; }
   VkDescriptorSetLayout *descriptorLayouts() { return &descriptorSetLayout; }
 
 private:
   void move(pipeline &&rhs) {
     (resource&)*this = (resource&&)rhs;
     pipelineLayout = rhs.pipelineLayout;
-    descriptorSet = rhs.descriptorSet;
     descriptorSetLayout = rhs.descriptorSetLayout;
   }
 
   void copy(const pipeline &rhs) {
     (resource&)*this = (const resource&)rhs;
     pipelineLayout = rhs.pipelineLayout;
-    descriptorSet = rhs.descriptorSet;
     descriptorSetLayout = rhs.descriptorSetLayout;
   }
 
   VkPipelineLayout pipelineLayout = VK_NULL_HANDLE;
-  VkDescriptorSet descriptorSet = VK_NULL_HANDLE;
   VkDescriptorSetLayout descriptorSetLayout = VK_NULL_HANDLE;
-  //std::vector<VkWriteDescriptorSet> writeDescriptorSets;
-  //std::deque<VkDescriptorBufferInfo> descriptorBufferInfo;
-  //std::deque<VkDescriptorImageInfo> descriptorImageInfo;
 };
 
 

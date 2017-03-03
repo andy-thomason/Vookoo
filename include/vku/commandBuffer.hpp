@@ -103,9 +103,10 @@ public:
     vkCmdSetScissor(get(), 0, 1, &scissor);
   }
 
+  // forward reference, needs to know about pipelineLayout and descriptorSet
   void commandBuffer::bindBindDescriptorSet(vku::pipelineLayout &layout, vku::descriptorSet &set) const;
 
-  void bindPipeline(pipeline &pipe) const {
+  void bindPipeline(vku::pipeline &pipe) const {
     // Bind descriptor sets describing shader binding points
     //vkCmdBindDescriptorSets(get(), VK_PIPELINE_BIND_POINT_GRAPHICS, pipe.layout(), 0, 1, pipe.descriptorSets(), 0, NULL);
 
