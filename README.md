@@ -87,13 +87,19 @@ Although you don't need to build the library, you may want to build the examples
 
 On Windows make a directory called "build" somewhere else and then run
 
-cmake -G "Visual Studio 14 2015 Win64" &lt;path to your Vookoo repository&gt;
+  mkdir build
+  cd build
+  cmake -G "Visual Studio 14 2015 Win64" ..
 
-This builds a visual studio 2015 project
+This builds a visual studio 2015 project Vookoo.sln
 
 On Linux you can drop the -G for the default of unix makefiles.
 
-cmake &lt;path to your Vookoo repository&gt;
+  mkdir build
+  cd build
+  cmake ..
+
+This makes a makefile that you can build with make
 
 
 Things to do
