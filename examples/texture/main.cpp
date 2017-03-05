@@ -1,6 +1,6 @@
 ////////////////////////////////////////////////////////////////////////////////
 //
-// Minimalistic Vulkan Texture sample
+// Minimalistic Vulkan Mesh sample
 //
 // 
 
@@ -8,7 +8,7 @@
 #include <vku/vku.hpp>
 #include <vku/window.hpp>
 
-class texture_example : public vku::window
+class triangle_example : public vku::window
 {
 public:
   // these matrices transform rotate and position the triangle
@@ -24,9 +24,7 @@ public:
   vku::buffer vertex_buffer;
   vku::buffer index_buffer;
   vku::buffer uniform_buffer;
-
-  vku::texture texture;
-  vku::sampler sampler;
+  vku::buffer colour_buffer;
 
   // The desriptor pool is used to allocate components of the pipeline
   vku::descriptorPool descPool;
@@ -40,11 +38,10 @@ public:
   // The fragment shader decides the colours of pixels.
   vku::shaderModule fragmentShader;
 
-  // A layout for our descriptor set
-  vku::descriptorSetLayout descSetLayout;
+  vku::texture texture;
+  vku::sampler sampler;
 
-  // Our descriptor set
-  vku::descriptorSet descSet;
+  vku::descriptorSet desc_set;
 
   // This is the number of points on the triangle (ie. 3)
   size_t num_indices;
@@ -53,21 +50,12 @@ public:
   static const int vertex_buffer_bind_id = 0;
 
   // This is the constructor for a window containing our example
-  texture_example(int argc, const char **argv) : vku::window(argc, argv, false, 1280, 720, -2.5f, "texture") {
-    vku::imageLayoutHelper texture_layout(2, 2);
-    texture_layout.format(VK_FORMAT_R8G8B8A8_UNORM);
-    uint8_t pixels[] = { 0xff, 0x00, 0x00, 0xff,  0xff, 0xff, 0x00, 0xff,  0x00, 0x00, 0xff, 0xff,  0xff, 0xff, 0xff, 0xff };
-    texture = vku::texture(device(), texture_layout, pixels, sizeof(pixels));
-    texture.upload(setupCmdBuffer());
-
-    vku::samplerLayout layout(0);
-    sampler = vku::sampler(device(), layout);
-
+  triangle_example(int argc, const char **argv) : vku::window(argc, argv, false, 1280, 720, -2.5f, "triangle") {
     static const uint32_t indices[] = { 0, 1, 2 };
     static const float vertices[] = {
       -1, -1, 0, 0, 0, 1, 0, 0,
-       0,  1, 0, 0, 0, 1, 0, 1,
-       1, -1, 0, 0, 0, 1, 1, 0,
+       0,  1, 0, 0, 0, 1, 0, 0,
+       1, -1, 0, 0, 0, 1, 0, 0,
     };
 
     vertex_buffer = vku::buffer(device(), (void*)vertices, sizeof(vertices), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
@@ -86,16 +74,30 @@ public:
     // Matrices
 
     uniform_buffer = vku::buffer(device(), (void*)nullptr, sizeof(uniform_data), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+    glm::vec4 col(1, 1, 0, 1);
+
+    // colour
+    colour_buffer = vku::buffer(device(), (void*)&col, sizeof(col), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+
+    uint8_t pixels[] = { 0, 255, 0, 255 ,  255, 0, 0, 255 ,  255, 0, 0, 255 ,  0, 255, 0, 255 };
+    vku::imageLayoutHelper img_layout(2, 2);
+    img_layout.format(VK_FORMAT_R8G8B8A8_UNORM);
+    //img_layout.mipLevels(1);
+    texture = vku::texture(device(), img_layout, pixels, sizeof(pixels));
+
+    texture.upload(cmdPool(), queue());
+
+    vku::samplerLayout samp_layout(1);
+    sampler = vku::sampler(device(), samp_layout);
     
     // Shaders
     vertexShader = vku::shaderModule(device(), "../shaders/texture.vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
     fragmentShader = vku::shaderModule(device(), "../shaders/texture.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
 
-    // Add a uniform buffer at binding 0 (see texture.vert for details)
+    // Add a uniform buffer to the layout binding
     pipeHelper.uniformBuffer(VK_SHADER_STAGE_VERTEX_BIT, 0);
-
-    // Add a sampler at binding 1 (see texture.frag for details)
-    pipeHelper.combinedImageSampler(VK_SHADER_STAGE_FRAGMENT_BIT, 1);
+    pipeHelper.uniformBuffer(VK_SHADER_STAGE_FRAGMENT_BIT, 1);
+    pipeHelper.combinedImageSampler(VK_SHADER_STAGE_FRAGMENT_BIT, 2);
 
     // Where the shaders are used.
     pipeHelper.shader(vertexShader, VK_SHADER_STAGE_VERTEX_BIT);
@@ -106,23 +108,27 @@ public:
     pipe = vku::pipeline(device(), swapChain().renderPass(), pipelineCache(), pipe_layout, pipeHelper);
 
     vku::descriptorPoolHelper dpHelper(2);
-    dpHelper.uniformBuffers(1);
+    dpHelper.uniformBuffers(2);
+    dpHelper.combinedImageSamplers(1);
     descPool = vku::descriptorPool(device(), dpHelper);
 
     // Allocate a descriptor set for the uniform buffer
-    vku::descriptorSet desc_set = vku::descriptorSet(device(), descPool, desc_layout);
+    desc_set = vku::descriptorSet(device(), descPool, desc_layout);
 
     // Update the descriptor set with the uniform buffer
     desc_set.update(0, uniform_buffer);
-    desc_set.update(1, sampler, texture);
+    desc_set.update(1, colour_buffer);
+    desc_set.update(2, sampler, texture);
+
 
     // We have two command buffers, one for even frames and one for odd frames.
     // This allows us to update one while rendering another.
     // In this example, we only update the command buffers once at the start.
-    for (int32_t i = 0; i < swapChain().imageCount(); ++i) {
+    for (size_t i = 0; i < swapChain().imageCount(); ++i) {
       const vku::commandBuffer &cmdbuf = drawCmdBuffer(i);
       cmdbuf.begin(swapChain().renderPass(), swapChain().frameBuffer(i), width(), height());
 
+      cmdbuf.bindBindDescriptorSet(pipe_layout, desc_set);
       cmdbuf.bindPipeline(pipe);
       cmdbuf.bindVertexBuffer(vertex_buffer, vertex_buffer_bind_id);
       cmdbuf.bindIndexBuffer(index_buffer);
@@ -167,7 +173,7 @@ public:
 
 int main(const int argc, const char *argv[]) {
   // create a window.
-  texture_example my_example(argc, argv);
+  triangle_example my_example(argc, argv);
 
   // poll the windows until they are all closed
   while (vku::window::poll()) {
@@ -176,5 +182,6 @@ int main(const int argc, const char *argv[]) {
     }
     my_example.render();
   }
+  fflush(stdout);
   return 0;
 }

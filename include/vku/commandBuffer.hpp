@@ -17,12 +17,7 @@ class descriptorSet;
 
 class commandBuffer : public resource<VkCommandBuffer, commandBuffer> {
 public:
-  commandBuffer() : resource(VK_NULL_HANDLE, VK_NULL_HANDLE) {
-  }
-
-  /// command buffer that does not own its pointer
-  commandBuffer(VkCommandBuffer value, VkDevice dev) : resource(value, dev) {
-  }
+  VKU_RESOURCE_BOILERPLATE(VkCommandBuffer, commandBuffer)
 
   /// command buffer that does own (and creates) its pointer
   commandBuffer(VkDevice dev, VkCommandPool cmdPool, VkCommandBufferLevel level = VK_COMMAND_BUFFER_LEVEL_PRIMARY) : resource(dev) {
@@ -57,7 +52,6 @@ public:
   void beginCommandBuffer() const {
     VkCommandBufferBeginInfo cmdBufInfo = {};
     cmdBufInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-    cmdBufInfo.pNext = NULL;
     vkBeginCommandBuffer(get(), &cmdBufInfo);
   }
 
@@ -68,7 +62,6 @@ public:
 
     VkRenderPassBeginInfo renderPassBeginInfo = {};
     renderPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-    renderPassBeginInfo.pNext = NULL;
     renderPassBeginInfo.framebuffer = framebuffer;
     renderPassBeginInfo.renderPass = renderPass;
     renderPassBeginInfo.renderArea.offset.x = x;
@@ -271,16 +264,6 @@ public:
     vkCmdExecuteCommands(get(), commandBufferCount,pCommandBuffers);
   }
 
-
-  /*void drawIndexed(uint32_t indexCount, uint32_t instanceCount, uint32_t firstIndex, int32_t vertexOffset, uint32_t firstInstance) const {
-    // Draw indexed triangle
-    if (indexCount != 0) vkCmdDrawIndexed(get(), indexCount, instanceCount, firstIndex, vertexOffset, firstInstance);
-  }
-
-  void endRenderPass() const {
-    vkCmdEndRenderPass(get());
-  }*/
-
   // Create an image memory barrier for changing the layout of
   // an image and put it into an active command buffer
   // See chapter 11.4 "Image Layout" for details
@@ -393,7 +376,7 @@ public:
       // special case for converting to surface presentation
       case VK_IMAGE_LAYOUT_PRESENT_SRC_KHR: {
         // wait for all stages to finish
-        imageMemoryBarrier.dstAccessMask = 0;
+        imageMemoryBarrier.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
         srcStageFlags = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
       } break;
 
@@ -427,17 +410,6 @@ public:
     // does the opposite transformation 
     setImageLayout(image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
     return;
-  }
-
-  commandBuffer &operator=(commandBuffer &rhs) {
-    (resource&)(*this) = (resource&)rhs;
-    return *this;
-  }
-
-  commandBuffer &operator=(commandBuffer &&rhs) {
-    (resource&)(*this) = (resource&&)rhs;
-    pool_ = rhs.pool_;
-    return *this;
   }
 
   void destroy() {

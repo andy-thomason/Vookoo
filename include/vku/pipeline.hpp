@@ -291,7 +291,6 @@ class pipelineLayout : public resource<VkPipelineLayout, pipelineLayout> {
 public:
   VKU_RESOURCE_BOILERPLATE(VkPipelineLayout, pipelineLayout)
 
-private:
   void destroy() {
     vkDestroyPipelineLayout(dev(), get(), nullptr);
   }

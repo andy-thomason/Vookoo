@@ -450,6 +450,7 @@ public:
     width_ = swapChain_.width();
     height_ = swapChain_.height();
 
+    drawCmdBuffers_.resize(swapChain_.imageCount());
     for (size_t i = 0; i != swapChain_.imageCount(); ++i) {
       drawCmdBuffers_[i] = vku::commandBuffer(device_, cmdPool_);
     }
@@ -463,13 +464,10 @@ public:
     layout.initialLayout(VK_IMAGE_LAYOUT_UNDEFINED);
 
     depthStencil_ = vku::image(device_, layout);
-    //depthStencil_.allocate(device_);
-    //depthStencil_.bindMemoryToImage();
     depthStencil_.setImageLayout(setupCmdBuffer_, VK_IMAGE_ASPECT_DEPTH_BIT|VK_IMAGE_ASPECT_STENCIL_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
     depthStencil_.createView(layout);
 
     pipelineCache_ = vku::pipelineCache(device_);
-    //createPipelineCache();
 
     swapChain_.setupFrameBuffer(depthStencil_.view(), depthFormat_);
 
@@ -478,15 +476,9 @@ public:
     queue_.waitIdle();
 
     // Recreate setup command buffer for derived class
-
     setupCmdBuffer_ = vku::commandBuffer(device_, cmdPool_);
     setupCmdBuffer_.beginCommandBuffer();
-
-    // Create a simple texture loader class 
-    //textureLoader = new vkTools::VulkanTextureLoader(instance_.physicalDevice(), device, queue, cmdPool);
   }
-
-
 
   static bool poll() {
   #ifdef _WIN32
@@ -610,7 +602,7 @@ private:
   vku::commandPool cmdPool_;
   vku::commandBuffer setupCmdBuffer_;
   vku::commandBuffer postPresentCmdBuffer_;
-  std::array<vku::commandBuffer, 4> drawCmdBuffers_;
+  std::vector<vku::commandBuffer> drawCmdBuffers_;
   vku::pipelineCache pipelineCache_;
   vku::image depthStencil_;
   vku::swapChain swapChain_;

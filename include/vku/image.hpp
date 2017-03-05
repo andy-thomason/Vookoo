@@ -95,15 +95,15 @@ public:
 
   void destroy() {
     if (view()) {
-      //vkDestroyImageView(dev(), view(), nullptr);
+      vkDestroyImageView(dev(), view(), nullptr);
     }
 
     if (mem()) {
-      //vkFreeMemory(dev(), mem(), nullptr);
+      vkFreeMemory(dev(), mem(), nullptr);
     }
 
     if (get()) {
-      //vkDestroyImage(dev(), get(), nullptr);
+      vkDestroyImage(dev(), get(), nullptr);
     }
 
     view_ = VK_NULL_HANDLE;

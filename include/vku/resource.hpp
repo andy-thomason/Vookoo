@@ -136,7 +136,7 @@ public:
   resource &set(VulkanType value, bool owns) { value_ = value; ownsResource = owns; return *this; }
 
   void clear() {
-    //if (value_ && ownsResource) ((ParentClass*)this)->destroy();
+    if (value_ && ownsResource) ((ParentClass*)this)->destroy();
     value_ = VK_NULL_HANDLE; ownsResource = false;
   }
 

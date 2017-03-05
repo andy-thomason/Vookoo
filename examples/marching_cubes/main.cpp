@@ -39,6 +39,9 @@ public:
   // The fragment shader decides the colours of pixels.
   vku::shaderModule fragmentShader;
 
+  // The one and only descriptor set
+  vku::descriptorSet desc_set;
+
   // This is the number of points on the triangle (ie. 3)
   size_t num_indices;
 
@@ -95,7 +98,7 @@ public:
     descPool = vku::descriptorPool(device(), dpHelper);
 
     // Allocate a descriptor set for the uniform buffer
-    vku::descriptorSet desc_set = vku::descriptorSet(device(), descPool, desc_layout);
+    desc_set = vku::descriptorSet(device(), descPool, desc_layout);
 
     // Update the descriptor set with the uniform buffer
     desc_set.update(0, uniform_buffer);

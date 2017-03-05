@@ -30,6 +30,7 @@ public:
 
     // create a host texture with the layout
     layout.usage(VK_IMAGE_USAGE_TRANSFER_SRC_BIT);
+    layout.initialLayout(VK_IMAGE_LAYOUT_PREINITIALIZED);
     layout.format(layout.format());
     layout.memoryPropertyFlag(VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
     hostImage_ = vku::image(device, layout);
@@ -61,10 +62,21 @@ public:
     return *this;
   }
 
-  // add uploading commands for this texture to a command buffer
-  void upload(const vku::commandBuffer &cmdBuf) const {
+  // Create a temporary command buffer to upload the texture directly.
+  // Stall until the image has been uploaded.
+  void upload(const vku::commandPool &pool, const vku::queue &queue) const {
+    vku::commandBuffer cmdBuf(hostImage_.dev(), pool);
+    cmdBuf.beginCommandBuffer();
+    addUploadCommands(cmdBuf);
+    cmdBuf.endCommandBuffer();
+    queue.submit(cmdBuf);
+    queue.waitIdle();
+  }
+
+  // Add uploading commands for this texture to a command buffer
+  void addUploadCommands(const vku::commandBuffer &cmdBuf) const {
     VkImageAspectFlagBits aspectMask = layout_.aspectMask();
-    cmdBuf.setImageLayout(hostImage_, aspectMask, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+    cmdBuf.setImageLayout(hostImage_, aspectMask, VK_IMAGE_LAYOUT_PREINITIALIZED, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
     cmdBuf.setImageLayout(gpuImage_, aspectMask, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 
     // todo: upload multiple mipmaps and array layers

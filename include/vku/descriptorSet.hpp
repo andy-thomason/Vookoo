@@ -20,8 +20,9 @@ public:
       set(value, true);
     }
   }
-private:
+
   void destroy() {
+    vkDestroyDescriptorSetLayout(dev(), get(), nullptr);
   }
 };
 
@@ -41,6 +42,7 @@ public:
     VkResult err = vkAllocateDescriptorSets(dev(), &allocInfo, &value);
     if (err) throw error(err, __FILE__, __LINE__);
     set(value, true);
+    pool_ = descPool.get();
   }
 
   // Update a uniform buffer binding
@@ -72,9 +74,13 @@ public:
     vkUpdateDescriptorSets(dev(), 1, &writeDescriptorSet, 0, NULL);
   }
 
-private:
   void destroy() {
+    if (pool_ && get()) {
+      vkFreeDescriptorSets(dev(), pool_, 1, ref());
+    }
   }
+private:
+  VkDescriptorPool pool_ = VK_NULL_HANDLE;
 };
 
 } // vku

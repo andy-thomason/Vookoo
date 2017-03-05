@@ -37,7 +37,6 @@ public:
     if (err) throw error(err, __FILE__, __LINE__);
   }
 
-private:
   // queues are owned by the instance and cannot be destroyed explicitly.
   void destroy() {
   }
