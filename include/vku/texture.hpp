@@ -35,6 +35,10 @@ public:
     layout.memoryPropertyFlag(VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
     hostImage_ = vku::image(device, layout);
 
+    if (size != hostImage_.size()) {
+      throw std::runtime_error("texture pixels size do not match image");
+    }
+
     uint8_t *dest = (uint8_t *)hostImage_.map();
     memcpy(dest, pixels, std::min(size, hostImage_.size()));
     hostImage_.unmap();

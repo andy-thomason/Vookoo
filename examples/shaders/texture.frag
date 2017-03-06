@@ -12,7 +12,10 @@ layout (binding = 1) uniform UBO
 
 layout (binding = 2) uniform sampler2D samp; 
 
+layout (location = 0) in vec2 uv_in;
+
 void main() 
 {
-  fragColor_out = texture(samp, gl_FragCoord.xy * 0.01);
+  //fragColor_out = texture(samp, gl_FragCoord.xy * 0.01);
+  fragColor_out = texture(samp, uv_in);
 }

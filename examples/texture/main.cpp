@@ -51,19 +51,21 @@ public:
 
   // This is the constructor for a window containing our example
   triangle_example(int argc, const char **argv) : vku::window(argc, argv, false, 1280, 720, -2.5f, "triangle") {
-    static const uint32_t indices[] = { 0, 1, 2 };
+    static const uint32_t indices[] = { 0, 1, 2, 2, 1, 3 };
+    // 1 3
+    // 0 2
     static const float vertices[] = {
       -1, -1, 0, 0, 0, 1, 0, 0,
-       0,  1, 0, 0, 0, 1, 0, 0,
-       1, -1, 0, 0, 0, 1, 0, 0,
+      -1,  1, 0, 0, 0, 1, 0, 1,
+       1, -1, 0, 0, 0, 1, 1, 0,
+       1,  1, 0, 0, 0, 1, 1, 1,
     };
 
     vertex_buffer = vku::buffer(device(), (void*)vertices, sizeof(vertices), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
 
     // Indices
-    static const uint32_t index_data[] = { 0, 1, 2 };
     index_buffer = vku::buffer(device(), (void*)indices, sizeof(indices), VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
-    num_indices = 3;
+    num_indices = 6;
 
     vku::pipelineCreateHelper pipeHelper;
     pipeHelper.binding(vertex_buffer_bind_id, sizeof(float)*8, VK_VERTEX_INPUT_RATE_VERTEX);
@@ -79,15 +81,27 @@ public:
     // colour
     colour_buffer = vku::buffer(device(), (void*)&col, sizeof(col), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
 
-    uint8_t pixels[] = { 0, 255, 0, 255 ,  255, 0, 0, 255 ,  255, 0, 0, 255 ,  0, 255, 0, 255 };
-    vku::imageLayoutHelper img_layout(2, 2);
+    // note: lines are padded to 8 pixels
+    static const uint8_t pixels[] = {
+      0x00, 0xff, 0x00, 0xff,  0x40, 0xff, 0x00, 0xff,  0x80, 0xff, 0x00, 0xff,  0xff, 0xff, 0x00, 0xff, 
+      0x00, 0x00, 0x00, 0xff,  0x00, 0x00, 0x00, 0xff,  0x00, 0x00, 0x00, 0xff,  0x00, 0x00, 0x00, 0xff,  
+      0x00, 0xff, 0x40, 0xff,  0x40, 0xff, 0x40, 0xff,  0x80, 0xff, 0x40, 0xff,  0xff, 0xff, 0x40, 0xff, 
+      0x00, 0x00, 0x00, 0xff,  0x00, 0x00, 0x00, 0xff,  0x00, 0x00, 0x00, 0xff,  0x00, 0x00, 0x00, 0xff,  
+      0x00, 0xff, 0x80, 0xff,  0x40, 0xff, 0x80, 0xff,  0x80, 0xff, 0x80, 0xff,  0xff, 0xff, 0x80, 0xff, 
+      0x00, 0x00, 0x00, 0xff,  0x00, 0x00, 0x00, 0xff,  0x00, 0x00, 0x00, 0xff,  0x00, 0x00, 0x00, 0xff,  
+      0x00, 0xff, 0xc0, 0xff,  0x40, 0xff, 0xc0, 0xff,  0x80, 0xff, 0xc0, 0xff,  0xff, 0xff, 0xc0, 0xff, 
+      0x00, 0x00, 0x00, 0xff,  0x00, 0x00, 0x00, 0xff,  0x00, 0x00, 0x00, 0xff,  0x00, 0x00, 0x00, 0xff,  
+    };
+
+    vku::imageLayoutHelper img_layout(4, 4);
     img_layout.format(VK_FORMAT_R8G8B8A8_UNORM);
-    //img_layout.mipLevels(1);
-    texture = vku::texture(device(), img_layout, pixels, sizeof(pixels));
+    texture = vku::texture(device(), img_layout, (void*)pixels, sizeof(pixels));
 
     texture.upload(cmdPool(), queue());
 
     vku::samplerLayout samp_layout(1);
+    samp_layout.magFilter(VK_FILTER_NEAREST);
+
     sampler = vku::sampler(device(), samp_layout);
     
     // Shaders
