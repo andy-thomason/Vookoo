@@ -35,12 +35,24 @@ public:
     layout.memoryPropertyFlag(VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
     hostImage_ = vku::image(device, layout);
 
-    if (size != hostImage_.size()) {
-      throw std::runtime_error("texture pixels size do not match image");
-    }
+    VkImageSubresource subresource = {};
+    subresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    subresource.mipLevel = 0;
+    subresource.arrayLayer = 0;
+    VkSubresourceLayout srlayout;
+    vkGetImageSubresourceLayout(device, hostImage_.get(), &subresource, &srlayout);
 
-    uint8_t *dest = (uint8_t *)hostImage_.map();
-    memcpy(dest, pixels, std::min(size, hostImage_.size()));
+    uint8_t *dest = (uint8_t *)hostImage_.map() + srlayout.offset;
+    const uint8_t *src = (const uint8_t *)pixels;
+
+    // todo: support other formats.
+    int bytes_per_pixel = layout.format() == VK_FORMAT_R8G8B8A8_UNORM ? 4 : 0;
+    int bytes_per_line = layout.width() * bytes_per_pixel;
+    for (int y = 0; y != layout.height(); ++y) {
+      memcpy(dest, src, bytes_per_line);
+      src += bytes_per_line;
+      dest += srlayout.rowPitch;
+    }
     hostImage_.unmap();
   }
 
