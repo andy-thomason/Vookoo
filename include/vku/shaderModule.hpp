@@ -15,18 +15,12 @@ namespace vku {
 
 class shaderModule : public resource<VkShaderModule, shaderModule> {
 public:
-  shaderModule() : resource(VK_NULL_HANDLE, VK_NULL_HANDLE) {
-  }
-
-  /// descriptor pool that does not own its pointer
-  shaderModule(VkShaderModule value, VkDevice dev) : resource(value, dev) {
-  }
+  VKU_RESOURCE_BOILERPLATE(VkShaderModule, shaderModule)
 
   shaderModule(VkDevice dev, const std::string &filename, VkShaderStageFlagBits stage) : resource(dev) {
     std::ifstream input(filename, std::ios::binary | std::ios::ate);
     std::streampos length = input.tellg();
     
-    printf("%d\n", (int)length);
     if (length <= 0) throw(std::runtime_error("shaderModule: file not found or empty"));
 
     std::vector<uint8_t> buf((size_t)length);
@@ -69,11 +63,6 @@ public:
 
   void destroy() {
     if (get()) vkDestroyShaderModule(dev(), get(), nullptr);
-  }
-
-  shaderModule &operator=(shaderModule &&rhs) {
-    (resource&)(*this) = (resource&&)rhs;
-    return *this;
   }
 };
 
