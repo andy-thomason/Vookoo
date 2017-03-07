@@ -45,21 +45,23 @@ public:
     pool_ = descPool.get();
   }
 
-  // Update a uniform buffer binding
-  void update(uint32_t binding, vku::buffer &buffer) {
+  // Update a buffer binding
+  void update(uint32_t binding, vku::buffer &buffer, VkDescriptorType type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER) {
+    // VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, or VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC
     VkWriteDescriptorSet writeDescriptorSet = {};
     VkDescriptorBufferInfo desc = buffer.desc();
     writeDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
     writeDescriptorSet.dstSet = get();
     writeDescriptorSet.descriptorCount = 1;
     writeDescriptorSet.dstBinding = binding;
-    writeDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    writeDescriptorSet.descriptorType = type;
     writeDescriptorSet.pBufferInfo = &desc;
     vkUpdateDescriptorSets(dev(), 1, &writeDescriptorSet, 0, NULL);
   }
 
-  // Update a uniform buffer binding
-  void update(uint32_t binding, vku::sampler &smp, vku::texture &img) {
+  // Update a sampler binding
+  void update(uint32_t binding, vku::sampler &smp, vku::texture &img, VkDescriptorType type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER) {
+    // VK_DESCRIPTOR_TYPE_SAMPLER, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, or VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT
     VkWriteDescriptorSet writeDescriptorSet = {};
     VkDescriptorImageInfo desc = {};
     desc.sampler = smp.get();
@@ -69,10 +71,12 @@ public:
     writeDescriptorSet.dstSet = get();
     writeDescriptorSet.descriptorCount = 1;
     writeDescriptorSet.dstBinding = binding;
-    writeDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    writeDescriptorSet.descriptorType = type;
     writeDescriptorSet.pImageInfo = &desc;
     vkUpdateDescriptorSets(dev(), 1, &writeDescriptorSet, 0, NULL);
   }
+
+  // todo: VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER/VkBufferView
 
   void destroy() {
     if (pool_ && get()) {

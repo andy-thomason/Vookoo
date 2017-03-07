@@ -62,9 +62,9 @@ public:
     frameBuffers_[1] = vku::framebuffer(device_, backBuffers_[1], depthBuffer_, renderPass_, width, height);
 
     preRenderBuffer_.beginCommandBuffer();
-    backBuffers_[0].setImageLayout(preRenderBuffer_, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
-    backBuffers_[1].setImageLayout(preRenderBuffer_, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
-    depthBuffer_.setImageLayout(preRenderBuffer_, VK_IMAGE_ASPECT_DEPTH_BIT|VK_IMAGE_ASPECT_STENCIL_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+    preRenderBuffer_.setImageLayout(backBuffers_[0], VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+    preRenderBuffer_.setImageLayout(backBuffers_[1], VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+    preRenderBuffer_.setImageLayout(depthBuffer_, VK_IMAGE_ASPECT_DEPTH_BIT|VK_IMAGE_ASPECT_STENCIL_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
     preRenderBuffer_.endCommandBuffer();
 
     queue_.submit(preRenderBuffer_);
@@ -72,8 +72,8 @@ public:
 
   void copyToReadBuffer(size_t buffer) {
     postRenderBuffer_.beginCommandBuffer();
-    backBuffers_[buffer].setImageLayout(postRenderBuffer_, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL );
-    readBuffer_.setImageLayout(postRenderBuffer_, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL );
+    postRenderBuffer_.setImageLayout(backBuffers_[buffer], VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL );
+    postRenderBuffer_.setImageLayout(readBuffer_, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL );
 
     VkImageCopy cpy = {};
     cpy.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;

@@ -89,10 +89,6 @@ public:
     }
   }
 
-  void setImageLayout(const vku::commandBuffer &cmdBuf, VkImageAspectFlags aspectMask, VkImageLayout oldImageLayout, VkImageLayout newImageLayout) {
-    cmdBuf.setImageLayout(get(), aspectMask, oldImageLayout, newImageLayout);
-  }
-
   void destroy() {
     if (view()) {
       vkDestroyImageView(dev(), view(), nullptr);
@@ -188,12 +184,6 @@ public:
   }
 
 private:
-  static uint8_t *le2(uint8_t *d, int value) {
-    *d++ = (uint8_t)value;
-    *d++ = (uint8_t)(value >> 8);
-    return d;
-  }
-
   static uint8_t *le4(uint8_t *d, int value) {
     *d++ = (uint8_t)value;
     *d++ = (uint8_t)(value >> 8);
