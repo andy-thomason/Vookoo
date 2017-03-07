@@ -69,6 +69,9 @@ public:
   }
 };
 
+struct resource_aux_data {
+};
+
 /// This resource class is the base class of most of the vku wrappers.
 /// It wraps a single Vulkan interface plus related interfaces.
 /// The primary Vulkan interface is castable to a Vulkan handle of various kinds.
@@ -77,30 +80,30 @@ public:
 /// but the overhead is pretty rotten, I may return to this later.
 /// A downside of this is that you cannot put these objects in vectors.
 ///
-template <class VulkanType, class ParentClass>
+template <class VulkanType, class ParentClass, class AuxType=resource_aux_data>
 class resource {
 public:
-  resource() : value_(VK_NULL_HANDLE), ownsResource(false), dev_(VK_NULL_HANDLE) {
+  resource() : value_(VK_NULL_HANDLE), ownsResource_(false), dev_(VK_NULL_HANDLE) {
   }
 
-  resource(VulkanType value, VkDevice dev = VK_NULL_HANDLE) : value_(value), ownsResource(false), dev_(dev) {
+  resource(VulkanType value, VkDevice dev = VK_NULL_HANDLE) : value_(value), ownsResource_(false), dev_(dev) {
   }
 
-  resource(VkDevice dev) : dev_(dev), ownsResource(false) {
+  resource(VkDevice dev) : dev_(dev), ownsResource_(false) {
   }
 
   resource(const resource &rhs) {
     value_ = rhs.value_;
     dev_ = rhs.dev_;
-    ownsResource = false;
+    ownsResource_ = false;
   }
 
   resource(resource &&rhs) {
     value_ = rhs.value_;
     dev_ = rhs.dev_;
-    ownsResource = rhs.ownsResource;
+    ownsResource_ = rhs.ownsResource_;
     rhs.value_ = VK_NULL_HANDLE;
-    rhs.ownsResource = false;
+    rhs.ownsResource_ = false;
   }
 
   // when a resource is copied in the normal way, the ownership is not transfered.
@@ -108,7 +111,7 @@ public:
     clear();
     value_ = rhs.value_;
     dev_ = rhs.dev_;
-    ownsResource = false;
+    ownsResource_ = false;
   }
 
   // every resource is moveable transfering ownership of the
@@ -117,9 +120,9 @@ public:
     clear();
     value_ = rhs.value_;
     dev_ = rhs.dev_;
-    ownsResource = rhs.ownsResource;
+    ownsResource_ = rhs.ownsResource_;
     rhs.value_ = VK_NULL_HANDLE;
-    rhs.ownsResource = false;
+    rhs.ownsResource_ = false;
   }
 
   ~resource() {
@@ -133,25 +136,32 @@ public:
   VulkanType get() const { return value_; }
   VulkanType *ref() { return &value_; }
   VkDevice dev() const { return dev_; }
-  resource &set(VulkanType value, bool owns) { value_ = value; ownsResource = owns; return *this; }
+  resource &set(VulkanType value, bool owns) { value_ = value; ownsResource_ = owns; return *this; }
 
   void clear() {
-    if (value_ && ownsResource) ((ParentClass*)this)->destroy();
-    value_ = VK_NULL_HANDLE; ownsResource = false;
+    if (value_ && ownsResource_) ((ParentClass*)this)->destroy();
+    value_ = VK_NULL_HANDLE; ownsResource_ = false;
   }
 
   void move(resource &&rhs) {
     operator=(std::move(rhs));
+    aux_ = std::move(rhs.aux_);
   }
 
   void copy(const resource &rhs) {
     operator=(rhs);
+    aux_ = rhs.aux_;
   }
+
+  AuxType &aux() { return aux_; }
+  const AuxType &aux() const { return aux_; }
 private:
+
   // resources have a value, a device and an ownership flag.
   VulkanType value_ = VK_NULL_HANDLE;
   VkDevice dev_ = VK_NULL_HANDLE;
-  bool ownsResource = false;
+  bool ownsResource_ = false;
+  AuxType aux_;
 };
 
 // ghastly boilerplate as a macro
