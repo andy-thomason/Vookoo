@@ -49,7 +49,9 @@ public:
   void update(uint32_t binding, vku::buffer &buffer, VkDescriptorType type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER) {
     // VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, or VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC
     VkWriteDescriptorSet writeDescriptorSet = {};
-    VkDescriptorBufferInfo desc = buffer.desc();
+    VkDescriptorBufferInfo desc = {};
+    desc.buffer = buffer.get();
+    desc.range = buffer.size();
     writeDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
     writeDescriptorSet.dstSet = get();
     writeDescriptorSet.descriptorCount = 1;

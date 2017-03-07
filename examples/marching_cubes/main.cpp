@@ -8,7 +8,7 @@
 #include <vku/vku.hpp>
 #include <vku/window.hpp>
 
-class teapot_example : public vku::window
+class mc_example : public vku::window
 {
 public:
   // these matrices transform rotate and position the triangle
@@ -49,7 +49,7 @@ public:
   static const int vertex_buffer_bind_id = 0;
 
   // This is the constructor for a window containing our example
-  teapot_example(int argc, const char **argv) : vku::window(argc, argv, false, 1280, 720, -2.5f, "teapot") {
+  mc_example(int argc, const char **argv) : vku::window(argc, argv, false, 1280, 720, -2.5f, "teapot") {
     // construct a mesh using a function and a vertex generator.
     mesh = vku::simple_mesh(
       10, 10, 10,
@@ -155,7 +155,7 @@ public:
 
 int main(const int argc, const char *argv[]) {
   // create a window.
-  teapot_example my_example(argc, argv);
+  mc_example my_example(argc, argv);
 
   // poll the windows until they are all closed
   while (vku::window::poll()) {
