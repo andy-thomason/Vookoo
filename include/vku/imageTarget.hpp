@@ -1,6 +1,6 @@
 ////////////////////////////////////////////////////////////////////////////////
 //
-// (C) Andy Thomason 2016
+// (C) Andy Thomason 2016, 2017
 //
 // Vookoo: image target class: for operating vulkan on servers.
 // 

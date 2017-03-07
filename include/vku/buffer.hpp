@@ -1,8 +1,8 @@
 ////////////////////////////////////////////////////////////////////////////////
 //
-// (C) Andy Thomason 2016
+// (C) Andy Thomason 2016, 2017, 2017
 //
-// Vookoo: command pool wraps VkCommandPool
+// Vookoo: buffer wraps VkBuffer
 // 
 
 #ifndef VKU_BUFFER_INCLUDED
