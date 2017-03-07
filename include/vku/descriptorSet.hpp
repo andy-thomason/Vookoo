@@ -26,7 +26,7 @@ public:
   }
 };
 
-class descriptorSet : public resource<VkDescriptorSet, descriptorSet> {
+class descriptorSet : public resource<VkDescriptorSet, descriptorSet, VkDescriptorPool> {
 public:
   VKU_RESOURCE_BOILERPLATE(VkDescriptorSet, descriptorSet)
 
@@ -42,7 +42,7 @@ public:
     VkResult err = vkAllocateDescriptorSets(dev(), &allocInfo, &value);
     if (err) throw error(err, __FILE__, __LINE__);
     set(value, true);
-    pool_ = descPool.get();
+    aux() = descPool.get();
   }
 
   // Update a buffer binding
@@ -81,12 +81,12 @@ public:
   // todo: VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER/VkBufferView
 
   void destroy() {
-    if (pool_ && get()) {
-      vkFreeDescriptorSets(dev(), pool_, 1, ref());
+    if (pool() && get()) {
+      vkFreeDescriptorSets(dev(), pool(), 1, ref());
     }
   }
-private:
-  VkDescriptorPool pool_ = VK_NULL_HANDLE;
+
+  VkDescriptorPool pool() const { return aux(); }
 };
 
 } // vku
