@@ -542,8 +542,8 @@ public:
   const vku::device &device() const { return device_; }
   const vku::queue &queue() const { return queue_; }
   const vku::commandPool &cmdPool() const { return cmdPool_; }
-  const vku::commandBuffer &setupCmdBuffer() const { return setupCmdBuffer_; }
-  const vku::commandBuffer &postPresentCmdBuffer() const { return postPresentCmdBuffer_; }
+  //const vku::commandBuffer &setupCmdBuffer() const { return setupCmdBuffer_; }
+  //const vku::commandBuffer &postPresentCmdBuffer() const { return postPresentCmdBuffer_; }
   const vku::commandBuffer &drawCmdBuffer(size_t i) const { return drawCmdBuffers_[i]; }
   const vku::pipelineCache &pipelineCache() const { return pipelineCache_; }
   const vku::image &depthStencil() const { return depthStencil_; }
