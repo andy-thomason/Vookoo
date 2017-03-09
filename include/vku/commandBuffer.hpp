@@ -107,13 +107,13 @@ public:
     vkCmdBindPipeline(get(), VK_PIPELINE_BIND_POINT_GRAPHICS, pipe.get());
   }
 
-  void bindVertexBuffer(buffer &buf, int bindId) const {
+  void bindVertexBuffer(vku::buffer &buf, int bindId) const {
     VkDeviceSize offsets[] = { 0 };
     VkBuffer bufs[] = { buf.buf() };
     if (bufs[0] != VK_NULL_HANDLE) vkCmdBindVertexBuffers(get(), bindId, 1, bufs, offsets);
   }
 
-  void bindIndexBuffer(buffer &buf) const {
+  void bindIndexBuffer(vku::buffer &buf) const {
     // Bind triangle indices
     if (buf.buf() != VK_NULL_HANDLE) vkCmdBindIndexBuffer(get(), buf.buf(), 0, VK_INDEX_TYPE_UINT32);
   }
@@ -401,7 +401,7 @@ public:
     vkEndCommandBuffer(get());
   }
 
-  void addPostPresentBariier(VkImage image) const {
+  /*void addPostPresentBariier(VkImage image) const {
     // Add a post present image memory barrier
     // This will transform the frame buffer color attachment back
     // to it's initial layout after it has been presented to the
@@ -410,7 +410,7 @@ public:
     // does the opposite transformation 
     setImageLayout(image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
     return;
-  }
+  }*/
 
   void destroy() {
     if (dev() && pool_) {
