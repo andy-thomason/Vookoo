@@ -1,6 +1,6 @@
 ////////////////////////////////////////////////////////////////////////////////
 //
-// (C) Andy Thomason 2016
+// (C) Andy Thomason 2016, 2017
 //
 // Vookoo: 
 // 
@@ -67,7 +67,14 @@ private:
   VkImageAspectFlagBits aspectMask_ = VK_IMAGE_ASPECT_COLOR_BIT;
 };
 
-class image : public resource<VkImage, image> {
+struct image_aux_data {
+  VkFormat format = VK_FORMAT_UNDEFINED;
+  VkDeviceMemory mem = VK_NULL_HANDLE;
+  VkImageView view = VK_NULL_HANDLE;
+  size_t size = 0;
+};
+
+class image : public resource<VkImage, image, image_aux_data> {
 public:
   VKU_RESOURCE_BOILERPLATE(VkImage, image)
 
@@ -78,7 +85,7 @@ public:
     if (err) throw error(err, __FILE__, __LINE__);
 
     set(result, true);
-    format_ = layout.format();
+    aux().format = layout.format();
 
     allocate(device, layout);
     bindMemoryToImage();
@@ -87,10 +94,6 @@ public:
       //debugCallback: Invalid usage flag for image 0x1a used by vkCreateImageView(). In this case, image should have VK_IMAGE_USAGE_[SAMPLED|STORAGE|COLOR_ATTACHMENT]_BIT set during creation.
       createView(layout);
     }
-  }
-
-  void setImageLayout(const vku::commandBuffer &cmdBuf, VkImageAspectFlags aspectMask, VkImageLayout oldImageLayout, VkImageLayout newImageLayout) {
-    cmdBuf.setImageLayout(get(), aspectMask, oldImageLayout, newImageLayout);
   }
 
   void destroy() {
@@ -106,33 +109,31 @@ public:
       vkDestroyImage(dev(), get(), nullptr);
     }
 
-    view_ = VK_NULL_HANDLE;
-    mem_ = VK_NULL_HANDLE;
+    aux().view = VK_NULL_HANDLE;
+    aux().mem = VK_NULL_HANDLE;
     set(VK_NULL_HANDLE, false);
   }
 
-  VkDeviceMemory mem() const { return mem_; }
-  VkImageView view() const { return view_; }
+  VkDeviceMemory mem() const { return aux().mem; }
+  VkImageView view() const { return aux().view; }
+  VkFormat format() const { return aux().format; }
+  size_t size() const { return aux().size; }
 
   void *map() const {
     void *dest = nullptr;
-    VkResult err = vkMapMemory(dev(), mem_, 0, size(), 0, &dest);
+    VkResult err = vkMapMemory(dev(), aux().mem, 0, size(), 0, &dest);
     if (err) throw error(err, __FILE__, __LINE__);
     return dest;
   }
 
   void unmap() const {
-    vkUnmapMemory(dev(), mem_);
-  }
-
-  size_t size() const {
-    return size_;
+    vkUnmapMemory(dev(), aux().mem);
   }
 
   // https://en.wikipedia.org/wiki/BMP_file_format
   template <class Writer>
   void writeBMP(int width, int height, Writer &wr) const {
-    if (format_ != VK_FORMAT_R8G8B8A8_UNORM) {
+    if (aux().format != VK_FORMAT_R8G8B8A8_UNORM) {
       throw std::runtime_error("can't write this format");
     }
     VkImageSubresource sr = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0 };
@@ -173,7 +174,7 @@ public:
     VkImageViewCreateInfo viewCreateInfo = {};
     viewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
     viewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-    viewCreateInfo.format = format_;
+    viewCreateInfo.format = aux().format;
     viewCreateInfo.flags = 0;
     viewCreateInfo.subresourceRange = {};
     viewCreateInfo.components = { VK_COMPONENT_SWIZZLE_R, VK_COMPONENT_SWIZZLE_G, VK_COMPONENT_SWIZZLE_B, VK_COMPONENT_SWIZZLE_A };
@@ -183,17 +184,11 @@ public:
     viewCreateInfo.subresourceRange.baseArrayLayer = 0;
     viewCreateInfo.subresourceRange.layerCount = 1;
     viewCreateInfo.image = get();
-    VkResult err = vkCreateImageView(dev(), &viewCreateInfo, nullptr, &view_);
+    VkResult err = vkCreateImageView(dev(), &viewCreateInfo, nullptr, &aux().view);
     if (err) throw error(err, __FILE__, __LINE__);
   }
 
 private:
-  static uint8_t *le2(uint8_t *d, int value) {
-    *d++ = (uint8_t)value;
-    *d++ = (uint8_t)(value >> 8);
-    return d;
-  }
-
   static uint8_t *le4(uint8_t *d, int value) {
     *d++ = (uint8_t)value;
     *d++ = (uint8_t)(value >> 8);
@@ -214,10 +209,10 @@ private:
     if (mem_alloc.memoryTypeIndex == ~(uint32_t)0) {
       throw std::runtime_error("image: can't find correct memory properties");
     }
-    VkResult err = vkAllocateMemory(device, &mem_alloc, nullptr, &mem_);
+    VkResult err = vkAllocateMemory(device, &mem_alloc, nullptr, &aux().mem);
     if (err) throw error(err, __FILE__, __LINE__);
 
-    size_ = (size_t)memReqs.size;
+    aux().size = (size_t)memReqs.size;
   }
 
   /// bind device memory to the image object
@@ -227,7 +222,7 @@ private:
   }
 
   bool isDepthFormat() const {
-    switch (format_) {
+    switch (aux().format) {
       case VK_FORMAT_D16_UNORM:
       case VK_FORMAT_X8_D24_UNORM_PACK32:
       case VK_FORMAT_D32_SFLOAT:
@@ -239,27 +234,6 @@ private:
         return false;
     }
   }
-
-  void move(image &&rhs) {
-    (resource&)*this = (resource&&)rhs;
-    format_ = rhs.format_;
-    size_ = rhs.size_;
-    mem_ = rhs.mem_;
-    view_ = rhs.view_;
-  }
-
-  void copy(const image &rhs) {
-    (resource&)*this = (const resource&)rhs;
-    format_ = rhs.format_;
-    size_ = rhs.size_;
-    mem_ = rhs.mem_;
-    view_ = rhs.view_;
-  }
-
-  VkFormat format_ = VK_FORMAT_UNDEFINED;
-  VkDeviceMemory mem_ = VK_NULL_HANDLE;
-  VkImageView view_ = VK_NULL_HANDLE;
-  size_t size_ = 0;
 };
 
 } // vku

@@ -1,8 +1,8 @@
 ////////////////////////////////////////////////////////////////////////////////
 //
-// (C) Andy Thomason 2016
+// (C) Andy Thomason 2016, 2017, 2017
 //
-// Vookoo: command pool wraps VkCommandPool
+// Vookoo: buffer wraps VkBuffer
 // 
 
 #ifndef VKU_BUFFER_INCLUDED
@@ -14,30 +14,37 @@
 
 namespace vku {
 
-class buffer {
-public:
-  buffer(VkDevice dev = VK_NULL_HANDLE, VkBuffer buf = VK_NULL_HANDLE) : buf_(buf), dev(dev) {
-  }
+struct buffer_aux_data {
+  VkDeviceMemory mem = VK_NULL_HANDLE;
+  VkDeviceSize size = 0;
+};
 
-  buffer(device dev, void *init, VkDeviceSize size, VkBufferUsageFlags usage) : dev(dev), size_(size) {
+class buffer : public resource<VkBuffer, buffer, buffer_aux_data> {
+public:
+  VKU_RESOURCE_BOILERPLATE(VkBuffer, buffer)
+  
+  buffer(const vku::device &device, void *init, VkDeviceSize size, VkBufferUsageFlags usage) : resource(device) {
+    aux().size = size;
+
     VkBufferCreateInfo bufInfo = {};
     bufInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
     bufInfo.size = size;
     bufInfo.usage = usage;
-    VkResult err = vkCreateBuffer(dev, &bufInfo, nullptr, &buf_);
+    VkBuffer buf = VK_NULL_HANDLE;
+    VkResult err = vkCreateBuffer(dev(), &bufInfo, nullptr, &buf);
     if (err) throw error(err, __FILE__, __LINE__);
 
-    ownsBuffer = true;
+    set(buf, true);
 
     VkMemoryRequirements memReqs;
     VkMemoryAllocateInfo memAlloc = {};
     memAlloc.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
 
-    vkGetBufferMemoryRequirements(dev, buf_, &memReqs);
+    vkGetBufferMemoryRequirements(dev(), get(), &memReqs);
     memAlloc.allocationSize = memReqs.size;
-    memAlloc.memoryTypeIndex = dev.getMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+    memAlloc.memoryTypeIndex = device.getMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
 
-    err = vkAllocateMemory(dev, &memAlloc, VK_NULL_HANDLE, &mem);
+    err = vkAllocateMemory(dev(), &memAlloc, VK_NULL_HANDLE, &aux().mem);
     if (err) throw error(err, __FILE__, __LINE__);
 
     if (init) {
@@ -45,73 +52,34 @@ public:
       std::memcpy(dest, init, (size_t)size);
       unmap();
     }
-    bind();
+
+    err = vkBindBufferMemory(dev(), get(), aux().mem, 0);
+    if (err) throw error(err, __FILE__, __LINE__);
   }
 
-  buffer(VkBufferCreateInfo bufInfo, VkDevice dev = VK_NULL_HANDLE) : dev(dev) {
-    vkCreateBuffer(dev, &bufInfo, nullptr, &buf_);
-  }
-
-  // RAII move operator
-  buffer &operator=(buffer &&rhs) {
-    dev = rhs.dev;
-    buf_ = rhs.buf_;
-    mem = rhs.mem;
-    size_ = rhs.size_;
-    rhs.dev = VK_NULL_HANDLE;
-    rhs.mem = VK_NULL_HANDLE;
-    rhs.buf_ = VK_NULL_HANDLE;
-
-    rhs.ownsBuffer = false;
-    return *this;
-  }
-
-  ~buffer() {
-    if (ownsBuffer) {
-      if (buf_) vkDestroyBuffer(dev, buf_, nullptr);
-      if (mem) vkFreeMemory(dev, mem, nullptr);
-      buf_ = VK_NULL_HANDLE;
-      mem = VK_NULL_HANDLE;
-    }
+  void destroy() {
+    vkDestroyBuffer(dev(), get(), nullptr);
+    if (mem()) vkFreeMemory(dev(), mem(), nullptr);
   }
 
   void *map() const {
     void *dest = nullptr;
-    VkResult err = vkMapMemory(dev, mem, 0, size(), 0, &dest);
+    VkResult err = vkMapMemory(dev(), mem(), 0, size(), 0, &dest);
     if (err) throw error(err, __FILE__, __LINE__);
     return dest;
   }
 
   void unmap() const {
-    vkUnmapMemory(dev, mem);
+    vkUnmapMemory(dev(), aux().mem);
   }
 
   size_t size() const {
-    return (size_t)size_;
+    return (size_t)aux().size;
   }
 
-  //operator VkBuffer() const { return buf_; }
-
-  VkBuffer buf() const { return buf_; }
-
-  VkDescriptorBufferInfo desc() const {
-    VkDescriptorBufferInfo d = {};
-    d.buffer = buf_;
-    d.range = size_;
-    return d;
+  VkDeviceMemory mem() const {
+    return aux().mem;
   }
-
-private:
-  void bind() {
-    VkResult err = vkBindBufferMemory(dev, buf_, mem, 0);
-    if (err) throw error(err, __FILE__, __LINE__);
-  }
-
-  VkBuffer buf_ = VK_NULL_HANDLE;
-  VkDevice dev = VK_NULL_HANDLE;
-  VkDeviceMemory mem = VK_NULL_HANDLE;
-  VkDeviceSize size_;
-  bool ownsBuffer = false;
 };
 
 

@@ -1,6 +1,6 @@
 ////////////////////////////////////////////////////////////////////////////////
 //
-// (C) Andy Thomason 2016
+// (C) Andy Thomason 2016, 2017
 //
 // Vookoo: command buffer wraps VkCommandBuffer
 // 
@@ -107,15 +107,15 @@ public:
     vkCmdBindPipeline(get(), VK_PIPELINE_BIND_POINT_GRAPHICS, pipe.get());
   }
 
-  void bindVertexBuffer(vku::buffer &buf, int bindId) const {
+  void bindVertexBuffer(const vku::buffer &buf, int bindId) const {
     VkDeviceSize offsets[] = { 0 };
-    VkBuffer bufs[] = { buf.buf() };
+    VkBuffer bufs[] = { buf.get() };
     if (bufs[0] != VK_NULL_HANDLE) vkCmdBindVertexBuffers(get(), bindId, 1, bufs, offsets);
   }
 
-  void bindIndexBuffer(vku::buffer &buf) const {
+  void bindIndexBuffer(const vku::buffer &buf) const {
     // Bind triangle indices
-    if (buf.buf() != VK_NULL_HANDLE) vkCmdBindIndexBuffer(get(), buf.buf(), 0, VK_INDEX_TYPE_UINT32);
+    if (buf.get() != VK_NULL_HANDLE) vkCmdBindIndexBuffer(get(), buf.get(), 0, VK_INDEX_TYPE_UINT32);
   }
 
   void setLineWidth(float width) const {
