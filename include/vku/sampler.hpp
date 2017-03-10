@@ -80,51 +80,15 @@ private:
 
 class sampler : public resource<VkSampler, sampler> {
 public:
-  sampler() : resource(VK_NULL_HANDLE, VK_NULL_HANDLE) {
-  }
-
-  /// Sampler that does not own the handle
-  sampler(VkSampler value, VkDevice dev) : resource(value, dev) {
-  }
+  VKU_RESOURCE_BOILERPLATE(VkSampler, sampler)
 
   /// Sampler that owns the handle
   sampler(const vku::device &device, const samplerLayout &layout) : resource(device) {
     set(layout.createSampler(device), true);
   }
 
-  /// move constructor
-  sampler(sampler &&rhs) {
-    move(std::move(rhs));
-  }
-
-  /// move operator
-  sampler &operator=(sampler &&rhs) {
-    move(std::move(rhs));
-    return *this;
-  }
-
-  /// copy constructor
-  sampler(const sampler &rhs) {
-    copy(rhs);
-  }
-
-  /// copy operator
-  sampler &operator=(const sampler &rhs) {
-    copy(rhs);
-    return *this;
-  }
-
   void destroy() {
     if (get()) vkDestroySampler(dev(), get(), nullptr);
-  }
-
-private:
-  void copy(const sampler &rhs) {
-    (resource&)*this = (const resource&)rhs;
-  }
-
-  void move(sampler &&rhs) {
-    (resource&)*this = (resource&&)rhs;
   }
 };
 

@@ -67,17 +67,6 @@ public:
     return *this;
   }
 
-  /// copy constructor
-  texture(const texture &rhs) {
-    copy(rhs);
-  }
-
-  /// copy operator
-  texture &operator=(const texture &rhs) {
-    copy(rhs);
-    return *this;
-  }
-
   // Create a temporary command buffer to upload the texture directly.
   // Stall until the image has been uploaded.
   void upload(const vku::commandPool &pool, const vku::queue &queue) const {
@@ -116,12 +105,6 @@ public:
   const image &hostImage() const { return hostImage_; }
   const imageLayoutHelper &layout() const { return layout_; }
 private:
-  void copy(const texture &rhs) {
-    hostImage_ = rhs.hostImage_;
-    gpuImage_ = rhs.gpuImage_;
-    layout_ = rhs.layout_;
-  }
-
   void move(texture &&rhs) {
     hostImage_ = std::move(rhs.hostImage_);
     gpuImage_ = std::move(rhs.gpuImage_);

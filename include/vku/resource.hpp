@@ -107,12 +107,12 @@ public:
   }
 
   // when a resource is copied in the normal way, the ownership is not transfered.
-  void operator=(const resource &rhs) {
+  /*void operator=(const resource &rhs) {
     clear();
     value_ = rhs.value_;
     dev_ = rhs.dev_;
     ownsResource_ = false;
-  }
+  }*/
 
   // every resource is moveable transfering ownership of the
   // object to the copy. The former owner loses ownership.
@@ -148,10 +148,10 @@ public:
     aux_ = std::move(rhs.aux_);
   }
 
-  void copy(const resource &rhs) {
+  /*void copy(const resource &rhs) {
     operator=(rhs);
     aux_ = rhs.aux_;
-  }
+  }*/
 
   AuxType &aux() { return aux_; }
   const AuxType &aux() const { return aux_; }
@@ -167,20 +167,15 @@ private:
 // ghastly boilerplate as a macro
 
 #define VKU_RESOURCE_BOILERPLATE(vktype, vkuclass) \
-  vkuclass(vktype value = VK_NULL_HANDLE, VkDevice dev = VK_NULL_HANDLE) : resource(value, dev) { \
+  vkuclass() : resource() { \
+  } \
+  vkuclass(vktype value, VkDevice dev) : resource(value, dev) { \
   } \
   vkuclass(vkuclass &&rhs) { \
     move(std::move(rhs)); \
   } \
   vkuclass &operator=(vkuclass &&rhs) { \
     move(std::move(rhs)); \
-    return *this; \
-  } \
-  vkuclass(const vkuclass &rhs) { \
-    copy(rhs); \
-  } \
-  vkuclass &operator=(const vkuclass &rhs) { \
-    copy(rhs); \
     return *this; \
   }
 
