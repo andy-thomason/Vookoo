@@ -97,7 +97,7 @@ public:
   }
 
   // forward reference, needs to know about pipelineLayout and descriptorSet
-  void commandBuffer::bindBindDescriptorSet(vku::pipelineLayout &layout, vku::descriptorSet &set) const;
+  void bindBindDescriptorSet(vku::pipelineLayout &layout, vku::descriptorSet &set) const;
 
   void bindPipeline(vku::pipeline &pipe) const {
     // Bind descriptor sets describing shader binding points
