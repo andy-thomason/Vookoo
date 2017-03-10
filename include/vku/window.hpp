@@ -592,7 +592,7 @@ private:
     #else
       VkXcbSurfaceCreateInfoKHR surfaceCreateInfo = {};
       surfaceCreateInfo.sType = VK_STRUCTURE_TYPE_XCB_SURFACE_CREATE_INFO_KHR;
-      surfaceCreateInfo.connection = connection;
+      surfaceCreateInfo.connection = (xcb_connection_t*)connection;
       surfaceCreateInfo.window = (xcb_window_t)(intptr_t)window;
       VkResult err = vkCreateXcbSurfaceKHR(instance, &surfaceCreateInfo, nullptr, &result);
     #endif

@@ -10,4 +10,5 @@ add_subdirectory(marching_cubes)
 add_subdirectory(texture)
 add_subdirectory(triangle)
 add_subdirectory(triangle_image)
+add_subdirectory(glfw)
 
