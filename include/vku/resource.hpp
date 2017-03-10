@@ -92,12 +92,6 @@ public:
   resource(VkDevice dev) : dev_(dev), ownsResource_(false) {
   }
 
-  resource(const resource &rhs) {
-    value_ = rhs.value_;
-    dev_ = rhs.dev_;
-    ownsResource_ = false;
-  }
-
   resource(resource &&rhs) {
     value_ = rhs.value_;
     dev_ = rhs.dev_;
@@ -105,14 +99,6 @@ public:
     rhs.value_ = VK_NULL_HANDLE;
     rhs.ownsResource_ = false;
   }
-
-  // when a resource is copied in the normal way, the ownership is not transfered.
-  /*void operator=(const resource &rhs) {
-    clear();
-    value_ = rhs.value_;
-    dev_ = rhs.dev_;
-    ownsResource_ = false;
-  }*/
 
   // every resource is moveable transfering ownership of the
   // object to the copy. The former owner loses ownership.
@@ -147,11 +133,6 @@ public:
     operator=(std::move(rhs));
     aux_ = std::move(rhs.aux_);
   }
-
-  /*void copy(const resource &rhs) {
-    operator=(rhs);
-    aux_ = rhs.aux_;
-  }*/
 
   AuxType &aux() { return aux_; }
   const AuxType &aux() const { return aux_; }
