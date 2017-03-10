@@ -14,6 +14,7 @@
 
 // Vulkan classes
 #include <vku/resource.hpp>
+#include <vku/queue.hpp>
 #include <vku/device.hpp>
 #include <vku/instance.hpp>
 #include <vku/swapChain.hpp>
@@ -23,7 +24,6 @@
 #include <vku/renderPass.hpp>
 #include <vku/pipeline.hpp>
 #include <vku/semaphore.hpp>
-#include <vku/queue.hpp>
 #include <vku/commandPool.hpp>
 #include <vku/commandBuffer.hpp>
 #include <vku/image.hpp>

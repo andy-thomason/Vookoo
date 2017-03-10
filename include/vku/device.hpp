@@ -19,7 +19,14 @@ public:
   device() {
   }
 
-  device(VkDevice dev, VkPhysicalDevice physicalDevice_) : dev(dev), physicalDevice_(physicalDevice_) {
+  device(VkDevice dev, VkPhysicalDevice physicalDevice_, const VkAllocationCallbacks *callbacks) : device_(dev), physicalDevice_(physicalDevice_), callbacks_(callbacks) {
+    int x = 1;
+  }
+
+  void operator=(device &&rhs) {
+    std::swap(device_, rhs.device_);
+    std::swap(physicalDevice_, rhs.physicalDevice_);
+    std::swap(callbacks_, rhs.callbacks_);
   }
 
   uint32_t getMemoryType(uint32_t typeBits, VkFlags properties) const {
@@ -36,7 +43,7 @@ public:
     return ~(uint32_t)0;
   }
 
-  VkFormat getSupportedDepthFormat()
+  VkFormat getSupportedDepthFormat() const
   {
     // Since all depth formats may be optional, we need to find a suitable depth format to use
     // Start with the highest precision packed format
@@ -62,7 +69,7 @@ public:
   }
 
   // todo: get two queues
-  uint32_t getGraphicsQueueNodeIndex(VkSurfaceKHR surface) {
+  uint32_t getGraphicsQueueNodeIndex(VkSurfaceKHR surface) const {
     // Get queue properties
     uint32_t queueCount;
     vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice_, &queueCount, NULL);
@@ -98,7 +105,7 @@ public:
     return ~(uint32_t)0;
   }
 
-  std::pair<VkFormat, VkColorSpaceKHR> getSurfaceFormat(VkSurfaceKHR surface) {
+  std::pair<VkFormat, VkColorSpaceKHR> getSurfaceFormat(VkSurfaceKHR surface) const {
     // Get list of supported formats
     uint32_t formatCount = 0;
     VkResult err = vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice_, surface, &formatCount, NULL);
@@ -114,16 +121,17 @@ public:
     ;
   }
 
-  operator VkDevice() const { return dev; }
+  operator VkDevice() const { return device_; }
   VkPhysicalDevice physicalDevice() const { return physicalDevice_; }
 
   void waitIdle() const {
-    vkDeviceWaitIdle(dev);
+    vkDeviceWaitIdle(device_);
   }
 
 public:
-  VkDevice dev;
+  VkDevice device_;
   VkPhysicalDevice physicalDevice_;
+  const VkAllocationCallbacks *callbacks_;
 };
 
 

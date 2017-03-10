@@ -80,7 +80,9 @@ namespace vku {
 class window {
 public:
   window(int argc, const char **argv, bool enableValidation, uint32_t width, uint32_t height, float zoom, const std::string &title) :
-    width_(width), height_(height), zoom_(zoom), title_(title), argc_(argc), argv_(argv)
+    width_(width), height_(height), zoom_(zoom), title_(title), argc_(argc), argv_(argv),
+    device_(instance::singleton().device()),
+    queue_(instance::singleton().queue())
   {
     for (int32_t i = 0; i < argc; i++) {
       if (argv[i] == std::string("-validation")) {
@@ -88,8 +90,6 @@ public:
       }
     }
 
-    device_ = instance::singleton().device();
-    queue_ = instance::singleton().queue();
     presentCompleteSema_ = vku::semaphore(device_);
 
     // Find a suitable depth format
@@ -600,8 +600,8 @@ private:
     return result;
   }
 
-  vku::device device_;
-  vku::queue queue_;
+  const vku::device &device_;
+  const vku::queue &queue_;
   vku::commandPool cmdPool_;
   vku::commandBuffer setupCmdBuffer_;
   vku::commandBuffer postPresentCmdBuffer_;

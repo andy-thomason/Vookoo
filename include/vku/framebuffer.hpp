@@ -14,15 +14,11 @@ namespace vku {
 
 class framebuffer : public resource<VkFramebuffer, framebuffer> {
 public:
-  framebuffer() : resource(VK_NULL_HANDLE, VK_NULL_HANDLE) {
-  }
-
-  /// Render pass that does not own its pointer
-  framebuffer(VkFramebuffer value, VkDevice dev) : resource(value, dev) {
+  framebuffer() {
   }
 
   /// Render pass that does own (and creates) its pointer
-  framebuffer(vku::device &device, vku::image &backBuffer, vku::image &depthBuffer, vku::renderPass &renderPass, uint32_t width, uint32_t height) : resource(device) {
+  framebuffer(const vku::device &device, vku::image &backBuffer, vku::image &depthBuffer, vku::renderPass &renderPass, uint32_t width, uint32_t height) : resource(device) {
     std::vector<VkImageView> attachments;
     attachments.push_back(backBuffer.view());
     attachments.push_back(depthBuffer.view());

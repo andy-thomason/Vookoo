@@ -17,8 +17,10 @@
 namespace vku {
 class imageTarget {
 public:
-  imageTarget(const vku::device &device, uint32_t width, uint32_t height) : device_(device), width_(width), height_(height) {
-    queue_ = vku::queue(vku::instance::singleton().queue(), device_);
+  imageTarget(const vku::device &device, uint32_t width, uint32_t height) :
+    device_(device), width_(width), height_(height),
+    queue_(vku::instance::singleton().queue(), device_)
+  {
     uint32_t queueFamilyIndex = vku::instance::singleton().graphicsQueueIndex();
     cmdPool_ = vku::commandPool(device_, queueFamilyIndex);
     preRenderBuffer_ = vku::commandBuffer(device_, cmdPool_);
@@ -106,7 +108,7 @@ public:
   const vku::image &readBuffer() const { return readBuffer_; }
 
 private:
-  vku::device device_;
+  const vku::device &device_;
 
   vku::commandPool cmdPool_;
   vku::queue queue_;

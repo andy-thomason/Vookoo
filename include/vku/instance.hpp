@@ -20,6 +20,7 @@
   #endif
 #endif
 
+
 namespace vku {
 
 class instance {
@@ -28,8 +29,8 @@ public:
     vkDestroyInstance(instance_, nullptr);
   }
 
-  vku::device &device() { return dev_; }
-  VkQueue queue() const { return queue_; }
+  const vku::device &device() const { return dev_; }
+  const vku::queue &queue() const { return queue_; }
   VkInstance get() const { return instance_; }
 
   // singleton, created on first use.
@@ -207,7 +208,7 @@ private:
     err = vkCreateDevice(physicalDevices[0], &deviceCreateInfo, nullptr, &dev);
     if (err) throw error(err, __FILE__, __LINE__);
 
-    dev_ = vku::device(dev, physicalDevices[0]);
+    dev_ = vku::device(dev, physicalDevices[0], nullptr);
 
     if (enableValidation) {
       auto vkCreateDebugReportCallbackEXT = (PFN_vkCreateDebugReportCallbackEXT)vkGetInstanceProcAddr(instance_, "vkCreateDebugReportCallbackEXT");
@@ -227,7 +228,9 @@ private:
     }
 
     // Get the graphics queue
-    vkGetDeviceQueue(dev_, graphicsQueueIndex_, 0, &queue_);
+    VkQueue queue;
+    vkGetDeviceQueue(dev_, graphicsQueueIndex_, 0, &queue);
+    queue_.set(queue, true);
   }
 
   static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
@@ -250,7 +253,7 @@ private:
     bool enableValidation = false;
   #endif
   vku::device dev_;
-  VkQueue queue_;
+  vku::queue queue_;
   VkInstance instance_;
 
   uint32_t graphicsQueueIndex_;
