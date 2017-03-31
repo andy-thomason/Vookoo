@@ -34,9 +34,9 @@ Library
 Currently the library consists of two header files:
 
 File||
-----------------------
-|vku.hpp|The library itself|
-|vku_framework.hpp|An easy framework for running the examples|
+--------|--------------|
+vku.hpp|The library itself|
+vku_framework.hpp|An easy framework for running the examples|
 
 If you have an existing game engine then vku can be used with no dependencies.
 
