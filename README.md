@@ -25,6 +25,39 @@ of Vulkan resources.
 If you want to contribute to Vookoo, please send my some pull requests.
 I will post some work areas that could do with improvement.
 
+Shaders modules are easy to construct:
+
+    vku::ShaderModule vert_{device, BINARY_DIR "helloTriangle.vert.spv"};
+    vku::ShaderModule frag_{device, BINARY_DIR "helloTriangle.frag.spv"};
+
+Pipelines can be built with only two lines of code compared to many hundreds
+in the C and C++ libraries
+
+    vku::PipelineLayoutMaker plm{};
+    auto pipelineLayout_ = plm.createUnique(device);
+
+Tetxures are easy to construct and upload:
+
+    // Create an image, memory and view for the texture on the GPU.
+    vku::TextureImage2D texture{device, fw.memprops(), 2, 2, vk::Format::eR8G8B8A8Unorm};
+
+    // Create an image and memory for the texture on the CPU.
+    vku::TextureImage2D stagingBuffer{device, fw.memprops(), 2, 2, vk::Format::eR8G8B8A8Unorm, true};
+
+    // Copy pixels into the staging buffer
+    static const uint8_t pixels[] = { 0xff, 0xff, 0xff, 0xff,  0x00, 0xff, 0xff, 0xff,  0xff, 0x00, 0xff, 0xff,  0xff, 0xff, 0x00, 0xff, };
+    stagingBuffer.update(device, (const void*)pixels, 4);
+
+    // Copy the staging buffer to the GPU texture and set the layout.
+    vku::executeImmediately(device, window.commandPool(), fw.graphicsQueue(), [&](vk::CommandBuffer cb) {
+      texture.copy(cb, stagingBuffer);
+      texture.setLayout(cb, vk::ImageLayout::eShaderReadOnlyOptimal);
+    });
+
+    // Free the staging buffer.
+    stagingBuffer = vku::TextureImage2D{};
+
+
 History
 =======
 
