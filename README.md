@@ -8,7 +8,9 @@ It is derived from the excellent projects of Sascha Willems,
 Alexander Overvoorde and Khronos for Vulkan-Hpp project.
 
 [https://github.com/SaschaWillems/Vulkan]
+
 [https://github.com/Overv/VulkanTutorial]
+
 [https://github.com/KhronosGroup/Vulkan-Hpp]
 
 Vookoo adds a "vku" namespace to the "vk" namespace of the C++ interface
