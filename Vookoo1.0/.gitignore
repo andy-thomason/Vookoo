@@ -1,0 +1,7 @@
+.vs/
+Debug/
+*.opensdf
+*.sdf
+*.swp
+x64/
+build/

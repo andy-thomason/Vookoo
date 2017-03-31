@@ -25,12 +25,26 @@
 
 #include "vulkan.h"
 
-/*
- * Loader-ICD version negotiation API
- */
-#define CURRENT_LOADER_ICD_INTERFACE_VERSION 2
+// Loader-ICD version negotiation API.  Versions add the following features:
+//   Version 0 - Initial.  Doesn't support vk_icdGetInstanceProcAddr
+//               or vk_icdNegotiateLoaderICDInterfaceVersion.
+//   Version 1 - Add support for vk_icdGetInstanceProcAddr.
+//   Version 2 - Add Loader/ICD Interface version negotiation
+//               via vk_icdNegotiateLoaderICDInterfaceVersion.
+//   Version 3 - Add ICD creation/destruction of KHR_surface objects.
+//   Version 4 - Add unknown physical device extension qyering via
+//               vk_icdGetPhysicalDeviceProcAddr.
+#define CURRENT_LOADER_ICD_INTERFACE_VERSION 4
 #define MIN_SUPPORTED_LOADER_ICD_INTERFACE_VERSION 0
+#define MIN_PHYS_DEV_EXTENSION_ICD_INTERFACE_VERSION 4
 typedef VkResult (VKAPI_PTR *PFN_vkNegotiateLoaderICDInterfaceVersion)(uint32_t *pVersion);
+
+// This is defined in vk_layer.h which will be found by the loader, but if an ICD is building against this
+// flie directly, it won't be found.
+#ifndef PFN_GetPhysicalDeviceProcAddr
+typedef PFN_vkVoidFunction (VKAPI_PTR *PFN_GetPhysicalDeviceProcAddr)(VkInstance instance, const char* pName);
+#endif
+
 /*
  * The ICD must reserve space for a pointer for the loader's dispatch
  * table, at the start of <each object>.
@@ -39,7 +53,7 @@ typedef VkResult (VKAPI_PTR *PFN_vkNegotiateLoaderICDInterfaceVersion)(uint32_t 
 
 #define ICD_LOADER_MAGIC 0x01CDC0DE
 
-typedef union _VK_LOADER_DATA {
+typedef union {
     uintptr_t loaderMagic;
     void *loaderData;
 } VK_LOADER_DATA;
@@ -58,7 +72,7 @@ static inline bool valid_loader_magic_value(void *pNewObject) {
  * Windows and Linux ICDs will treat VkSurfaceKHR as a pointer to a struct that
  * contains the platform-specific connection and surface information.
  */
-typedef enum _VkIcdWsiPlatform {
+typedef enum {
     VK_ICD_WSI_PLATFORM_MIR,
     VK_ICD_WSI_PLATFORM_WAYLAND,
     VK_ICD_WSI_PLATFORM_WIN32,
@@ -67,12 +81,12 @@ typedef enum _VkIcdWsiPlatform {
     VK_ICD_WSI_PLATFORM_DISPLAY
 } VkIcdWsiPlatform;
 
-typedef struct _VkIcdSurfaceBase {
+typedef struct {
     VkIcdWsiPlatform platform;
 } VkIcdSurfaceBase;
 
 #ifdef VK_USE_PLATFORM_MIR_KHR
-typedef struct _VkIcdSurfaceMir {
+typedef struct {
     VkIcdSurfaceBase base;
     MirConnection *connection;
     MirSurface *mirSurface;
@@ -80,7 +94,7 @@ typedef struct _VkIcdSurfaceMir {
 #endif // VK_USE_PLATFORM_MIR_KHR
 
 #ifdef VK_USE_PLATFORM_WAYLAND_KHR
-typedef struct _VkIcdSurfaceWayland {
+typedef struct {
     VkIcdSurfaceBase base;
     struct wl_display *display;
     struct wl_surface *surface;
@@ -88,7 +102,7 @@ typedef struct _VkIcdSurfaceWayland {
 #endif // VK_USE_PLATFORM_WAYLAND_KHR
 
 #ifdef VK_USE_PLATFORM_WIN32_KHR
-typedef struct _VkIcdSurfaceWin32 {
+typedef struct {
     VkIcdSurfaceBase base;
     HINSTANCE hinstance;
     HWND hwnd;
@@ -96,7 +110,7 @@ typedef struct _VkIcdSurfaceWin32 {
 #endif // VK_USE_PLATFORM_WIN32_KHR
 
 #ifdef VK_USE_PLATFORM_XCB_KHR
-typedef struct _VkIcdSurfaceXcb {
+typedef struct {
     VkIcdSurfaceBase base;
     xcb_connection_t *connection;
     xcb_window_t window;
@@ -104,14 +118,20 @@ typedef struct _VkIcdSurfaceXcb {
 #endif // VK_USE_PLATFORM_XCB_KHR
 
 #ifdef VK_USE_PLATFORM_XLIB_KHR
-typedef struct _VkIcdSurfaceXlib {
+typedef struct {
     VkIcdSurfaceBase base;
     Display *dpy;
     Window window;
 } VkIcdSurfaceXlib;
 #endif // VK_USE_PLATFORM_XLIB_KHR
 
-typedef struct _VkIcdSurfaceDisplay {
+#ifdef VK_USE_PLATFORM_ANDROID_KHR
+typedef struct {
+    ANativeWindow* window;
+} VkIcdSurfaceAndroid;
+#endif //VK_USE_PLATFORM_ANDROID_KHR
+
+typedef struct {
     VkIcdSurfaceBase base;
     VkDisplayModeKHR displayMode;
     uint32_t planeIndex;
@@ -121,4 +141,5 @@ typedef struct _VkIcdSurfaceDisplay {
     VkDisplayPlaneAlphaFlagBitsKHR alphaMode;
     VkExtent2D imageExtent;
 } VkIcdSurfaceDisplay;
+
 #endif // VKICD_H
