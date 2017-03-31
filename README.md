@@ -4,27 +4,6 @@ Vookoo 2.0
 Vookoo is a set of dependency-free utilities to assist in the construction and updating of
 Vulkan graphics data structres.
 
-It is derived from the excellent projects of Sascha Willems,
-Alexander Overvoorde and Khronos for Vulkan-Hpp project.
-
-[https://github.com/SaschaWillems/Vulkan]
-
-[https://github.com/Overv/VulkanTutorial]
-
-[https://github.com/KhronosGroup/Vulkan-Hpp]
-
-Vookoo adds a "vku" namespace to the "vk" namespace of the C++ interface
-and provides user friendly interfacs for building pipelines and other
-Vulkan data structures.
-
-The aim of this project is to make Vulkan programming as easy as OpenGL.
-Vulkan is known for immensely verbose data structures and exacting rules
-but this can be mitigated but providing classes to help the construction
-of Vulkan resources.
-
-If you want to contribute to Vookoo, please send my some pull requests.
-I will post some work areas that could do with improvement.
-
 Shaders modules are easy to construct:
 
     vku::ShaderModule vert_{device, BINARY_DIR "helloTriangle.vert.spv"};
@@ -57,6 +36,26 @@ Tetxures are easy to construct and upload:
     // Free the staging buffer.
     stagingBuffer = vku::TextureImage2D{};
 
+It is derived from the excellent projects of Sascha Willems,
+Alexander Overvoorde and Khronos for Vulkan-Hpp project.
+
+[https://github.com/SaschaWillems/Vulkan]
+
+[https://github.com/Overv/VulkanTutorial]
+
+[https://github.com/KhronosGroup/Vulkan-Hpp]
+
+Vookoo adds a "vku" namespace to the "vk" namespace of the C++ interface
+and provides user friendly interfacs for building pipelines and other
+Vulkan data structures.
+
+The aim of this project is to make Vulkan programming as easy as OpenGL.
+Vulkan is known for immensely verbose data structures and exacting rules
+but this can be mitigated but providing classes to help the construction
+of Vulkan resources.
+
+If you want to contribute to Vookoo, please send my some pull requests.
+I will post some work areas that could do with improvement.
 
 History
 =======
