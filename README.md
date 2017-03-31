@@ -38,8 +38,8 @@ Library
 
 Currently the library consists of two header files:
 
-  vku.hpp            The library itself
-  vku_framework.hpp  An easy framework for running the examples
+    vku.hpp            The library itself
+    vku_framework.hpp  An easy framework for running the examples
 
 If you have an existing game engine then vku can be used with no dependencies.
 
@@ -54,20 +54,17 @@ Examples
 
 There are currently two examples:
 
-  helloTriangle   Draw a triangle using vertex buffers
-  texture         Draw a textured triangle
+    helloTriangle   Draw a triangle using vertex buffers
+    texture         Draw a textured triangle
 
 Building the examples on Windows:
 
-  mkdir build
-  cd build
-  cmake -G "Visual Studio 14 2015 Win64" ..\examples
+    mkdir build
+    cd build
+    cmake -G "Visual Studio 14 2015 Win64" ..\examples
 
 Building the examples on Linux:
 
-  mkdir build
-  cd build
-  cmake ../examples
-
-
-
+    mkdir build
+    cd build
+    cmake ../examples
