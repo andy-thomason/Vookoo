@@ -62,9 +62,11 @@ Building the examples on Windows:
     mkdir build
     cd build
     cmake -G "Visual Studio 14 2015 Win64" ..\examples
+    VookooExamples.sln
 
 Building the examples on Linux:
 
     mkdir build
     cd build
     cmake ../examples
+    make
