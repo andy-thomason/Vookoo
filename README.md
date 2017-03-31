@@ -9,12 +9,16 @@ Shaders modules are easy to construct:
     vku::ShaderModule vert_{device, BINARY_DIR "helloTriangle.vert.spv"};
     vku::ShaderModule frag_{device, BINARY_DIR "helloTriangle.frag.spv"};
 
-Pipelines can be built with only two lines of code compared to many hundreds
+Pipelines can be built with a few lines of code compared to many hundreds
 in the C and C++ libraries
 
-    vku::PipelineLayoutMaker plm{};
-    auto pipelineLayout_ = plm.createUnique(device);
-
+    vku::PipelineMaker pm{(uint32_t)width, (uint32_t)height};
+    pm.shader(vk::ShaderStageFlagBits::eVertex, vert_);
+    pm.shader(vk::ShaderStageFlagBits::eFragment, frag_);
+    pm.vertexBinding(0, (uint32_t)sizeof(Vertex));
+    pm.vertexAttribute(0, 0, vk::Format::eR32G32Sfloat, (uint32_t)offsetof(Vertex, pos));
+    pm.vertexAttribute(1, 0, vk::Format::eR32G32B32Sfloat, (uint32_t)offsetof(Vertex, colour));
+  
 Tetxures are easy to construct and upload:
 
     // Create an image, memory and view for the texture on the GPU.
