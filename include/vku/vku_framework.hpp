@@ -107,12 +107,6 @@ public:
     }
 
     s.memprops = s.physical_device_.getMemoryProperties();
-    for (uint32_t i = 0; i != s.memprops.memoryTypeCount; ++i) {
-      std::cout << "type" << i << " heap" << s.memprops.memoryTypes[i].heapIndex << " " << vk::to_string(s.memprops.memoryTypes[i].propertyFlags) << "\n";
-    }
-    for (uint32_t i = 0; i != s.memprops.memoryHeapCount; ++i) {
-      std::cout << "heap" << vk::to_string(s.memprops.memoryHeaps[i].flags) << " " << s.memprops.memoryHeaps[i].size << "\n";
-    }
 
     // todo: find optimal texture format
     // auto rgbaprops = s.physical_device_.getFormatProperties(vk::Format::eR8G8B8A8Unorm);
@@ -157,6 +151,17 @@ public:
     s.descriptorPool_ = s.device_->createDescriptorPoolUnique(descriptorPoolInfo);
 
     s.ok_ = true;
+  }
+
+  void dumpCaps(std::ostream &os) const {
+    os << "Memory Types\n";
+    for (uint32_t i = 0; i != s.memprops.memoryTypeCount; ++i) {
+      os << "  type" << i << " heap" << s.memprops.memoryTypes[i].heapIndex << " " << vk::to_string(s.memprops.memoryTypes[i].propertyFlags) << "\n";
+    }
+    os << "Heaps\n";
+    for (uint32_t i = 0; i != s.memprops.memoryHeapCount; ++i) {
+      os << "  heap" << vk::to_string(s.memprops.memoryHeaps[i].flags) << " " << s.memprops.memoryHeaps[i].size << "\n";
+    }
   }
 
   /// Get the Vulkan instance.
@@ -221,6 +226,7 @@ public:
   }
 
 private:
+  // Report any errors or warnings.
   static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
       VkDebugReportFlagsEXT flags, VkDebugReportObjectTypeEXT objectType,
       uint64_t object, size_t location, int32_t messageCode,
@@ -275,7 +281,6 @@ public:
     for (uint32_t qi = 0; qi != qprops.size(); ++qi) {
       auto &qprop = qprops[qi];
       VkBool32 presentSupport = false;
-      std::cout << vk::to_string(qprop.queueFlags) << " nq=" << qprop.queueCount << "\n";
       if (pd.getSurfaceSupportKHR(qi, *s.surface_)) {
         s.presentQueue_ = device.getQueue(qi, 0);
         s.presentQueueFamily_ = qi;
@@ -295,8 +300,6 @@ public:
       s.swapchainColorSpace_ = vk::ColorSpaceKHR::eSrgbNonlinear;
     } else {
       for (auto &fmt : fmts) {
-        std::cout << "format=" << vk::to_string(fmt.format)
-                  << " colorSpace=" << vk::to_string(fmt.colorSpace) << "\n";
         if (fmt.format == vk::Format::eB8G8R8A8Unorm) {
           s.swapchainImageFormat_ = fmt.format;
           s.swapchainColorSpace_ = fmt.colorSpace;
@@ -400,6 +403,22 @@ public:
     }
 
     s.ok_ = true;
+  }
+
+  void dumpCaps(std::ostream &os, vk::PhysicalDevice pd) const {
+    os << "Surface formats\n";
+    auto fmts = pd.getSurfaceFormatsKHR(*s.surface_);
+    for (auto &fmt : fmts) {
+      auto fmtstr = vk::to_string(fmt.format);
+      auto cstr = vk::to_string(fmt.colorSpace);
+      os << "format=" << fmtstr << " colorSpace=" << cstr << "\n";
+    }
+
+    os << "Present Modes\n";
+    auto presentModes = pd.getSurfacePresentModesKHR(*s.surface_);
+    for (auto pm : presentModes) {
+      std::cout << vk::to_string(pm) << "\n";
+    }
   }
 
   void setRenderCommands(const std::function<void (vk::CommandBuffer cb, int imageIndex)> &func) {
