@@ -9,7 +9,7 @@ layout(location = 0) out vec3 outNormal;
 layout (binding = 0) uniform Uniform {
   mat4 modelToPerspective;
   mat4 modelToWorld;
-  mat3 normalToWorld;
+  mat4 normalToWorld;
   vec4 colour;
 } u;
 
@@ -19,6 +19,6 @@ out gl_PerVertex {
 
 void main() {
   gl_Position = u.modelToPerspective * vec4(inPosition.xyz, 1.0);
-  outNormal = inNormal;
+  outNormal = (u.normalToWorld * vec4(inNormal, 0.0)).xyz;
 }
 

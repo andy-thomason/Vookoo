@@ -331,6 +331,17 @@ public:
     s.viewport_ = vk::Viewport{0.0f, 0.0f, (float)width, (float)height, 0.0f, 1.0f};
     s.scissor_ = vk::Rect2D{{0, 0}, {width, height}};
     s.rasterizationState_.lineWidth = 1.0f;
+
+    // Set up depth test, but do not enable it.
+    s.depthStencilState_.depthTestEnable = VK_FALSE;
+    s.depthStencilState_.depthWriteEnable = VK_TRUE;
+    s.depthStencilState_.depthCompareOp = vk::CompareOp::eLessOrEqual;
+    s.depthStencilState_.depthBoundsTestEnable = VK_FALSE;
+    s.depthStencilState_.back.failOp = vk::StencilOp::eKeep;
+    s.depthStencilState_.back.passOp = vk::StencilOp::eKeep;
+    s.depthStencilState_.back.compareOp = vk::CompareOp::eAlways;
+    s.depthStencilState_.stencilTestEnable = VK_FALSE;
+    s.depthStencilState_.front = s.depthStencilState_.back;
   }
 
   vk::UniquePipeline createUnique(const vk::Device &device,
@@ -348,7 +359,8 @@ public:
       blend.srcAlphaBlendFactor = vk::BlendFactor::eOne;
       blend.dstAlphaBlendFactor = vk::BlendFactor::eZero;
       blend.alphaBlendOp = vk::BlendOp::eAdd;
-      blend.colorWriteMask = vk::ColorComponentFlagBits::eR|vk::ColorComponentFlagBits::eG|vk::ColorComponentFlagBits::eB|vk::ColorComponentFlagBits::eA;
+      typedef vk::ColorComponentFlagBits ccbf;
+      blend.colorWriteMask = ccbf::eR|ccbf::eG|ccbf::eB|ccbf::eA;
       s.colorBlendAttachments_.push_back(blend);
     }
     s.colorBlendState_.attachmentCount = (uint32_t)s.colorBlendAttachments_.size();
@@ -372,6 +384,7 @@ public:
     pipelineInfo.pRasterizationState = &s.rasterizationState_;
     pipelineInfo.pMultisampleState = &s.multisampleState_;
     pipelineInfo.pColorBlendState = &s.colorBlendState_;
+    pipelineInfo.pDepthStencilState = &s.depthStencilState_;
     pipelineInfo.layout = pipelineLayout;
     pipelineInfo.renderPass = renderPass;
 
@@ -504,7 +517,7 @@ private:
 // Buffers require memory objects which represent GPU and CPU resources.
 class GenericBuffer {
 public:
-  GenericBuffer(const vk::Device &device, const vk::PhysicalDeviceMemoryProperties &memprops, vk::BufferUsageFlags usage, vk::DeviceSize size) {
+  GenericBuffer(const vk::Device &device, const vk::PhysicalDeviceMemoryProperties &memprops, vk::BufferUsageFlags usage, vk::DeviceSize size, vk::MemoryPropertyFlags memflags = vk::MemoryPropertyFlagBits::eHostCoherent | vk::MemoryPropertyFlagBits::eHostVisible) {
     // Create the buffer object without memory.
     vk::BufferCreateInfo ci{};
     ci.size = s.size = size;
@@ -514,12 +527,12 @@ public:
 
     // Find out how much memory and which heap to allocate from.
     auto memreq = device.getBufferMemoryRequirements(*s.buffer);
-    auto search = vk::MemoryPropertyFlagBits::eHostCoherent | vk::MemoryPropertyFlagBits::eHostVisible;
+    //auto search = vk::MemoryPropertyFlagBits::eHostCoherent | vk::MemoryPropertyFlagBits::eHostVisible;
 
     // Create a memory object to bind to the buffer.
     vk::MemoryAllocateInfo mai{};
     mai.allocationSize = memreq.size;
-    mai.memoryTypeIndex = vku::findMemoryTypeIndex(memprops, memreq.memoryTypeBits, search);
+    mai.memoryTypeIndex = vku::findMemoryTypeIndex(memprops, memreq.memoryTypeBits, memflags);
     s.mem = device.allocateMemoryUnique(mai);
 
     device.bindBufferMemory(*s.buffer, *s.mem, 0);
@@ -582,6 +595,10 @@ public:
   template<class Type>
   UniformBuffer(const vk::Device &device, const vk::PhysicalDeviceMemoryProperties &memprops, const Type &value) : GenericBuffer(device, memprops, vk::BufferUsageFlagBits::eUniformBuffer|vk::BufferUsageFlagBits::eTransferDst, sizeof(Type)) {
     update(device, value);
+  }
+
+  // Device local buffer for high performance update.
+  UniformBuffer(const vk::Device &device, const vk::PhysicalDeviceMemoryProperties &memprops, size_t size) : GenericBuffer(device, memprops, vk::BufferUsageFlagBits::eUniformBuffer|vk::BufferUsageFlagBits::eTransferDst, (vk::DeviceSize)size, vk::MemoryPropertyFlagBits::eDeviceLocal) {
   }
 
   template<class Type, class Allocator>
@@ -857,7 +874,7 @@ public:
       case il::eShaderReadOnlyOptimal: srcMask = afb::eShaderRead; break;
       case il::eTransferSrcOptimal: srcMask = afb::eTransferRead; break;
       case il::eTransferDstOptimal: srcMask = afb::eTransferWrite; break;
-      case il::ePreinitialized: srcMask = afb::eTransferWrite; break;
+      case il::ePreinitialized: srcMask = afb::eTransferWrite|afb::eHostWrite; break;
       case il::ePresentSrcKHR: srcMask = afb::eMemoryRead; break;
     }
 

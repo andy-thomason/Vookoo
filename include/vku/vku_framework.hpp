@@ -300,11 +300,12 @@ public:
     width_ = surfaceCaps.currentExtent.width;
     height_ = surfaceCaps.currentExtent.height;
 
-    auto presentModes = pd.getSurfacePresentModesKHR(*surface_);
-    vk::PresentModeKHR presentMode = presentModes[0];
-    auto bestpm = vk::PresentModeKHR::eMailbox;
-    for (auto pm : presentModes) {
-      if (pm == bestpm) presentMode = pm;
+    auto pms = pd.getSurfacePresentModesKHR(*surface_);
+    vk::PresentModeKHR presentMode = pms[0];
+    if (std::find(pms.begin(), pms.end(), vk::PresentModeKHR::eMailbox) != pms.end()) {
+      presentMode = vk::PresentModeKHR::eMailbox;
+    } else if (std::find(pms.begin(), pms.end(), vk::PresentModeKHR::eFifo) != pms.end()) {
+      presentMode = vk::PresentModeKHR::eFifo;
     }
     std::cout << "using " << vk::to_string(presentMode) << "\n";
 
@@ -432,11 +433,11 @@ public:
     }
   }
 
-  void setRenderCommands(const std::function<void (vk::CommandBuffer cb, int imageIndex)> &func) {
+  typedef void (staticCommandFunc_t)(vk::CommandBuffer cb, int imageIndex, vk::RenderPassBeginInfo &rpbi);
+
+  void setStaticCommands(const std::function<staticCommandFunc_t> &func) {
     for (int i = 0; i != drawBuffers_.size(); ++i) {
       vk::CommandBuffer cb = *drawBuffers_[i];
-      vk::CommandBufferBeginInfo bi{};
-      cb.begin(bi);
 
       std::array<float, 4> clearColorValue{0, 0, 1, 1};
       vk::ClearDepthStencilValue clearDepthValue{ 1.0f, 0 };
@@ -447,17 +448,20 @@ public:
       rpbi.renderArea = vk::Rect2D{{0, 0}, {width_, height_}};
       rpbi.clearValueCount = (uint32_t)clearColours.size();
       rpbi.pClearValues = clearColours.data();
-      cb.beginRenderPass(rpbi, vk::SubpassContents::eInline);
-      func(cb, i); 
-      cb.endRenderPass();
 
-      cb.end();
+      func(cb, i, rpbi); 
     }
   }
 
-  typedef void (preSubmitFunc_t)(vk::CommandBuffer cb, int imageIndex);
+  typedef void (preSubmitFunc_t)(vk::CommandBuffer pscb, int imageIndex);
 
-  void draw(const vk::Device &device, const vk::Queue &graphicsQueue, const std::function<void (vk::CommandBuffer pscb, int imageIndex)> &preSubmit) {
+  static void defaultPreSubmitFunc(vk::CommandBuffer pscb, int imageIndex) {
+    vk::CommandBufferBeginInfo bi{};
+    pscb.begin(bi);
+    pscb.end();
+  }
+
+  void draw(const vk::Device &device, const vk::Queue &graphicsQueue, const std::function<void (vk::CommandBuffer pscb, int imageIndex)> &preSubmit = defaultPreSubmitFunc) {
     static auto start = std::chrono::high_resolution_clock::now();
     auto time = std::chrono::high_resolution_clock::now();
     auto delta = time - start;

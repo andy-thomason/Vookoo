@@ -122,12 +122,17 @@ int main() {
   update.update(device);
 
   // Set the static render commands for the main renderpass.
-  window.setRenderCommands(
-    [&](vk::CommandBuffer cb, int imageIndex) {
+  window.setStaticCommands(
+    [&](vk::CommandBuffer cb, int imageIndex, vk::RenderPassBeginInfo &rpbi) {
+      vk::CommandBufferBeginInfo bi{};
+      cb.begin(bi);
+      cb.beginRenderPass(rpbi, vk::SubpassContents::eInline);
       cb.bindPipeline(vk::PipelineBindPoint::eGraphics, *pipeline);
       cb.bindVertexBuffers(0, vbo.buffer(), vk::DeviceSize(0));
       cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *pipelineLayout, 0, descriptorSets, nullptr);
       cb.draw(3, 1, 0, 0);
+      cb.endRenderPass();
+      cb.end();
     }
   );
 
@@ -138,10 +143,8 @@ int main() {
 
   while (!glfwWindowShouldClose(glfwwindow)) {
     glfwPollEvents();
-    window.draw(fw.device(), fw.graphicsQueue(),
-      [&](vk::CommandBuffer pscb, int imageIndex) {
-      }
-    );
+    window.draw(fw.device(), fw.graphicsQueue());
+    std::this_thread::sleep_for(std::chrono::milliseconds(16));
   }
 
   device.waitIdle();
