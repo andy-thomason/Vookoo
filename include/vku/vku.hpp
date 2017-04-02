@@ -89,25 +89,26 @@ public:
     s.subpassDependencies.push_back(desc);
   }
 
-  void subpassColorAttachment(vk::ImageLayout layout, uint32_t attachment=0) {
+
+//00000008 debugCallback: vkCreateRenderPass has no depth/stencil attachment, yet subpass[0] has VkSubpassDescription::depthStencilAttachment value that is not VK_ATTACHMENT_UNUSED
+
+  void subpassColorAttachment(vk::ImageLayout layout, uint32_t attachment) {
     vk::SubpassDescription &subpass = s.subpassDescriptions.back();
-    if (auto *p = getAttachmentReference()) {
-      p->layout = layout;
-      p->attachment = attachment;
-      if (subpass.colorAttachmentCount == 0) {
-        subpass.pColorAttachments = p;
-      }
-      subpass.colorAttachmentCount++;
+    auto *p = getAttachmentReference();
+    p->layout = layout;
+    p->attachment = attachment;
+    if (subpass.colorAttachmentCount == 0) {
+      subpass.pColorAttachments = p;
     }
+    subpass.colorAttachmentCount++;
   }
 
-  void subpassDepthStencilAttachment(vk::ImageLayout layout) {
+  void subpassDepthStencilAttachment(vk::ImageLayout layout, uint32_t attachment) {
     vk::SubpassDescription &subpass = s.subpassDescriptions.back();
-    if (auto *p = getAttachmentReference()) {
-      p->layout = layout;
-      p->attachment = 0;
-      subpass.pDepthStencilAttachment = p;
-    }
+    auto *p = getAttachmentReference();
+    p->layout = layout;
+    p->attachment = attachment;
+    subpass.pDepthStencilAttachment = p;
   }
 
   vk::UniqueRenderPass createUnique(const vk::Device &device) const {
@@ -779,8 +780,8 @@ public:
   GenericImage() {
   }
 
-  GenericImage(vk::Device device, const vk::PhysicalDeviceMemoryProperties &memprops, const vk::ImageCreateInfo &info, vk::ImageViewType viewType, bool makeHostImage) {
-    create(device, memprops, info, viewType, makeHostImage);
+  GenericImage(vk::Device device, const vk::PhysicalDeviceMemoryProperties &memprops, const vk::ImageCreateInfo &info, vk::ImageViewType viewType, vk::ImageAspectFlags aspectMask, bool makeHostImage) {
+    create(device, memprops, info, viewType, aspectMask, makeHostImage);
   }
 
   vk::Image image() const { return *s.image; }
@@ -879,11 +880,14 @@ public:
     auto bufferMemoryBarriers = nullptr;
     cb.pipelineBarrier(srcStageMask, dstStageMask, dependencyFlags, memoryBarriers, bufferMemoryBarriers, imageMemoryBarriers);
   }
+
+  vk::Format format() const { return s.format; }
 protected:
-  void create(vk::Device device, const vk::PhysicalDeviceMemoryProperties &memprops, const vk::ImageCreateInfo &info, vk::ImageViewType viewType, bool hostImage) {
+  void create(vk::Device device, const vk::PhysicalDeviceMemoryProperties &memprops, const vk::ImageCreateInfo &info, vk::ImageViewType viewType, vk::ImageAspectFlags aspectMask, bool hostImage) {
     s.currentLayout = info.initialLayout;
     s.extent = info.extent;
     s.image = device.createImageUnique(info);
+    s.format = info.format;
 
     // Find out how much memory and which heap to allocate from.
     auto memreq = device.getImageMemoryRequirements(*s.image);
@@ -901,12 +905,12 @@ protected:
 
     if (!hostImage) {
       vk::ImageViewCreateInfo viewInfo{};
-      //viewInfo.flags;
+      viewInfo.flags;
       viewInfo.image = *s.image;
       viewInfo.viewType = viewType;
       viewInfo.format = info.format;
       viewInfo.components = { vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eG, vk::ComponentSwizzle::eB, vk::ComponentSwizzle::eA };
-      viewInfo.subresourceRange = vk::ImageSubresourceRange{vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1};
+      viewInfo.subresourceRange = vk::ImageSubresourceRange{aspectMask, 0, 1, 0, 1};
       s.imageView = device.createImageViewUnique(viewInfo);
     }
   }
@@ -918,6 +922,7 @@ protected:
     vk::DeviceSize size;
     vk::ImageLayout currentLayout;
     vk::Extent3D extent;
+    vk::Format format;
   };
 
   State s;
@@ -944,7 +949,34 @@ public:
     info.queueFamilyIndexCount = 0;
     info.pQueueFamilyIndices = nullptr;
     info.initialLayout = hostImage ? vk::ImageLayout::ePreinitialized : vk::ImageLayout::eUndefined;
-    create(device, memprops, info, vk::ImageViewType::e2D, hostImage);
+    create(device, memprops, info, vk::ImageViewType::e2D, vk::ImageAspectFlagBits::eColor, hostImage);
+  }
+private:
+};
+
+class DepthStencilImage : public GenericImage {
+public:
+  DepthStencilImage() {
+  }
+
+  DepthStencilImage(vk::Device device, const vk::PhysicalDeviceMemoryProperties &memprops, uint32_t width, uint32_t height, vk::Format format = vk::Format::eD24UnormS8Uint) {
+    vk::ImageCreateInfo info;
+    info.flags = {};
+
+    info.imageType = vk::ImageType::e2D;
+    info.format = format;
+    info.extent = vk::Extent3D{ width, height, 1U };
+    info.mipLevels = 1;
+    info.arrayLayers = 1;
+    info.samples = vk::SampleCountFlagBits::e1;
+    info.tiling = vk::ImageTiling::eOptimal;
+    info.usage = vk::ImageUsageFlagBits::eDepthStencilAttachment|vk::ImageUsageFlagBits::eTransferSrc;
+    info.sharingMode = vk::SharingMode::eExclusive;
+    info.queueFamilyIndexCount = 0;
+    info.pQueueFamilyIndices = nullptr;
+    info.initialLayout = vk::ImageLayout::eUndefined;
+    typedef vk::ImageAspectFlagBits iafb;
+    create(device, memprops, info, vk::ImageViewType::e2D, iafb::eDepth|iafb::eStencil, false);
   }
 private:
 };

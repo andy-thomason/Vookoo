@@ -340,7 +340,11 @@ public:
       imageViews_.emplace_back(device.createImageView(ci));
     }
 
-    // This subpass dependency handles the transition from ePresentSrcKHR to eColorAttachmentOptimal
+    auto memprops = physicalDevice.getMemoryProperties();
+    depthStencilImage_ = vku::DepthStencilImage(device, memprops, width_, height_);
+
+    // This subpass dependency handles the transition from ePresentSrcKHR to eUndefined
+    // at the start of rendering.
     vk::SubpassDependency dependency = {};
     dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
     dependency.dstSubpass = 0;
@@ -353,26 +357,40 @@ public:
     // We will clear the buffer at the start (eClear)
     // We will write the result out at the end (eStore)
     // After this renderpass, we will switch to ePresentSrcKHR ready for the swap.
-    vk::AttachmentDescription attachmentDesc{};
-    attachmentDesc.format = swapchainImageFormat_;
-    attachmentDesc.samples = vk::SampleCountFlagBits::e1;
-    attachmentDesc.loadOp = vk::AttachmentLoadOp::eClear;
-    attachmentDesc.storeOp = vk::AttachmentStoreOp::eStore;
-    attachmentDesc.stencilLoadOp = vk::AttachmentLoadOp::eDontCare;
-    attachmentDesc.stencilStoreOp = vk::AttachmentStoreOp::eDontCare;
-    attachmentDesc.initialLayout = vk::ImageLayout::eUndefined;
-    attachmentDesc.finalLayout = vk::ImageLayout::ePresentSrcKHR;
+    vk::AttachmentDescription colourDesc{};
+    colourDesc.format = swapchainImageFormat_;
+    colourDesc.samples = vk::SampleCountFlagBits::e1;
+    colourDesc.loadOp = vk::AttachmentLoadOp::eClear;
+    colourDesc.storeOp = vk::AttachmentStoreOp::eStore;
+    colourDesc.stencilLoadOp = vk::AttachmentLoadOp::eDontCare;
+    colourDesc.stencilStoreOp = vk::AttachmentStoreOp::eDontCare;
+    colourDesc.initialLayout = vk::ImageLayout::eUndefined;
+    colourDesc.finalLayout = vk::ImageLayout::ePresentSrcKHR;
+
+    // At the start, the buffer is in eUndefined layout.
+    // We will clear the buffer at the start (eClear)
+    vk::AttachmentDescription depthDesc{};
+    depthDesc.format = depthStencilImage_.format();
+    depthDesc.samples = vk::SampleCountFlagBits::e1;
+    depthDesc.loadOp = vk::AttachmentLoadOp::eClear;
+    depthDesc.storeOp = vk::AttachmentStoreOp::eDontCare;
+    depthDesc.stencilLoadOp = vk::AttachmentLoadOp::eDontCare;
+    depthDesc.stencilStoreOp = vk::AttachmentStoreOp::eDontCare;
+    depthDesc.initialLayout = vk::ImageLayout::eUndefined;
+    depthDesc.finalLayout = vk::ImageLayout::eDepthStencilAttachmentOptimal;
 
     vku::RenderpassMaker rpm;
+    rpm.attachmentDescription(colourDesc);
+    rpm.attachmentDescription(depthDesc);
     rpm.beginSubpass(vk::PipelineBindPoint::eGraphics);
-    rpm.subpassColorAttachment(vk::ImageLayout::eColorAttachmentOptimal);
-    rpm.attachmentDescription(attachmentDesc);
+    rpm.subpassColorAttachment(vk::ImageLayout::eColorAttachmentOptimal, 0);
+    rpm.subpassDepthStencilAttachment(vk::ImageLayout::eDepthStencilAttachmentOptimal, 1);
     rpm.subpassDependency(dependency);
     renderPass_ = rpm.createUnique(device);
 
     for (int i = 0; i != imageViews_.size(); ++i) {
-      vk::ImageView attachment{imageViews_[i]};
-      vk::FramebufferCreateInfo fbci{{}, *renderPass_, 1, &attachment, width_, height_, 1 };
+      vk::ImageView attachments[2] = {imageViews_[i], depthStencilImage_.imageView()};
+      vk::FramebufferCreateInfo fbci{{}, *renderPass_, 2, attachments, width_, height_, 1 };
       framebuffers_.push_back(device.createFramebufferUnique(fbci));
     }
 
@@ -420,14 +438,15 @@ public:
       vk::CommandBufferBeginInfo bi{};
       cb.begin(bi);
 
-      std::array<float, 4> clearColorValue = {0, 0, 1, 1};
-      vk::ClearValue clearColor{clearColorValue};
+      std::array<float, 4> clearColorValue{0, 0, 1, 1};
+      vk::ClearDepthStencilValue clearDepthValue{ 1.0f, 0 };
+      std::array<vk::ClearValue, 2> clearColours{vk::ClearValue{clearColorValue}, clearDepthValue};
       vk::RenderPassBeginInfo rpbi;
       rpbi.renderPass = *renderPass_;
       rpbi.framebuffer = *framebuffers_[i];
       rpbi.renderArea = vk::Rect2D{{0, 0}, {width_, height_}};
-      rpbi.clearValueCount = 1;
-      rpbi.pClearValues = &clearColor;
+      rpbi.clearValueCount = (uint32_t)clearColours.size();
+      rpbi.pClearValues = clearColours.data();
       cb.beginRenderPass(rpbi, vk::SubpassContents::eInline);
       func(cb, i); 
       cb.endRenderPass();
@@ -527,6 +546,7 @@ private:
   vk::UniqueSemaphore imageAcquireSemaphore_;
   vk::UniqueSemaphore commandCompleteSemaphore_;
   vk::UniqueSemaphore presubmitSemaphore_;
+  vku::DepthStencilImage depthStencilImage_;
   std::vector<vk::ImageView> imageViews_;
   std::vector<vk::Image> images_;
   std::vector<vk::Fence> commandBufferFences_;
