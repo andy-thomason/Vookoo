@@ -73,7 +73,10 @@ int main() {
 
   while (!glfwWindowShouldClose(glfwwindow)) {
     glfwPollEvents();
-    window.draw(fw.device(), fw.graphicsQueue());
+    window.draw(fw.device(), fw.graphicsQueue(),
+      [&](vk::CommandBuffer pscb, int imageIndex) {
+      }
+    );
   }
 
   device.waitIdle();

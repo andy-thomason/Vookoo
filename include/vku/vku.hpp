@@ -557,15 +557,29 @@ public:
 };
 
 /// This class is a specialisation of GenericBuffer for vertex buffers.
+class IndexBuffer : public GenericBuffer {
+public:
+  template<class Type, class Allocator>
+  IndexBuffer(const vk::Device &device, const vk::PhysicalDeviceMemoryProperties &memprops, const std::vector<Type, Allocator> &value) : GenericBuffer(device, memprops, vk::BufferUsageFlagBits::eIndexBuffer, value.size() * sizeof(Type)) {
+    update(device, value);
+  }
+
+  template<class Type, class Allocator>
+  void update(const vk::Device &device, const std::vector<Type, Allocator> &value) {
+    GenericBuffer::update(device, (void*)value.data(), vk::DeviceSize(value.size() * sizeof(Type)));
+  }
+};
+
+/// This class is a specialisation of GenericBuffer for vertex buffers.
 class UniformBuffer : public GenericBuffer {
 public:
   template<class Type, class Allocator>
-  UniformBuffer(const vk::Device &device, const vk::PhysicalDeviceMemoryProperties &memprops, const std::vector<Type, Allocator> &value) : GenericBuffer(device, memprops, vk::BufferUsageFlagBits::eUniformBuffer, value.size() * sizeof(Type)) {
+  UniformBuffer(const vk::Device &device, const vk::PhysicalDeviceMemoryProperties &memprops, const std::vector<Type, Allocator> &value) : GenericBuffer(device, memprops, vk::BufferUsageFlagBits::eUniformBuffer|vk::BufferUsageFlagBits::eTransferDst, value.size() * sizeof(Type)) {
     update(device, value);
   }
 
   template<class Type>
-  UniformBuffer(const vk::Device &device, const vk::PhysicalDeviceMemoryProperties &memprops, const Type &value) : GenericBuffer(device, memprops, vk::BufferUsageFlagBits::eUniformBuffer, sizeof(Type)) {
+  UniformBuffer(const vk::Device &device, const vk::PhysicalDeviceMemoryProperties &memprops, const Type &value) : GenericBuffer(device, memprops, vk::BufferUsageFlagBits::eUniformBuffer|vk::BufferUsageFlagBits::eTransferDst, sizeof(Type)) {
     update(device, value);
   }
 

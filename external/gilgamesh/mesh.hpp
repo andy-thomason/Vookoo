@@ -62,7 +62,6 @@ public:
   }
 
   basic_mesh &operator=(basic_mesh && rhs) {
-    printf("!!!\n");
     vertices_ = std::move(rhs.vertices_);
     indices_ = std::move(rhs.indices_);
     return *this;

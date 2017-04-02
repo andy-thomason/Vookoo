@@ -27,7 +27,7 @@
 namespace gilgamesh {
 
   class fbx_decoder {
-    enum { debug = 1 };
+    enum { debug = 0 };
 
   public:
     fbx_decoder() {
@@ -421,8 +421,6 @@ namespace gilgamesh {
                   j = i + 1;
                 }
               }
-
-              for (auto i : indices) printf("i%d ", (int)i); printf("\n");
 
               MeshType *mesh = new MeshType(pos, normal, uv, color, indices);
               scene.addMesh(mesh);

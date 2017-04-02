@@ -3,12 +3,17 @@
 #include <vku/vku.hpp>
 #include <glm/glm.hpp>
 
+#include <gilgamesh/mesh.hpp>
+#include <gilgamesh/scene.hpp>
+#include <gilgamesh/decoders/fbx_decoder.hpp>
+#include <gilgamesh/encoders/fbx_encoder.hpp>
+
 int main() {
   glfwInit();
 
   glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
 
-  const char *title = "texture";
+  const char *title = "teapot";
   auto glfwwindow = glfwCreateWindow(800, 600, title, nullptr, nullptr);
 
   vku::Framework fw{title};
@@ -29,8 +34,8 @@ int main() {
   //
   // Build the shader modules
 
-  vku::ShaderModule vert_{device, BINARY_DIR "texture.vert.spv"};
-  vku::ShaderModule frag_{device, BINARY_DIR "texture.frag.spv"};
+  vku::ShaderModule vert_{device, BINARY_DIR "teapot.vert.spv"};
+  vku::ShaderModule frag_{device, BINARY_DIR "teapot.frag.spv"};
 
   ////////////////////////////////////////
   //
@@ -38,7 +43,6 @@ int main() {
 
   vku::DescriptorSetLayoutMaker dslm{};
   dslm.buffer(0U, vk::DescriptorType::eUniformBuffer, vk::ShaderStageFlagBits::eVertex|vk::ShaderStageFlagBits::eFragment, 1);
-  dslm.image(1U, vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eFragment, 1);
   auto layout = dslm.createUnique(device);
 
   vku::DescriptorSetMaker dsm{};
@@ -49,13 +53,26 @@ int main() {
   plm.descriptorSetLayout(*layout);
   auto pipelineLayout = plm.createUnique(device);
 
-  struct Vertex { glm::vec2 pos; glm::vec3 colour; };
+  gilgamesh::fbx_decoder decoder;
+  gilgamesh::scene scene;
+  auto filename = SOURCE_DIR "teapot.fbx";
+  if (!decoder.loadScene<gilgamesh::color_mesh>(scene, filename)) {
+    std::cerr << "unable to open file " << filename << "\n";
+    return 1;
+  }
 
-  const std::vector<Vertex> vertices = {
-    {{0.0f, -0.5f}, {1.0f, 0.0f, 0.0f}},
-    {{0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}},
-    {{-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}}
-  };
+  struct Vertex { glm::vec3 pos; glm::vec3 normal; };
+  std::vector<Vertex> vertices;
+
+  const gilgamesh::mesh &mesh = *scene.meshes()[0];
+  auto meshpos = mesh.pos();
+  auto meshnormal = mesh.normal();
+  for (size_t i = 0; i != meshpos.size(); ++i) {
+    glm::vec3 pos = meshpos[i];
+    glm::vec3 normal = meshnormal[i];
+    vertices.emplace_back(Vertex{pos, normal});
+  }
+  std::vector<uint32_t> indices = scene.meshes()[0]->indices32();
 
   ////////////////////////////////////////
   //
@@ -65,41 +82,31 @@ int main() {
   pm.shader(vk::ShaderStageFlagBits::eVertex, vert_);
   pm.shader(vk::ShaderStageFlagBits::eFragment, frag_);
   pm.vertexBinding(0, (uint32_t)sizeof(Vertex));
-  pm.vertexAttribute(0, 0, vk::Format::eR32G32Sfloat, (uint32_t)offsetof(Vertex, pos));
-  pm.vertexAttribute(1, 0, vk::Format::eR32G32B32Sfloat, (uint32_t)offsetof(Vertex, colour));
-  vku::VertexBuffer vbo(fw.device(), fw.memprops(), vertices);
+  pm.vertexAttribute(0, 0, vk::Format::eR32G32B32Sfloat, (uint32_t)offsetof(Vertex, pos));
+  pm.vertexAttribute(1, 0, vk::Format::eR32G32B32Sfloat, (uint32_t)offsetof(Vertex, normal));
 
-  struct Uniform { glm::vec4 colour; };
+  vku::VertexBuffer vbo(fw.device(), fw.memprops(), vertices);
+  vku::IndexBuffer ibo(fw.device(), fw.memprops(), indices);
+  uint32_t indexCount = (uint32_t)indices.size();
+
+  struct Uniform {
+    glm::mat4 modelToPerspective;
+    glm::mat4 modelToWorld;
+    glm::mat3 normalToWorld;
+    glm::vec4 colour;
+  };
+
+  glm::mat4 cameraToPerspective = glm::perspective(glm::radians(45.0f), (float)window.width()/window.height(), 0.1f, 100.0f);
+  glm::mat4 modelToWorld = glm::translate(glm::mat4{}, glm::vec3(0, 0, -4));
+  
   Uniform uniform;
-  uniform.colour = glm::vec4(0, 1, 1, 1);
+  uniform.modelToPerspective = cameraToPerspective * modelToWorld;
+
   vku::UniformBuffer ubo(fw.device(), fw.memprops(), uniform);
 
   auto renderPass = window.renderPass();
   auto &cache = fw.pipelineCache();
   auto pipeline = pm.createUnique(device, cache, *pipelineLayout, renderPass);
-
-  ////////////////////////////////////////
-  //
-  // Create a texture
-
-  // Create an image, memory and view for the texture on the GPU.
-  vku::TextureImage2D texture{device, fw.memprops(), 2, 2, vk::Format::eR8G8B8A8Unorm};
-
-  // Create an image and memory for the texture on the CPU.
-  vku::TextureImage2D stagingBuffer{device, fw.memprops(), 2, 2, vk::Format::eR8G8B8A8Unorm, true};
-
-  // Copy pixels into the staging buffer
-  static const uint8_t pixels[] = { 0xff, 0xff, 0xff, 0xff,  0x00, 0xff, 0xff, 0xff,  0xff, 0x00, 0xff, 0xff,  0xff, 0xff, 0x00, 0xff, };
-  stagingBuffer.update(device, (const void*)pixels, 4);
-
-  // Copy the staging buffer to the GPU texture and set the layout.
-  vku::executeImmediately(device, window.commandPool(), fw.graphicsQueue(), [&](vk::CommandBuffer cb) {
-    texture.copy(cb, stagingBuffer);
-    texture.setLayout(cb, vk::ImageLayout::eShaderReadOnlyOptimal);
-  });
-
-  // Free the staging buffer.
-  stagingBuffer = vku::TextureImage2D{};
 
   ////////////////////////////////////////
   //
@@ -115,10 +122,6 @@ int main() {
   update.beginBuffers(0, 0, vk::DescriptorType::eUniformBuffer);
   update.buffer(ubo.buffer(), 0, sizeof(Uniform));
 
-  // Set initial sampler value
-  update.beginImages(1, 0, vk::DescriptorType::eCombinedImageSampler);
-  update.image(*sampler, texture.imageView(), vk::ImageLayout::eShaderReadOnlyOptimal);
-
   update.update(device);
 
   // Set the static render commands for the main renderpass.
@@ -126,8 +129,9 @@ int main() {
     [&](vk::CommandBuffer cb, int imageIndex) {
       cb.bindPipeline(vk::PipelineBindPoint::eGraphics, *pipeline);
       cb.bindVertexBuffers(0, vbo.buffer(), vk::DeviceSize(0));
+      cb.bindIndexBuffer(ibo.buffer(), vk::DeviceSize(0), vk::IndexType::eUint32);
       cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *pipelineLayout, 0, descriptorSets, nullptr);
-      cb.draw(3, 1, 0, 0);
+      cb.drawIndexed(indexCount, 1, 0, 0, 0);
     }
   );
 
@@ -138,10 +142,20 @@ int main() {
 
   while (!glfwWindowShouldClose(glfwwindow)) {
     glfwPollEvents();
+
     window.draw(fw.device(), fw.graphicsQueue(),
       [&](vk::CommandBuffer pscb, int imageIndex) {
+        modelToWorld = glm::rotate(modelToWorld, glm::radians(1.0f), glm::vec3(0, 0, 1));
+        uniform.modelToPerspective = cameraToPerspective * modelToWorld;
+        vk::CommandBufferBeginInfo bi{};
+        pscb.begin(bi);
+        pscb.updateBuffer(ubo.buffer(), 0, sizeof(Uniform), (void*)&uniform);
+        pscb.end();
+        //std::cout << vku::format("i%d %f\n", imageIndex, uniform.modelToPerspective[0].x );
       }
     );
+
+    //std::this_thread::sleep_for(std::chrono::milliseconds(16));
   }
 
   device.waitIdle();
