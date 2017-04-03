@@ -88,10 +88,12 @@ you may also use the headers stand-alone, for example with Android builds.
 Examples
 ========
 
-There are currently two examples:
+There are currently these examples:
 
     helloTriangle   Draw a triangle using vertex buffers
     texture         Draw a textured triangle
+    teapot          Draw the Utah teapot (using gilgamesh)
+    trypsin         A simple molecule viewer (using gilgamesh)
 
 Building the examples on Windows:
 
