@@ -145,6 +145,10 @@ namespace gilgamesh {
       }
     };
 
+    pdb_decoder(const std::string &filename) {
+      
+    }
+
     pdb_decoder(const uint8_t *begin, const uint8_t *end) {
       for (const uint8_t *p = begin; p != end; ) {
         const uint8_t *eol = p;

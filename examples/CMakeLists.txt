@@ -41,4 +41,5 @@ endmacro(example)
 example(helloTriangle)
 example(texture)
 example(teapot)
+example(trypsin)
 
