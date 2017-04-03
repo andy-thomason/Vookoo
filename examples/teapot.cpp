@@ -5,6 +5,7 @@
 
 #include <gilgamesh/mesh.hpp>
 #include <gilgamesh/scene.hpp>
+#include <gilgamesh/shapes/teapot.hpp>
 #include <gilgamesh/decoders/fbx_decoder.hpp>
 #include <gilgamesh/encoders/fbx_encoder.hpp>
 
@@ -53,6 +54,7 @@ int main() {
   plm.descriptorSetLayout(*layout);
   auto pipelineLayout = plm.createUnique(device);
 
+  /*
   gilgamesh::fbx_decoder decoder;
   gilgamesh::scene scene;
   auto filename = SOURCE_DIR "teapot.fbx";
@@ -60,11 +62,18 @@ int main() {
     std::cerr << "unable to open file " << filename << "\n";
     return 1;
   }
+  const gilgamesh::mesh &mesh = *scene.meshes()[0];
+  */
+
+  printf("building\n");
+  gilgamesh::simple_mesh mesh;
+  gilgamesh::teapot shape;
+  shape.build(mesh);
+  mesh.reindex(true);
 
   struct Vertex { glm::vec3 pos; glm::vec3 normal; };
   std::vector<Vertex> vertices;
 
-  const gilgamesh::mesh &mesh = *scene.meshes()[0];
   auto meshpos = mesh.pos();
   auto meshnormal = mesh.normal();
   for (size_t i = 0; i != meshpos.size(); ++i) {
@@ -72,7 +81,7 @@ int main() {
     glm::vec3 normal = meshnormal[i];
     vertices.emplace_back(Vertex{pos, normal});
   }
-  std::vector<uint32_t> indices = scene.meshes()[0]->indices32();
+  std::vector<uint32_t> indices = mesh.indices32();
 
   ////////////////////////////////////////
   //
@@ -100,7 +109,8 @@ int main() {
   };
 
   glm::mat4 cameraToPerspective = glm::perspective(glm::radians(45.0f), (float)window.width()/window.height(), 0.1f, 100.0f);
-  glm::mat4 modelToWorld = glm::translate(glm::mat4{}, glm::vec3(0, 0, -4));
+  glm::mat4 modelToWorld = glm::translate(glm::mat4{}, glm::vec3(0, 2, -8));
+  modelToWorld = glm::rotate(modelToWorld, glm::radians(90.0f), glm::vec3(1, 0, 0));
   
 
   // Create, but do not upload the uniform buffer as a device local buffer.
