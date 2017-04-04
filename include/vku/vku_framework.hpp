@@ -48,9 +48,9 @@
 
 namespace vku {
 
-// This class provides an optional interface to the vulkan instance, devices and queues.
-// It is not used by any of the other classes directly and so can be safely ignored if Vookoo
-// is embedded in an engine.
+/// This class provides an optional interface to the vulkan instance, devices and queues.
+/// It is not used by any of the other classes directly and so can be safely ignored if Vookoo
+/// is embedded in an engine.
 class Framework {
 public:
   Framework() {
@@ -248,6 +248,7 @@ public:
   Window() {
   }
 
+  /// Construct a window, surface and swapchain using a GLFW window.
   Window(const vk::Instance &instance, const vk::Device &device, const vk::PhysicalDevice &physicalDevice, uint32_t graphicsQueueFamilyIndex, GLFWwindow *window) {
     device_ = device;
 
@@ -417,6 +418,7 @@ public:
     ok_ = true;
   }
 
+  /// Dump the capabilities of the physical device used by this window.
   void dumpCaps(std::ostream &os, vk::PhysicalDevice pd) const {
     os << "Surface formats\n";
     auto fmts = pd.getSurfaceFormatsKHR(*surface_);
@@ -435,6 +437,7 @@ public:
 
   typedef void (staticCommandFunc_t)(vk::CommandBuffer cb, int imageIndex, vk::RenderPassBeginInfo &rpbi);
 
+  /// Build a static draw buffer. This will be rendered after any dynamic content generated in draw()
   void setStaticCommands(const std::function<staticCommandFunc_t> &func) {
     for (int i = 0; i != drawBuffers_.size(); ++i) {
       vk::CommandBuffer cb = *drawBuffers_[i];
@@ -461,6 +464,8 @@ public:
     pscb.end();
   }
 
+  /// Queue the static command buffer for the next image in the swap chain. Optionally call a function to create a dynamic command buffer
+  /// for uploading textures, changing uniforms etc.
   void draw(const vk::Device &device, const vk::Queue &graphicsQueue, const std::function<void (vk::CommandBuffer pscb, int imageIndex)> &preSubmit = defaultPreSubmitFunc) {
     static auto start = std::chrono::high_resolution_clock::now();
     auto time = std::chrono::high_resolution_clock::now();
@@ -514,11 +519,19 @@ public:
     presentQueue_.presentKHR(presentInfo);
   }
 
+  /// Return the queue family index used to present the surface to the display.
   uint32_t presentQueueFamily() const { return presentQueueFamily_; }
+
+  /// Return true if this window was created sucessfully.
   bool ok() const { return ok_; }
+
+  /// Return the renderpass used by this window.
   vk::RenderPass renderPass() const { return *renderPass_; }
+
+  /// Return the frame buffers used by this window
   const std::vector<vk::UniqueFramebuffer> &framebuffers() const { return framebuffers_; }
 
+  /// Destroy resources when shutting down.
   ~Window() {
     for (auto &iv : imageViews_) {
       device_.destroyImageView(iv);
@@ -528,18 +541,43 @@ public:
     }
   }
 
+  /// Return the width of the display.
   uint32_t width() const { return width_; }
+
+  /// Return the height of the display.
   uint32_t height() const { return height_; }
+
+  /// Return the format of the back buffer.
   vk::Format swapchainImageFormat() const { return swapchainImageFormat_; }
+
+  /// Return the colour space of the back buffer (Usually sRGB)
   vk::ColorSpaceKHR swapchainColorSpace() const { return swapchainColorSpace_; }
+
+  /// Return the swapchain object
   const vk::SwapchainKHR swapchain() const { return *swapchain_; }
+
+  /// Return the views of the swap chain images
   const std::vector<vk::ImageView> &imageViews() const { return imageViews_; }
+
+  /// Return the swap chain images
   const std::vector<vk::Image> &images() const { return images_; }
+
+  /// Return the static command buffers.
   const std::vector<vk::UniqueCommandBuffer> &commandBuffers() const { return drawBuffers_; }
+
+  /// Return the fences used to control the static buffers.
   const std::vector<vk::Fence> &commandBufferFences() const { return commandBufferFences_; }
+
+  /// Return the semaphore signalled when an image is acquired.
   vk::Semaphore imageAcquireSemaphore() const { return *imageAcquireSemaphore_; }
-  vk::Semaphore presentSemaphore() const { return *commandCompleteSemaphore_; }
+
+  /// Return the semaphore signalled when the command buffers are finished.
+  vk::Semaphore commandCompleteSemaphore() const { return *commandCompleteSemaphore_; }
+
+  /// Return a defult command Pool to use to create new command buffers.
   vk::CommandPool commandPool() const { return *commandPool_; }
+
+  /// Return the number of swap chain images.
   int numImageIndices() const { return (int)images_.size(); }
 
 private:
