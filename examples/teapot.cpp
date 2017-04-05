@@ -44,6 +44,7 @@ int main() {
 
   vku::DescriptorSetLayoutMaker dslm{};
   dslm.buffer(0U, vk::DescriptorType::eUniformBuffer, vk::ShaderStageFlagBits::eVertex|vk::ShaderStageFlagBits::eFragment, 1);
+  dslm.image(1U, vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eFragment, 1);
   auto layout = dslm.createUnique(device);
 
   vku::DescriptorSetMaker dsm{};
@@ -59,15 +60,17 @@ int main() {
   shape.build(mesh);
   mesh.reindex(true);
 
-  struct Vertex { glm::vec3 pos; glm::vec3 normal; };
+  struct Vertex { glm::vec3 pos; glm::vec3 normal; glm::vec2 uv; };
   std::vector<Vertex> vertices;
 
   auto meshpos = mesh.pos();
   auto meshnormal = mesh.normal();
+  auto meshuv = mesh.uv(0);
   for (size_t i = 0; i != meshpos.size(); ++i) {
     glm::vec3 pos = meshpos[i];
     glm::vec3 normal = meshnormal[i];
-    vertices.emplace_back(Vertex{pos, normal});
+    glm::vec2 uv = meshuv[i];
+    vertices.emplace_back(Vertex{pos, normal, uv});
   }
   std::vector<uint32_t> indices = mesh.indices32();
 
@@ -81,6 +84,7 @@ int main() {
   pm.vertexBinding(0, (uint32_t)sizeof(Vertex));
   pm.vertexAttribute(0, 0, vk::Format::eR32G32B32Sfloat, (uint32_t)offsetof(Vertex, pos));
   pm.vertexAttribute(1, 0, vk::Format::eR32G32B32Sfloat, (uint32_t)offsetof(Vertex, normal));
+  pm.vertexAttribute(2, 0, vk::Format::eR32G32Sfloat, (uint32_t)offsetof(Vertex, uv));
   pm.depthTestEnable(VK_TRUE);
   pm.cullMode(vk::CullModeFlagBits::eBack);
   pm.frontFace(vk::FrontFace::eClockwise);
@@ -110,6 +114,29 @@ int main() {
 
   ////////////////////////////////////////
   //
+  // Create a texture
+
+  // Create an image, memory and view for the texture on the GPU.
+  vku::TextureImageCube texture{device, fw.memprops(), 1, 1, 1, vk::Format::eR8G8B8A8Unorm};
+
+  // Create an image and memory for the texture on the CPU.
+  vku::TextureImageCube stagingBuffer{device, fw.memprops(), 1, 1, 1, vk::Format::eR8G8B8A8Unorm, true};
+
+  // Copy pixels into the staging buffer
+  static const uint8_t pixels[] = { 0xff, 0x00, 0x00, 0xff,  0x00, 0xff, 0x00, 0xff,  0x00, 0x00, 0xff, 0xff,  0xff, 0xff, 0x00, 0xff,  0xff, 0x00, 0xff, 0xff,  0xff, 0xff, 0xff, 0xff, };
+  stagingBuffer.update(device, (const void*)pixels, 4);
+
+  // Copy the staging buffer to the GPU texture and set the layout.
+  vku::executeImmediately(device, window.commandPool(), fw.graphicsQueue(), [&](vk::CommandBuffer cb) {
+    texture.copy(cb, stagingBuffer);
+    texture.setLayout(cb, vk::ImageLayout::eShaderReadOnlyOptimal);
+  });
+
+  // Free the staging buffer.
+  stagingBuffer = vku::TextureImageCube{};
+
+  ////////////////////////////////////////
+  //
   // Update the descriptor sets for the shader uniforms.
 
   vku::SamplerMaker sm{};
@@ -121,6 +148,10 @@ int main() {
   // Set initial uniform buffer value
   update.beginBuffers(0, 0, vk::DescriptorType::eUniformBuffer);
   update.buffer(ubo.buffer(), 0, sizeof(Uniform));
+
+  // Set initial sampler value
+  update.beginImages(1, 0, vk::DescriptorType::eCombinedImageSampler);
+  update.image(*sampler, texture.imageView(), vk::ImageLayout::eShaderReadOnlyOptimal);
 
   update.update(device);
 

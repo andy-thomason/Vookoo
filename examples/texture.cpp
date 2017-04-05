@@ -83,10 +83,10 @@ int main() {
   // Create a texture
 
   // Create an image, memory and view for the texture on the GPU.
-  vku::TextureImage2D texture{device, fw.memprops(), 2, 2, vk::Format::eR8G8B8A8Unorm};
+  vku::TextureImage2D texture{device, fw.memprops(), 2, 2, 1, vk::Format::eR8G8B8A8Unorm};
 
   // Create an image and memory for the texture on the CPU.
-  vku::TextureImage2D stagingBuffer{device, fw.memprops(), 2, 2, vk::Format::eR8G8B8A8Unorm, true};
+  vku::TextureImage2D stagingBuffer{device, fw.memprops(), 2, 2, 1, vk::Format::eR8G8B8A8Unorm, true};
 
   // Copy pixels into the staging buffer
   static const uint8_t pixels[] = { 0xff, 0xff, 0xff, 0xff,  0x00, 0xff, 0xff, 0xff,  0xff, 0x00, 0xff, 0xff,  0xff, 0xff, 0x00, 0xff, };

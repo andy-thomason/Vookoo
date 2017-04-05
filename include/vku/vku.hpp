@@ -54,6 +54,24 @@ inline int findMemoryTypeIndex(const vk::PhysicalDeviceMemoryProperties &memprop
   return -1;
 }
 
+// Execute commands immediately and wait for the device to finish.
+inline void executeImmediately(vk::Device device, vk::CommandPool commandPool, vk::Queue queue, const std::function<void (vk::CommandBuffer cb)> &func) {
+  vk::CommandBufferAllocateInfo cbai{ commandPool, vk::CommandBufferLevel::ePrimary, 1 };
+
+  auto cbs = device.allocateCommandBuffers(cbai);
+  cbs[0].begin(vk::CommandBufferBeginInfo{});
+  func(cbs[0]);
+  cbs[0].end();
+
+  vk::SubmitInfo submit;
+  submit.commandBufferCount = (uint32_t)cbs.size();
+  submit.pCommandBuffers = cbs.data();
+  queue.submit(submit, vk::Fence{});
+  device.waitIdle();
+
+  device.freeCommandBuffers(commandPool, cbs);
+}
+
 // See https://vulkan-tutorial.com for details of many operations here.
 
 /// Factory for renderpasses.
@@ -89,8 +107,6 @@ public:
     s.subpassDependencies.push_back(desc);
   }
 
-
-//00000008 debugCallback: vkCreateRenderPass has no depth/stencil attachment, yet subpass[0] has VkSubpassDescription::depthStencilAttachment value that is not VK_ATTACHMENT_UNUSED
 
   void subpassColorAttachment(vk::ImageLayout layout, uint32_t attachment) {
     vk::SubpassDescription &subpass = s.subpassDescriptions.back();
@@ -539,7 +555,7 @@ public:
   }
 
   // Copy memory from the host to the buffer object.
-  void update(const vk::Device &device, void *value, vk::DeviceSize size) {
+  void update(const vk::Device &device, const void *value, vk::DeviceSize size) {
     void *ptr = device.mapMemory(*s.mem, 0, s.size, vk::MemoryMapFlags{});
     memcpy(ptr, value, (size_t)size);
     device.unmapMemory(*s.mem);
@@ -584,7 +600,7 @@ public:
   }
 };
 
-/// This class is a specialisation of GenericBuffer for vertex buffers.
+/// This class is a specialisation of GenericBuffer for uniform buffers.
 class UniformBuffer : public GenericBuffer {
 public:
   template<class Type, class Allocator>
@@ -815,17 +831,21 @@ public:
 
   // Update the image with an array of pixels. (Currently 2D only)
   void update(vk::Device device, const void *data, vk::DeviceSize bytesPerPixel) {
-    vk::ImageSubresource subresource{vk::ImageAspectFlagBits::eColor, 0, 0};
-    auto srlayout = device.getImageSubresourceLayout(*s.image, subresource);
-
-    uint8_t *dest = (uint8_t *)device.mapMemory(*s.mem, 0, s.size, vk::MemoryMapFlags{}) + srlayout.offset;
     const uint8_t *src = (const uint8_t *)data;
-
-    size_t bytesPerLine = s.extent.width * bytesPerPixel;
-    for (int y = 0; y != s.extent.height; ++y) {
-      memcpy(dest, src, bytesPerLine);
-      src += bytesPerLine;
-      dest += srlayout.rowPitch;
+    for (uint32_t mipLevel = 0; mipLevel != info().mipLevels; ++mipLevel) {
+      // Array images are layed out horizontally. eg. [left][front][right] etc.
+      for (uint32_t arrayLayer = 0; arrayLayer != info().arrayLayers; ++arrayLayer) {
+        vk::ImageSubresource subresource{vk::ImageAspectFlagBits::eColor, mipLevel, arrayLayer};
+        auto srlayout = device.getImageSubresourceLayout(*s.image, subresource);
+        uint8_t *dest = (uint8_t *)device.mapMemory(*s.mem, 0, s.size, vk::MemoryMapFlags{}) + srlayout.offset;
+        size_t bytesPerLine = s.info.extent.width * bytesPerPixel;
+        size_t srcStride = bytesPerLine * info().arrayLayers;
+        for (int y = 0; y != s.info.extent.height; ++y) {
+          memcpy(dest, src + arrayLayer * bytesPerLine, bytesPerLine);
+          src += srcStride;
+          dest += srlayout.rowPitch;
+        }
+      }
     }
     device.unmapMemory(*s.mem);
   }
@@ -834,11 +854,13 @@ public:
   void copy(vk::CommandBuffer cb, vku::GenericImage &srcImage) {
     srcImage.setLayout(cb, vk::ImageLayout::eTransferSrcOptimal);
     setLayout(cb, vk::ImageLayout::eTransferDstOptimal);
-    vk::ImageCopy region{};
-    region.srcSubresource = {vk::ImageAspectFlagBits::eColor, 0, 0, 1};
-    region.dstSubresource = {vk::ImageAspectFlagBits::eColor, 0, 0, 1};
-    region.extent = s.extent;
-    cb.copyImage(srcImage.image(), vk::ImageLayout::eTransferSrcOptimal, *s.image, vk::ImageLayout::eTransferDstOptimal, region);
+    for (uint32_t mipLevel = 0; mipLevel != info().mipLevels; ++mipLevel) {
+      vk::ImageCopy region{};
+      region.srcSubresource = {vk::ImageAspectFlagBits::eColor, mipLevel, 0, srcImage.info().arrayLayers};
+      region.dstSubresource = {vk::ImageAspectFlagBits::eColor, mipLevel, 0, info().arrayLayers};
+      region.extent = s.info.extent;
+      cb.copyImage(srcImage.image(), vk::ImageLayout::eTransferSrcOptimal, *s.image, vk::ImageLayout::eTransferDstOptimal, region);
+    }
   }
 
   // Change the layout of this image using a memory barrier.
@@ -898,13 +920,19 @@ public:
     cb.pipelineBarrier(srcStageMask, dstStageMask, dependencyFlags, memoryBarriers, bufferMemoryBarriers, imageMemoryBarriers);
   }
 
-  vk::Format format() const { return s.format; }
+  /// Set what the image thinks is its current layout (ie. the old layout in an image barrier).
+  void setCurrentLayout(vk::ImageLayout oldLayout) {
+    s.currentLayout = oldLayout;
+  }
+
+  vk::Format format() const { return s.info.format; }
+  vk::Extent3D extent() const { return s.info.extent; }
+  const vk::ImageCreateInfo &info() const { return s.info; }
 protected:
   void create(vk::Device device, const vk::PhysicalDeviceMemoryProperties &memprops, const vk::ImageCreateInfo &info, vk::ImageViewType viewType, vk::ImageAspectFlags aspectMask, bool hostImage) {
     s.currentLayout = info.initialLayout;
-    s.extent = info.extent;
+    s.info = info;
     s.image = device.createImageUnique(info);
-    s.format = info.format;
 
     // Find out how much memory and which heap to allocate from.
     auto memreq = device.getImageMemoryRequirements(*s.image);
@@ -927,7 +955,7 @@ protected:
       viewInfo.viewType = viewType;
       viewInfo.format = info.format;
       viewInfo.components = { vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eG, vk::ComponentSwizzle::eB, vk::ComponentSwizzle::eA };
-      viewInfo.subresourceRange = vk::ImageSubresourceRange{aspectMask, 0, 1, 0, 1};
+      viewInfo.subresourceRange = vk::ImageSubresourceRange{aspectMask, 0, info.mipLevels, 0, info.arrayLayers};
       s.imageView = device.createImageViewUnique(viewInfo);
     }
   }
@@ -938,8 +966,7 @@ protected:
     vk::UniqueDeviceMemory mem;
     vk::DeviceSize size;
     vk::ImageLayout currentLayout;
-    vk::Extent3D extent;
-    vk::Format format;
+    vk::ImageCreateInfo info;
   };
 
   State s;
@@ -951,13 +978,13 @@ public:
   TextureImage2D() {
   }
 
-  TextureImage2D(vk::Device device, const vk::PhysicalDeviceMemoryProperties &memprops, uint32_t width, uint32_t height, vk::Format format = vk::Format::eR8G8B8A8Unorm, bool hostImage = false) {
+  TextureImage2D(vk::Device device, const vk::PhysicalDeviceMemoryProperties &memprops, uint32_t width, uint32_t height, uint32_t mipLevels=1, vk::Format format = vk::Format::eR8G8B8A8Unorm, bool hostImage = false) {
     vk::ImageCreateInfo info;
     info.flags = {};
     info.imageType = vk::ImageType::e2D;
     info.format = format;
     info.extent = vk::Extent3D{ width, height, 1U };
-    info.mipLevels = 1;
+    info.mipLevels = mipLevels;
     info.arrayLayers = 1;
     info.samples = vk::SampleCountFlagBits::e1;
     info.tiling = hostImage ? vk::ImageTiling::eLinear : vk::ImageTiling::eOptimal;
@@ -967,6 +994,32 @@ public:
     info.pQueueFamilyIndices = nullptr;
     info.initialLayout = hostImage ? vk::ImageLayout::ePreinitialized : vk::ImageLayout::eUndefined;
     create(device, memprops, info, vk::ImageViewType::e2D, vk::ImageAspectFlagBits::eColor, hostImage);
+  }
+private:
+};
+
+// A cube map texture image living on the GPU or a staging buffer visible to the CPU.
+class TextureImageCube : public GenericImage {
+public:
+  TextureImageCube() {
+  }
+
+  TextureImageCube(vk::Device device, const vk::PhysicalDeviceMemoryProperties &memprops, uint32_t width, uint32_t height, uint32_t mipLevels=1, vk::Format format = vk::Format::eR8G8B8A8Unorm, bool hostImage = false) {
+    vk::ImageCreateInfo info;
+    info.flags = {};
+    info.imageType = vk::ImageType::e2D;
+    info.format = format;
+    info.extent = vk::Extent3D{ width, height, 1U };
+    info.mipLevels = mipLevels;
+    info.arrayLayers = 6;
+    info.samples = vk::SampleCountFlagBits::e1;
+    info.tiling = hostImage ? vk::ImageTiling::eLinear : vk::ImageTiling::eOptimal;
+    info.usage = vk::ImageUsageFlagBits::eSampled|vk::ImageUsageFlagBits::eTransferSrc|vk::ImageUsageFlagBits::eTransferDst;
+    info.sharingMode = vk::SharingMode::eExclusive;
+    info.queueFamilyIndexCount = 0;
+    info.pQueueFamilyIndices = nullptr;
+    info.initialLayout = hostImage ? vk::ImageLayout::ePreinitialized : vk::ImageLayout::eUndefined;
+    create(device, memprops, info, vk::ImageViewType::eCube, vk::ImageAspectFlagBits::eColor, hostImage);
   }
 private:
 };
@@ -1062,24 +1115,6 @@ private:
 
   State s;
 };
-
-// Execute commands immediately and wait for the device to finish.
-inline void executeImmediately(vk::Device device, vk::CommandPool commandPool, vk::Queue queue, const std::function<void (vk::CommandBuffer cb)> &func) {
-  vk::CommandBufferAllocateInfo cbai{ commandPool, vk::CommandBufferLevel::ePrimary, 1 };
-
-  auto cbs = device.allocateCommandBuffers(cbai);
-  cbs[0].begin(vk::CommandBufferBeginInfo{});
-  func(cbs[0]);
-  cbs[0].end();
-
-  vk::SubmitInfo submit;
-  submit.commandBufferCount = (uint32_t)cbs.size();
-  submit.pCommandBuffers = cbs.data();
-  queue.submit(submit, vk::Fence{});
-  device.waitIdle();
-
-  device.freeCommandBuffers(commandPool, cbs);
-}
 
 } // namespace vku
 

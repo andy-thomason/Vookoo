@@ -152,7 +152,7 @@ int main() {
       cb.bindVertexBuffers(0, vbo.buffer(), vk::DeviceSize(0));
       //cb.bindIndexBuffer(ibo.buffer(), vk::DeviceSize(0), vk::IndexType::eUint32);
       cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *pipelineLayout, 0, descriptorSets, nullptr);
-      cb.draw(vertices.size(), 1, 0, 0);
+      cb.draw((uint32_t)vertices.size(), 1, 0, 0);
       cb.endRenderPass();
       cb.end();
     }
@@ -175,7 +175,7 @@ int main() {
         modelToWorld = glm::rotate(modelToWorld, glm::radians(1.0f), glm::vec3(0, 1, 0));
         uniform.modelToPerspective = cameraToPerspective * modelToWorld;
         uniform.normalToWorld = modelToWorld;
-        uniform.pointScale = window.width();
+        uniform.pointScale = (float)window.width();
 
         // Record the dynamic buffer.
         vk::CommandBufferBeginInfo bi{};
