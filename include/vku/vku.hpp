@@ -433,11 +433,11 @@ public:
 
   // Specify the topology of the pipeline.
   // Usually this is a triangle list, but points and lines are possible too.
-  PipelineMaker &topology( vk::PrimitiveTopology topology ) { s.inputAssemblyState_.topology = topology; }
+  PipelineMaker &topology( vk::PrimitiveTopology topology ) { s.inputAssemblyState_.topology = topology; return *this; }
 
   // Enable or disable primitive restart.
   // If using triangle strips, for example, this allows a special index value (0xffff or 0xffffffff) to start a new strip.
-  PipelineMaker &primitiveRestartEnable( vk::Bool32 primitiveRestartEnable ) { s.inputAssemblyState_.primitiveRestartEnable = primitiveRestartEnable; }
+  PipelineMaker &primitiveRestartEnable( vk::Bool32 primitiveRestartEnable ) { s.inputAssemblyState_.primitiveRestartEnable = primitiveRestartEnable; return *this; }
 
   // Set a whole new input assembly state.
   // Note you can set individual values with their own calls.

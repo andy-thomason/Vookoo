@@ -54,18 +54,6 @@ int main() {
   plm.descriptorSetLayout(*layout);
   auto pipelineLayout = plm.createUnique(device);
 
-  /*
-  gilgamesh::fbx_decoder decoder;
-  gilgamesh::scene scene;
-  auto filename = SOURCE_DIR "teapot.fbx";
-  if (!decoder.loadScene<gilgamesh::color_mesh>(scene, filename)) {
-    std::cerr << "unable to open file " << filename << "\n";
-    return 1;
-  }
-  const gilgamesh::mesh &mesh = *scene.meshes()[0];
-  */
-
-  printf("building\n");
   gilgamesh::simple_mesh mesh;
   gilgamesh::teapot shape;
   shape.build(mesh);
@@ -168,10 +156,6 @@ int main() {
         modelToWorld = glm::rotate(modelToWorld, glm::radians(1.0f), glm::vec3(0, 0, 1));
         uniform.modelToPerspective = cameraToPerspective * modelToWorld;
         uniform.normalToWorld = modelToWorld;
-        /*auto &m = uniform.normalToWorld;
-        std::cout << vku::format("[%8.3f %8.3f %8.3f]\n", m[0].x, m[1].x, m[2].x);
-        std::cout << vku::format("[%8.3f %8.3f %8.3f]\n", m[0].y, m[1].y, m[2].y);
-        std::cout << vku::format("[%8.3f %8.3f %8.3f]\n", m[0].z, m[1].z, m[2].z);*/
 
         // Record the dynamic buffer.
         vk::CommandBufferBeginInfo bi{};
