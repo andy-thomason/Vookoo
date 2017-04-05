@@ -13,11 +13,11 @@ layout (binding = 0) uniform Uniform {
   vec4 colour;
 } u;
 
-layout (binding = 1) uniform sampler2D samp; 
+layout (binding = 1) uniform samplerCube samp;
 
 void main() {
   //outColour = vec4(normalize(inNormal)*0.5f + 0.5f, 1);
   //outColour = vec4(inUv, 1, 1);
-  outColour = texture(samp, inUv);
+  outColour = texture(samp, inNormal);
 }
 

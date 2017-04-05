@@ -119,21 +119,20 @@ int main() {
   // Create an image, memory and view for the texture on the GPU.
   vku::TextureImageCube texture{device, fw.memprops(), 1, 1, 1, vk::Format::eR8G8B8A8Unorm};
 
-  // Create an image and memory for the texture on the CPU.
-  vku::TextureImageCube stagingBuffer{device, fw.memprops(), 1, 1, 1, vk::Format::eR8G8B8A8Unorm, true};
-
-  // Copy pixels into the staging buffer
-  static const uint8_t pixels[] = { 0xff, 0x00, 0x00, 0xff,  0x00, 0xff, 0x00, 0xff,  0x00, 0x00, 0xff, 0xff,  0xff, 0xff, 0x00, 0xff,  0xff, 0x00, 0xff, 0xff,  0xff, 0xff, 0xff, 0xff, };
-  stagingBuffer.update(device, (const void*)pixels, 4);
+  uint32_t pixels[2048] = { 0x000000ff, 0x0000ff00, 0x00ff0000, 0x00ffff00, 0x00ffffff, 0x00808080};
+  //memset(pixels, 0xff, sizeof(pixels));
+  vku::GenericBuffer stagingBuffer(device, fw.memprops(), vk::BufferUsageFlagBits::eTransferSrc, sizeof(pixels));
+  stagingBuffer.update(device, (const void*)pixels, sizeof(pixels));
 
   // Copy the staging buffer to the GPU texture and set the layout.
   vku::executeImmediately(device, window.commandPool(), fw.graphicsQueue(), [&](vk::CommandBuffer cb) {
-    texture.copy(cb, stagingBuffer);
+    vk::Buffer buf = stagingBuffer.buffer();
+    texture.copyCubemap(cb, buf, 1, 4);
     texture.setLayout(cb, vk::ImageLayout::eShaderReadOnlyOptimal);
   });
 
   // Free the staging buffer.
-  stagingBuffer = vku::TextureImageCube{};
+  stagingBuffer = vku::GenericBuffer{};
 
   ////////////////////////////////////////
   //

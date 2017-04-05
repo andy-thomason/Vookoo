@@ -72,6 +72,10 @@ inline void executeImmediately(vk::Device device, vk::CommandPool commandPool, v
   device.freeCommandBuffers(commandPool, cbs);
 }
 
+inline uint32_t mipScale(uint32_t value, uint32_t mipLevel) {
+  return std::max(value >> mipLevel, (uint32_t)1);
+}
+
 // See https://vulkan-tutorial.com for details of many operations here.
 
 /// Factory for renderpasses.
@@ -533,6 +537,9 @@ private:
 // Buffers require memory objects which represent GPU and CPU resources.
 class GenericBuffer {
 public:
+  GenericBuffer() {
+  }
+
   GenericBuffer(const vk::Device &device, const vk::PhysicalDeviceMemoryProperties &memprops, vk::BufferUsageFlags usage, vk::DeviceSize size, vk::MemoryPropertyFlags memflags = vk::MemoryPropertyFlagBits::eHostCoherent | vk::MemoryPropertyFlagBits::eHostVisible) {
     // Create the buffer object without memory.
     vk::BufferCreateInfo ci{};
@@ -856,15 +863,36 @@ public:
     setLayout(cb, vk::ImageLayout::eTransferDstOptimal);
     for (uint32_t mipLevel = 0; mipLevel != info().mipLevels; ++mipLevel) {
       vk::ImageCopy region{};
-      region.srcSubresource = {vk::ImageAspectFlagBits::eColor, mipLevel, 0, srcImage.info().arrayLayers};
-      region.dstSubresource = {vk::ImageAspectFlagBits::eColor, mipLevel, 0, info().arrayLayers};
+      region.srcSubresource = {vk::ImageAspectFlagBits::eColor, mipLevel, 0, 1};
+      region.dstSubresource = {vk::ImageAspectFlagBits::eColor, mipLevel, 0, 1};
       region.extent = s.info.extent;
       cb.copyImage(srcImage.image(), vk::ImageLayout::eTransferSrcOptimal, *s.image, vk::ImageLayout::eTransferDstOptimal, region);
     }
   }
 
+  // Copy a cube map buffer to this image.
+  void copyCubemap(vk::CommandBuffer cb, vk::Buffer buffer, uint32_t stride, uint32_t arraySkip) {
+    setLayout(cb, vk::ImageLayout::eTransferDstOptimal);
+    vk::BufferImageCopy region{};
+    for (uint32_t arrayLayer = 0; arrayLayer != 6; ++arrayLayer) {
+      region.bufferOffset = arrayLayer * arraySkip;
+      for (uint32_t mipLevel = 0; mipLevel != info().mipLevels; ++mipLevel) {
+        vk::Extent3D extent;
+        extent.width = mipScale(s.info.extent.width, mipLevel);
+        extent.height = mipScale(s.info.extent.height, mipLevel);
+        extent.depth = 1;
+        region.imageSubresource = {vk::ImageAspectFlagBits::eColor, mipLevel, arrayLayer, 1};
+        region.imageExtent = extent;
+        region.bufferRowLength = mipScale(stride, mipLevel);
+        region.bufferImageHeight = extent.height;
+        cb.copyBufferToImage(buffer, *s.image, vk::ImageLayout::eTransferDstOptimal, region);
+      }
+    }
+  }
+
   // Change the layout of this image using a memory barrier.
   void setLayout(vk::CommandBuffer cb, vk::ImageLayout newLayout, vk::ImageAspectFlags aspectMask = vk::ImageAspectFlagBits::eColor) {
+    if (newLayout == s.currentLayout) return;
     vk::ImageLayout oldLayout = s.currentLayout;
     s.currentLayout = newLayout;
 
@@ -874,7 +902,7 @@ public:
     imageMemoryBarriers.oldLayout = oldLayout;
     imageMemoryBarriers.newLayout = newLayout;
     imageMemoryBarriers.image = *s.image;
-    imageMemoryBarriers.subresourceRange = {aspectMask, 0, 1, 0, 1};
+    imageMemoryBarriers.subresourceRange = {aspectMask, 0, s.info.mipLevels, 0, s.info.arrayLayers};
 
     // Put barrier on top
     vk::PipelineStageFlags srcStageMask{vk::PipelineStageFlagBits::eTopOfPipe};
@@ -1018,7 +1046,8 @@ public:
     info.sharingMode = vk::SharingMode::eExclusive;
     info.queueFamilyIndexCount = 0;
     info.pQueueFamilyIndices = nullptr;
-    info.initialLayout = hostImage ? vk::ImageLayout::ePreinitialized : vk::ImageLayout::eUndefined;
+    //info.initialLayout = hostImage ? vk::ImageLayout::ePreinitialized : vk::ImageLayout::eUndefined;
+    info.initialLayout = vk::ImageLayout::ePreinitialized;
     create(device, memprops, info, vk::ImageViewType::eCube, vk::ImageAspectFlagBits::eColor, hostImage);
   }
 private:
