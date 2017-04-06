@@ -33,13 +33,6 @@ int main() {
 
   ////////////////////////////////////////
   //
-  // Build the shader modules
-
-  vku::ShaderModule vert_{device, BINARY_DIR "teapot.vert.spv"};
-  vku::ShaderModule frag_{device, BINARY_DIR "teapot.frag.spv"};
-
-  ////////////////////////////////////////
-  //
   // Build the descriptor sets
 
   vku::DescriptorSetLayoutMaker dslm{};
@@ -74,21 +67,6 @@ int main() {
   }
   std::vector<uint32_t> indices = mesh.indices32();
 
-  ////////////////////////////////////////
-  //
-  // Build the pipeline including enabling the depth test
-
-  vku::PipelineMaker pm{window.width(), window.height()};
-  pm.shader(vk::ShaderStageFlagBits::eVertex, vert_);
-  pm.shader(vk::ShaderStageFlagBits::eFragment, frag_);
-  pm.vertexBinding(0, (uint32_t)sizeof(Vertex));
-  pm.vertexAttribute(0, 0, vk::Format::eR32G32B32Sfloat, (uint32_t)offsetof(Vertex, pos));
-  pm.vertexAttribute(1, 0, vk::Format::eR32G32B32Sfloat, (uint32_t)offsetof(Vertex, normal));
-  pm.vertexAttribute(2, 0, vk::Format::eR32G32Sfloat, (uint32_t)offsetof(Vertex, uv));
-  pm.depthTestEnable(VK_TRUE);
-  pm.cullMode(vk::CullModeFlagBits::eBack);
-  pm.frontFace(vk::FrontFace::eClockwise);
-
   vku::VertexBuffer vbo(fw.device(), fw.memprops(), vertices);
   vku::IndexBuffer ibo(fw.device(), fw.memprops(), indices);
   uint32_t indexCount = (uint32_t)indices.size();
@@ -108,16 +86,90 @@ int main() {
   // Create, but do not upload the uniform buffer as a device local buffer.
   vku::UniformBuffer ubo(fw.device(), fw.memprops(), sizeof(Uniform));
 
+  ////////////////////////////////////////
+  //
+  // Build the final pipeline including enabling the depth test
+
+  vku::ShaderModule final_vert{device, BINARY_DIR "teapot.vert.spv"};
+  vku::ShaderModule final_frag{device, BINARY_DIR "teapot.frag.spv"};
+
+  vku::PipelineMaker pm{window.width(), window.height()};
+  pm.shader(vk::ShaderStageFlagBits::eVertex, final_vert);
+  pm.shader(vk::ShaderStageFlagBits::eFragment, final_frag);
+  pm.vertexBinding(0, (uint32_t)sizeof(Vertex));
+  pm.vertexAttribute(0, 0, vk::Format::eR32G32B32Sfloat, (uint32_t)offsetof(Vertex, pos));
+  pm.vertexAttribute(1, 0, vk::Format::eR32G32B32Sfloat, (uint32_t)offsetof(Vertex, normal));
+  pm.vertexAttribute(2, 0, vk::Format::eR32G32Sfloat, (uint32_t)offsetof(Vertex, uv));
+  pm.depthTestEnable(VK_TRUE);
+  pm.cullMode(vk::CullModeFlagBits::eBack);
+  pm.frontFace(vk::FrontFace::eClockwise);
+
   auto renderPass = window.renderPass();
   auto &cache = fw.pipelineCache();
-  auto pipeline = pm.createUnique(device, cache, *pipelineLayout, renderPass);
+  auto final_pipeline = pm.createUnique(device, cache, *pipelineLayout, renderPass);
 
   ////////////////////////////////////////
   //
-  // Create a texture
+  // Build a pipeline for shadows
 
-  // Create an image, memory and view for the texture on the GPU.
+#if 0
+  uint32_t shadow_size = 256;
 
+  vku::ShaderModule shadow_vert{device, BINARY_DIR "teapot.shadow.vert.spv"};
+  vku::ShaderModule shadow_frag{device, BINARY_DIR "teapot.shadow.frag.spv"};
+
+  vku::PipelineMaker spm{shadow_size, shadow_size};
+  spm.shader(vk::ShaderStageFlagBits::eVertex, shadow_vert);
+  spm.shader(vk::ShaderStageFlagBits::eFragment, shadow_frag);
+  spm.vertexBinding(0, (uint32_t)sizeof(Vertex));
+  spm.vertexAttribute(0, 0, vk::Format::eR32G32B32Sfloat, (uint32_t)offsetof(Vertex, pos));
+  spm.vertexAttribute(1, 0, vk::Format::eR32G32B32Sfloat, (uint32_t)offsetof(Vertex, normal));
+  spm.vertexAttribute(2, 0, vk::Format::eR32G32Sfloat, (uint32_t)offsetof(Vertex, uv));
+  spm.depthTestEnable(VK_TRUE);
+  spm.cullMode(vk::CullModeFlagBits::eBack);
+  spm.frontFace(vk::FrontFace::eClockwise);
+
+  vku::DepthStencilImage shadowImage(device, fw.memprops(), shadow_size, shadow_size);
+
+  // This subpass dependency handles the transition from eShaderReadOnlyOptimal to eUndefined
+  // at the start of rendering.
+  vk::SubpassDependency dependency = {};
+  dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+  dependency.dstSubpass = 0;
+  dependency.srcStageMask = vk::PipelineStageFlagBits::eColorAttachmentOutput;
+  dependency.srcAccessMask = {};
+  dependency.dstStageMask = vk::PipelineStageFlagBits::eColorAttachmentOutput;
+  dependency.dstAccessMask = vk::AccessFlagBits::eColorAttachmentRead|vk::AccessFlagBits::eColorAttachmentWrite;
+
+  // At the start, the buffer is in eUndefined layout.
+  // We will clear the buffer at the start (eClear)
+  vk::AttachmentDescription depthDesc{};
+  depthDesc.format = shadowImage.format();
+  depthDesc.samples = vk::SampleCountFlagBits::e1;
+  depthDesc.loadOp = vk::AttachmentLoadOp::eClear;
+  depthDesc.storeOp = vk::AttachmentStoreOp::eDontCare;
+  depthDesc.stencilLoadOp = vk::AttachmentLoadOp::eDontCare;
+  depthDesc.stencilStoreOp = vk::AttachmentStoreOp::eDontCare;
+  depthDesc.initialLayout = vk::ImageLayout::eUndefined;
+  depthDesc.finalLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
+
+  vku::RenderpassMaker rpm;
+  rpm.attachmentDescription(depthDesc);
+  rpm.beginSubpass(vk::PipelineBindPoint::eGraphics);
+  rpm.subpassDepthStencilAttachment(vk::ImageLayout::eDepthStencilAttachmentOptimal, 0);
+  rpm.subpassDependency(dependency);
+  vk::UniqueRenderPass shadowRenderPass = rpm.createUnique(device);
+
+  vk::ImageView attachments[1] = {shadowImage.imageView()};
+  vk::FramebufferCreateInfo fbci{{}, *shadowRenderPass, 1, attachments, shadow_size, shadow_size, 1 };
+  vk::UniqueFramebuffer shadowFrameBuffer = device.createFramebufferUnique(fbci);
+#endif
+
+  ////////////////////////////////////////
+  //
+  // Create a cubemap
+
+  // https://github.com/dariomanesku/cmft
   auto irradianceBytes = vku::loadFile(SOURCE_DIR "okretnica.ktx");
   vku::KTXFileLayout ktx(&*irradianceBytes.begin(), &*irradianceBytes.end());
   if (!ktx.ok()) {
@@ -178,7 +230,7 @@ int main() {
       vk::CommandBufferBeginInfo bi{};
       cb.begin(bi);
       cb.beginRenderPass(rpbi, vk::SubpassContents::eInline);
-      cb.bindPipeline(vk::PipelineBindPoint::eGraphics, *pipeline);
+      cb.bindPipeline(vk::PipelineBindPoint::eGraphics, *final_pipeline);
       cb.bindVertexBuffers(0, vbo.buffer(), vk::DeviceSize(0));
       cb.bindIndexBuffer(ibo.buffer(), vk::DeviceSize(0), vk::IndexType::eUint32);
       cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *pipelineLayout, 0, descriptorSets, nullptr);
