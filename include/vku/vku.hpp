@@ -1,17 +1,17 @@
 ////////////////////////////////////////////////////////////////////////////////
 //
-// Vookoo high level C++ Vulkan interface.
+/// Vookoo high level C++ Vulkan interface.
 //
-// (C) Andy Thomason 2017 MIT License
+/// (C) Andy Thomason 2017 MIT License
 //
-// This is a utility set alongside the vkcpp C++ interface to Vulkan which makes
-// constructing Vulkan pipelines and resources very easy for beginners.
+/// This is a utility set alongside the vkcpp C++ interface to Vulkan which makes
+/// constructing Vulkan pipelines and resources very easy for beginners.
 //
-// It is expected that once familar with the Vulkan C++ interface you may wish
-// to "go it alone" but we hope that this will make the learning experience a joyful one.
+/// It is expected that once familar with the Vulkan C++ interface you may wish
+/// to "go it alone" but we hope that this will make the learning experience a joyful one.
 //
-// You can use it with the demo framework, stand alone and mixed with C or C++ Vulkan objects.
-// It should integrate with game engines nicely.
+/// You can use it with the demo framework, stand alone and mixed with C or C++ Vulkan objects.
+/// It should integrate with game engines nicely.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -87,17 +87,17 @@ inline std::vector<uint8_t> loadFile(const std::string &filename) {
   return std::move(bytes);
 }
 
-// See https://vulkan-tutorial.com for details of many operations here.
+/// See https://vulkan-tutorial.com for details of many operations here.
 
 /// Factory for renderpasses.
 /// example:
-/// RenderpassMaker rpm;
-/// rpm.beginSubpass(vk::PipelineBindPoint::eGraphics);
-/// rpm.subpassColorAttachment(vk::ImageLayout::eColorAttachmentOptimal);
-///
-/// rpm.attachmentDescription(attachmentDesc);
-/// rpm.subpassDependency(dependency);
-/// s.renderPass_ = rpm.createUnique(device);
+///     RenderpassMaker rpm;
+///     rpm.beginSubpass(vk::PipelineBindPoint::eGraphics);
+///     rpm.subpassColorAttachment(vk::ImageLayout::eColorAttachmentOptimal);
+///    
+///     rpm.attachmentDescription(attachmentDesc);
+///     rpm.subpassDependency(dependency);
+///     s.renderPass_ = rpm.createUnique(device);
 class RenderpassMaker {
 public:
   RenderpassMaker() {
@@ -171,13 +171,13 @@ private:
   State s;
 };
 
-// Class for building shader modules and extracting metadata from shaders.
+/// Class for building shader modules and extracting metadata from shaders.
 class ShaderModule {
 public:
   ShaderModule() {
   }
 
-  // Construct a shader module from a file
+  /// Construct a shader module from a file
   ShaderModule(const vk::Device &device, const std::string &filename) {
     auto file = std::ifstream(filename, std::ios::binary);
     if (file.bad()) {
@@ -199,7 +199,7 @@ public:
     s.ok_ = true;
   }
 
-  // Construct a shader module from a memory
+  /// Construct a shader module from a memory
   template<class InIter>
   ShaderModule(const vk::Device &device, InIter begin, InIter end) {
     s.opcodes_.assign(begin, end);
@@ -211,7 +211,7 @@ public:
     s.ok_ = true;
   }
 
-  // A variable in a shader.
+  /// A variable in a shader.
   struct Variable {
     // The name of the variable from the GLSL/HLSL
     std::string debugName;
@@ -233,10 +233,10 @@ public:
     spv::StorageClass storageClass;
   };
 
-  // Get a list of variables from the shader.
-  // 
-  // This exposes the Uniforms, inputs, outputs, push constants.
-  // See spv::StorageClass for more details.
+  /// Get a list of variables from the shader.
+  /// 
+  /// This exposes the Uniforms, inputs, outputs, push constants.
+  /// See spv::StorageClass for more details.
   std::vector<Variable> getVariables() const {
     auto bound = s.opcodes_[3];
 
@@ -285,8 +285,8 @@ public:
   bool ok() const { return s.ok_; }
   VkShaderModule module() { return *s.module_; }
 
-  // Write a C++ consumable dump of the shader.
-  // Todo: make this more idiomatic.
+  /// Write a C++ consumable dump of the shader.
+  /// Todo: make this more idiomatic.
   std::ostream &write(std::ostream &os) {
     os << "static const uint32_t shader[] = {\n";
     char tmp[256];
@@ -318,13 +318,13 @@ private:
   State s;
 };
 
-// A class for building pipeline layouts.
-// Pipeline layouts describe the descriptor sets and push constants used by the shaders.
+/// A class for building pipeline layouts.
+/// Pipeline layouts describe the descriptor sets and push constants used by the shaders.
 class PipelineLayoutMaker {
 public:
   PipelineLayoutMaker() {}
 
-  // Create a self-deleting pipeline layout object.
+  /// Create a self-deleting pipeline layout object.
   vk::UniquePipelineLayout createUnique(const vk::Device &device) const {
     vk::PipelineLayoutCreateInfo pipelineLayoutInfo{
         {}, (uint32_t)setLayouts_.size(),
@@ -333,13 +333,13 @@ public:
     return std::move(device.createPipelineLayoutUnique(pipelineLayoutInfo));
   }
 
-  // Add a descriptor set layout to the pipeline.
+  /// Add a descriptor set layout to the pipeline.
   void descriptorSetLayout(vk::DescriptorSetLayout layout) {
     setLayouts_.push_back(layout);
   }
 
-  // Add a push constant range to the pipeline.
-  // These describe the size and location of variables in the push constant area.
+  /// Add a push constant range to the pipeline.
+  /// These describe the size and location of variables in the push constant area.
   void pushConstantRange(vk::PushConstantRange range) {
     pushConstantRanges_.push_back(range);
   }
@@ -349,12 +349,12 @@ private:
   std::vector<vk::PushConstantRange> pushConstantRanges_;
 };
 
-// A class for building pipelines.
-// All the state of the pipeline is exposed through individual calls.
-// The pipeline encapsulates all the OpenGL state in a single object.
-// This includes vertex buffer layouts, blend operations, shaders, line width etc.
-// This class exposes all the values as individuals so a pipeline can be customised.
-// The default is to generate a working pipeline.
+/// A class for building pipelines.
+/// All the state of the pipeline is exposed through individual calls.
+/// The pipeline encapsulates all the OpenGL state in a single object.
+/// This includes vertex buffer layouts, blend operations, shaders, line width etc.
+/// This class exposes all the values as individuals so a pipeline can be customised.
+/// The default is to generate a working pipeline.
 class PipelineMaker {
 public:
   PipelineMaker(uint32_t width, uint32_t height) {
@@ -422,7 +422,7 @@ public:
     return device.createGraphicsPipelineUnique(pipelineCache, pipelineInfo);
   }
 
-  // Add a shader module to the pipeline.
+  /// Add a shader module to the pipeline.
   void shader(vk::ShaderStageFlagBits stage, vku::ShaderModule &shader,
                  const char *entryPoint = "main") {
     vk::PipelineShaderStageCreateInfo info{};
@@ -432,58 +432,58 @@ public:
     s.modules_.emplace_back(info);
   }
 
-  // Add a blend state to the pipeline for one colour attachment.
-  // If you don't do this, a default is used.
+  /// Add a blend state to the pipeline for one colour attachment.
+  /// If you don't do this, a default is used.
   void colorBlend(const vk::PipelineColorBlendAttachmentState &state) {
     s.colorBlendAttachments_.push_back(state);
   }
 
-  // Add a vertex attribute to the pipeline.
+  /// Add a vertex attribute to the pipeline.
   void vertexAttribute(uint32_t location_, uint32_t binding_, vk::Format format_, uint32_t offset_) {
     s.vertexAttributeDescriptions_.push_back({location_, binding_, format_, offset_});
   }
 
-  // Add a vertex attribute to the pipeline.
+  /// Add a vertex attribute to the pipeline.
   void vertexAttribute(const vk::VertexInputAttributeDescription &desc) {
     s.vertexAttributeDescriptions_.push_back(desc);
   }
 
-  // Add a vertex binding to the pipeline.
-  // Usually only one of these is needed to specify the stride.
-  // Vertices can also be delivered one per instance.
+  /// Add a vertex binding to the pipeline.
+  /// Usually only one of these is needed to specify the stride.
+  /// Vertices can also be delivered one per instance.
   void vertexBinding(uint32_t binding_, uint32_t stride_, vk::VertexInputRate inputRate_ = vk::VertexInputRate::eVertex) {
     s.vertexBindingDescriptions_.push_back({binding_, stride_, inputRate_});
   }
 
-  // Add a vertex binding to the pipeline.
-  // Usually only one of these is needed to specify the stride.
-  // Vertices can also be delivered one per instance.
+  /// Add a vertex binding to the pipeline.
+  /// Usually only one of these is needed to specify the stride.
+  /// Vertices can also be delivered one per instance.
   void vertexBinding(const vk::VertexInputBindingDescription &desc) {
     s.vertexBindingDescriptions_.push_back(desc);
   }
 
-  // Specify the topology of the pipeline.
-  // Usually this is a triangle list, but points and lines are possible too.
+  /// Specify the topology of the pipeline.
+  /// Usually this is a triangle list, but points and lines are possible too.
   PipelineMaker &topology( vk::PrimitiveTopology topology ) { s.inputAssemblyState_.topology = topology; return *this; }
 
-  // Enable or disable primitive restart.
-  // If using triangle strips, for example, this allows a special index value (0xffff or 0xffffffff) to start a new strip.
+  /// Enable or disable primitive restart.
+  /// If using triangle strips, for example, this allows a special index value (0xffff or 0xffffffff) to start a new strip.
   PipelineMaker &primitiveRestartEnable( vk::Bool32 primitiveRestartEnable ) { s.inputAssemblyState_.primitiveRestartEnable = primitiveRestartEnable; return *this; }
 
-  // Set a whole new input assembly state.
-  // Note you can set individual values with their own calls.
+  /// Set a whole new input assembly state.
+  /// Note you can set individual values with their own calls.
   PipelineMaker &inputAssemblyState(const vk::PipelineInputAssemblyStateCreateInfo &value) { s.inputAssemblyState_ = value; return *this; }
 
-  // Set the viewport value.
-  // Usually there is only one viewport, but you can have multiple viewports active for rendering cubemaps or VR stereo pairs.
+  /// Set the viewport value.
+  /// Usually there is only one viewport, but you can have multiple viewports active for rendering cubemaps or VR stereo pairs.
   PipelineMaker &viewport(const vk::Viewport &value) { s.viewport_ = value; return *this; }
 
-  // Set the scissor value.
-  // This defines the area that the fragment shaders can write to. For example, if you are rendering a portal or a mirror.
+  /// Set the scissor value.
+  /// This defines the area that the fragment shaders can write to. For example, if you are rendering a portal or a mirror.
   PipelineMaker &scissor(const vk::Rect2D &value) { s.scissor_ = value; return *this; }
 
-  // Set a whole rasterization state.
-  // Note you can set individual values with their own calls.
+  /// Set a whole rasterization state.
+  /// Note you can set individual values with their own calls.
   PipelineMaker &rasterizationState(const vk::PipelineRasterizationStateCreateInfo &value) { s.rasterizationState_ = value; return *this; }
   PipelineMaker &depthClampEnable(vk::Bool32 value) { s.rasterizationState_.depthClampEnable = value; return *this; }
   PipelineMaker &rasterizerDiscardEnable(vk::Bool32 value) { s.rasterizationState_.rasterizerDiscardEnable = value; return *this; }
@@ -497,8 +497,8 @@ public:
   PipelineMaker &lineWidth(float value) { s.rasterizationState_.lineWidth = value; return *this; }
 
 
-  // Set a whole multi sample state.
-  // Note you can set individual values with their own calls.
+  /// Set a whole multi sample state.
+  /// Note you can set individual values with their own calls.
   PipelineMaker &multisampleState(const vk::PipelineMultisampleStateCreateInfo &value) { s.multisampleState_ = value; return *this; }
   PipelineMaker &rasterizationSamples(vk::SampleCountFlagBits value) { s.multisampleState_.rasterizationSamples = value; return *this; }
   PipelineMaker &sampleShadingEnable(vk::Bool32 value) { s.multisampleState_.sampleShadingEnable = value; return *this; }
@@ -507,8 +507,8 @@ public:
   PipelineMaker &alphaToCoverageEnable(vk::Bool32 value) { s.multisampleState_.alphaToCoverageEnable = value; return *this; }
   PipelineMaker &alphaToOneEnable(vk::Bool32 value) { s.multisampleState_.alphaToOneEnable = value; return *this; }
 
-  // Set a whole depth stencil state.
-  // Note you can set individual values with their own calls.
+  /// Set a whole depth stencil state.
+  /// Note you can set individual values with their own calls.
   PipelineMaker &depthStencilState(const vk::PipelineDepthStencilStateCreateInfo &value) { s.depthStencilState_ = value; return *this; }
   PipelineMaker &depthTestEnable(vk::Bool32 value) { s.depthStencilState_.depthTestEnable = value; return *this; }
   PipelineMaker &depthWriteEnable(vk::Bool32 value) { s.depthStencilState_.depthWriteEnable = value; return *this; }
@@ -520,8 +520,8 @@ public:
   PipelineMaker &minDepthBounds(float value) { s.depthStencilState_.minDepthBounds = value; return *this; }
   PipelineMaker &maxDepthBounds(float value) { s.depthStencilState_.maxDepthBounds = value; return *this; }
 
-  // Set a whole colour blend state.
-  // Note you can set individual values with their own calls.
+  /// Set a whole colour blend state.
+  /// Note you can set individual values with their own calls.
   PipelineMaker &colorBlendState(const vk::PipelineColorBlendStateCreateInfo &value) { s.colorBlendState_ = value; return *this; }
   PipelineMaker &logicOpEnable(vk::Bool32 value) { s.colorBlendState_.logicOpEnable = value; return *this; }
   PipelineMaker &logicOp(vk::LogicOp value) { s.colorBlendState_.logicOp = value; return *this; }
@@ -544,8 +544,8 @@ private:
   State s;
 };
 
-// A generic buffer that may be used as a vertex buffer, uniform buffer or other kinds of memory resident data.
-// Buffers require memory objects which represent GPU and CPU resources.
+/// A generic buffer that may be used as a vertex buffer, uniform buffer or other kinds of memory resident data.
+/// Buffers require memory objects which represent GPU and CPU resources.
 class GenericBuffer {
 public:
   GenericBuffer() {
@@ -561,7 +561,6 @@ public:
 
     // Find out how much memory and which heap to allocate from.
     auto memreq = device.getBufferMemoryRequirements(*s.buffer);
-    //auto search = vk::MemoryPropertyFlagBits::eHostCoherent | vk::MemoryPropertyFlagBits::eHostVisible;
 
     // Create a memory object to bind to the buffer.
     vk::MemoryAllocateInfo mai{};
@@ -572,11 +571,21 @@ public:
     device.bindBufferMemory(*s.buffer, *s.mem, 0);
   }
 
-  // Copy memory from the host to the buffer object.
+  /// Copy memory from the host to the buffer object.
   void update(const vk::Device &device, const void *value, vk::DeviceSize size) {
     void *ptr = device.mapMemory(*s.mem, 0, s.size, vk::MemoryMapFlags{});
     memcpy(ptr, value, (size_t)size);
     device.unmapMemory(*s.mem);
+  }
+
+  template<class Type, class Allocator>
+  void update(const vk::Device &device, const std::vector<Type, Allocator> &value) {
+    update(device, (void*)value.data(), vk::DeviceSize(value.size() * sizeof(Type)));
+  }
+
+  template<class Type>
+  void update(const vk::Device &device, const Type &value) {
+    update(device, (void*)&value, vk::DeviceSize(sizeof(Type)));
   }
 
   vk::Buffer buffer() const { return *s.buffer; }
@@ -631,22 +640,13 @@ public:
     update(device, value);
   }
 
-  // Device local buffer for high performance update.
+  /// Device local buffer for high performance update.
   UniformBuffer(const vk::Device &device, const vk::PhysicalDeviceMemoryProperties &memprops, size_t size) : GenericBuffer(device, memprops, vk::BufferUsageFlagBits::eUniformBuffer|vk::BufferUsageFlagBits::eTransferDst, (vk::DeviceSize)size, vk::MemoryPropertyFlagBits::eDeviceLocal) {
   }
 
-  template<class Type, class Allocator>
-  void update(const vk::Device &device, const std::vector<Type, Allocator> &value) {
-    GenericBuffer::update(device, (void*)value.data(), vk::DeviceSize(value.size() * sizeof(Type)));
-  }
-
-  template<class Type>
-  void update(const vk::Device &device, const Type &value) {
-    GenericBuffer::update(device, (void*)&value, vk::DeviceSize(sizeof(Type)));
-  }
 };
 
-// Convenience class for updating descriptor sets (uniforms)
+/// Convenience class for updating descriptor sets (uniforms)
 class DescriptorSetUpdater {
 public:
   DescriptorSetUpdater(int maxBuffers = 10, int maxImages = 10, int maxBufferViews = 0) {
@@ -746,7 +746,7 @@ private:
   State s;
 };
 
-// A factory class for descriptor set layouts. (An interface to the shaders)
+/// A factory class for descriptor set layouts. (An interface to the shaders)
 class DescriptorSetLayoutMaker {
 public:
   DescriptorSetLayoutMaker() {
@@ -787,7 +787,7 @@ private:
   State s;
 };
 
-// A factory class for descriptor sets (A set of uniform bindings)
+/// A factory class for descriptor sets (A set of uniform bindings)
 class DescriptorSetMaker {
 public:
   DescriptorSetMaker() {
@@ -797,8 +797,8 @@ public:
     s.layouts.push_back(layout);
   }
 
-  // Allocate a vector of non-self-deleting descriptor sets
-  // Note: descriptor sets get freed with the pool, so this is the better choice.
+  /// Allocate a vector of non-self-deleting descriptor sets
+  /// Note: descriptor sets get freed with the pool, so this is the better choice.
   std::vector<vk::DescriptorSet> create(vk::Device device, vk::DescriptorPool descriptorPool) const {
     vk::DescriptorSetAllocateInfo dsai{};
     dsai.descriptorPool = descriptorPool;
@@ -807,7 +807,7 @@ public:
     return device.allocateDescriptorSets(dsai);
   }
 
-  // Allocate a vector of self-deleting descriptor sets.
+  /// Allocate a vector of self-deleting descriptor sets.
   std::vector<vk::UniqueDescriptorSet> createUnique(vk::Device device, vk::DescriptorPool descriptorPool) const {
     vk::DescriptorSetAllocateInfo dsai{};
     dsai.descriptorPool = descriptorPool;
@@ -824,8 +824,8 @@ private:
   State s;
 };
 
-// Generic image with a view and memory object.
-// Vulkan images need a memory object to hold the data and a view object for the GPU to access the data.
+/// Generic image with a view and memory object.
+/// Vulkan images need a memory object to hold the data and a view object for the GPU to access the data.
 class GenericImage {
 public:
   GenericImage() {
@@ -839,7 +839,7 @@ public:
   vk::ImageView imageView() const { return *s.imageView; }
   vk::DeviceMemory mem() const { return *s.mem; }
 
-  // Clear the colour of an image.
+  /// Clear the colour of an image.
   void clear(vk::CommandBuffer cb, const std::array<float,4> colour = {1, 1, 1, 1}) {
     setLayout(cb, vk::ImageLayout::eTransferDstOptimal);
     vk::ClearColorValue ccv(colour);
@@ -847,7 +847,7 @@ public:
     cb.clearColorImage(*s.image, vk::ImageLayout::eTransferDstOptimal, ccv, range);
   }
 
-  // Update the image with an array of pixels. (Currently 2D only)
+  /// Update the image with an array of pixels. (Currently 2D only)
   void update(vk::Device device, const void *data, vk::DeviceSize bytesPerPixel) {
     const uint8_t *src = (const uint8_t *)data;
     for (uint32_t mipLevel = 0; mipLevel != info().mipLevels; ++mipLevel) {
@@ -868,7 +868,7 @@ public:
     device.unmapMemory(*s.mem);
   }
 
-  // Copy another image to this one. This also changes the layout.
+  /// Copy another image to this one. This also changes the layout.
   void copy(vk::CommandBuffer cb, vku::GenericImage &srcImage) {
     srcImage.setLayout(cb, vk::ImageLayout::eTransferSrcOptimal);
     setLayout(cb, vk::ImageLayout::eTransferDstOptimal);
@@ -881,7 +881,7 @@ public:
     }
   }
 
-  // Copy a subimage in a buffer to this image.
+  /// Copy a subimage in a buffer to this image.
   void copy(vk::CommandBuffer cb, vk::Buffer buffer, uint32_t mipLevel, uint32_t arrayLayer, uint32_t width, uint32_t height, uint32_t depth, uint32_t offset) { 
     setLayout(cb, vk::ImageLayout::eTransferDstOptimal);
     vk::BufferImageCopy region{};
@@ -895,7 +895,7 @@ public:
     cb.copyBufferToImage(buffer, *s.image, vk::ImageLayout::eTransferDstOptimal, region);
   }
 
-  // Change the layout of this image using a memory barrier.
+  /// Change the layout of this image using a memory barrier.
   void setLayout(vk::CommandBuffer cb, vk::ImageLayout newLayout, vk::ImageAspectFlags aspectMask = vk::ImageAspectFlagBits::eColor) {
     if (newLayout == s.currentLayout) return;
     vk::ImageLayout oldLayout = s.currentLayout;
@@ -1005,7 +1005,7 @@ protected:
   State s;
 };
 
-// A 2D texture image living on the GPU or a staging buffer visible to the CPU.
+/// A 2D texture image living on the GPU or a staging buffer visible to the CPU.
 class TextureImage2D : public GenericImage {
 public:
   TextureImage2D() {
@@ -1031,7 +1031,7 @@ public:
 private:
 };
 
-// A cube map texture image living on the GPU or a staging buffer visible to the CPU.
+/// A cube map texture image living on the GPU or a staging buffer visible to the CPU.
 class TextureImageCube : public GenericImage {
 public:
   TextureImageCube() {
@@ -1058,6 +1058,7 @@ public:
 private:
 };
 
+/// An image to use as a depth buffer on a renderpass.
 class DepthStencilImage : public GenericImage {
 public:
   DepthStencilImage() {
@@ -1085,14 +1086,14 @@ public:
 private:
 };
 
-// A class to help build samplers.
-// Samplers tell the shader stages how to sample an image.
-// They are used in combination with an image to make a combined image sampler
-// used by texture() calls in shaders.
-// They can also be passed to shaders directly for use on multiple image sources.
+/// A class to help build samplers.
+/// Samplers tell the shader stages how to sample an image.
+/// They are used in combination with an image to make a combined image sampler
+/// used by texture() calls in shaders.
+/// They can also be passed to shaders directly for use on multiple image sources.
 class SamplerMaker {
 public:
-  // Default to a very basic sampler.
+  /// Default to a very basic sampler.
   SamplerMaker() {
     s.info.magFilter = vk::Filter::eNearest;
     s.info.minFilter = vk::Filter::eNearest;
@@ -1116,8 +1117,17 @@ public:
   // Setters
   //
   SamplerMaker &flags(vk::SamplerCreateFlags value) { s.info.flags = value; return *this; }
+
+  /// Set the magnify filter value. (for close textures)
+  /// Options are: vk::Filter::eLinear and vk::Filter::eNearest
   SamplerMaker &magFilter(vk::Filter value) { s.info.magFilter = value; return *this; }
+
+  /// Set the minnify filter value. (for far away textures)
+  /// Options are: vk::Filter::eLinear and vk::Filter::eNearest
   SamplerMaker &minFilter(vk::Filter value) { s.info.minFilter = value; return *this; }
+
+  /// Set the minnify filter value. (for far away textures)
+  /// Options are: vk::SamplerMipmapMode::eLinear and vk::SamplerMipmapMode::eNearest
   SamplerMaker &mipmapMode(vk::SamplerMipmapMode value) { s.info.mipmapMode = value; return *this; }
   SamplerMaker &addressModeU(vk::SamplerAddressMode value) { s.info.addressModeU = value; return *this; }
   SamplerMaker &addressModeV(vk::SamplerAddressMode value) { s.info.addressModeV = value; return *this; }
@@ -1132,12 +1142,12 @@ public:
   SamplerMaker &borderColor(vk::BorderColor value) { s.info.borderColor = value; return *this; }
   SamplerMaker &unnormalizedCoordinates(vk::Bool32 value) { s.info.unnormalizedCoordinates = value; return *this; }
 
-  // Allocate a self-deleting image.
+  /// Allocate a self-deleting image.
   vk::UniqueSampler createUnique(vk::Device device) const {
     return device.createSamplerUnique(s.info);
   }
 
-  // Allocate a non self-deleting Sampler.
+  /// Allocate a non self-deleting Sampler.
   vk::Sampler create(vk::Device device) const {
     return device.createSampler(s.info);
   }
@@ -1164,13 +1174,14 @@ inline vk::Format GLtoVKFormat(uint32_t glFormat) {
   return vk::Format::eUndefined;
 }
 
-// Description of blocks for compressed formats.
+/// Description of blocks for compressed formats.
 struct BlockParams {
   uint32_t blockWidth;
   uint32_t blockHeight;
   uint32_t bytesPerBlock;
 };
 
+/// Get the details of vulkan texture formats.
 inline BlockParams getBlockParams(vk::Format format) {
   switch (format) {
     case vk::Format::eR4G4UnormPack8: return BlockParams{1, 1, 1};

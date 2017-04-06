@@ -126,10 +126,10 @@ int main() {
   }
 
   vku::TextureImageCube texture{device, fw.memprops(), ktx.width(0), ktx.height(0), ktx.mipLevels(), vk::Format::eR8G8B8A8Unorm};
-  //vku::TextureImageCube texture{device, fw.memprops(), ktx.width(0), ktx.height(0), 1, ktx.format()};
 
   vku::GenericBuffer stagingBuffer(device, fw.memprops(), vk::BufferUsageFlagBits::eTransferSrc, irradianceBytes.size());
   stagingBuffer.update(device, (const void*)irradianceBytes.data(), irradianceBytes.size());
+  irradianceBytes = std::vector<uint8_t>{};
 
   // Copy the staging buffer to the GPU texture and set the layout.
   vku::executeImmediately(device, window.commandPool(), fw.graphicsQueue(), [&](vk::CommandBuffer cb) {

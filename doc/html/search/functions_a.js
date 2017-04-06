@@ -1,6 +1,8 @@
 var searchData=
 [
-  ['physicaldevice',['physicalDevice',['../classvku_1_1_framework.html#a4e0fcdfa98fb36ce5e24f4ae6cc2b141',1,'vku::Framework']]],
-  ['pipelinecache',['pipelineCache',['../classvku_1_1_framework.html#af5ab8bb82814965e12cfe2de0a9f26b7',1,'vku::Framework']]],
-  ['presentqueuefamily',['presentQueueFamily',['../classvku_1_1_window.html#a577afe36a27be0319668415ca43271a0',1,'vku::Window']]]
+  ['magfilter',['magFilter',['../classvku_1_1_sampler_maker.html#aa99e99c0653952636e1a9ac4292e7231',1,'vku::SamplerMaker']]],
+  ['minfilter',['minFilter',['../classvku_1_1_sampler_maker.html#aa852a66015501cc21d3f4c6be1a43809',1,'vku::SamplerMaker']]],
+  ['mipmapmode',['mipmapMode',['../classvku_1_1_sampler_maker.html#adfa6bcbe3c6155d541992e8433fb7382',1,'vku::SamplerMaker']]],
+  ['mipscale',['mipScale',['../namespacevku.html#ae8475db9e7cdccfe8176781789e803f5',1,'vku']]],
+  ['multisamplestate',['multisampleState',['../classvku_1_1_pipeline_maker.html#a546c0208f58bf27489d59b1290b9cc5f',1,'vku::PipelineMaker']]]
 ];
