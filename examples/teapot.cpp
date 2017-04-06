@@ -97,7 +97,7 @@ int main() {
     glm::mat4 modelToPerspective;
     glm::mat4 modelToWorld;
     glm::mat4 normalToWorld;
-    glm::vec4 colour;
+    glm::vec4 cameraPos;
   };
 
   glm::mat4 cameraToPerspective = glm::perspective(glm::radians(45.0f), (float)window.width()/window.height(), 0.1f, 100.0f);
@@ -117,17 +117,32 @@ int main() {
   // Create a texture
 
   // Create an image, memory and view for the texture on the GPU.
-  vku::TextureImageCube texture{device, fw.memprops(), 1, 1, 1, vk::Format::eR8G8B8A8Unorm};
 
-  uint32_t pixels[2048] = { 0x000000ff, 0x0000ff00, 0x00ff0000, 0x00ffff00, 0x00ffffff, 0x00808080};
-  //memset(pixels, 0xff, sizeof(pixels));
-  vku::GenericBuffer stagingBuffer(device, fw.memprops(), vk::BufferUsageFlagBits::eTransferSrc, sizeof(pixels));
-  stagingBuffer.update(device, (const void*)pixels, sizeof(pixels));
+  auto irradianceBytes = vku::loadFile(SOURCE_DIR "okretnica.ktx");
+  vku::KTXFileLayout ktx(&*irradianceBytes.begin(), &*irradianceBytes.end());
+  if (!ktx.ok()) {
+    std::cout << "Could not load KTX file" << std::endl;
+    exit(1);
+  }
+
+  vku::TextureImageCube texture{device, fw.memprops(), ktx.width(0), ktx.height(0), ktx.mipLevels(), vk::Format::eR8G8B8A8Unorm};
+  //vku::TextureImageCube texture{device, fw.memprops(), ktx.width(0), ktx.height(0), 1, ktx.format()};
+
+  vku::GenericBuffer stagingBuffer(device, fw.memprops(), vk::BufferUsageFlagBits::eTransferSrc, irradianceBytes.size());
+  stagingBuffer.update(device, (const void*)irradianceBytes.data(), irradianceBytes.size());
 
   // Copy the staging buffer to the GPU texture and set the layout.
   vku::executeImmediately(device, window.commandPool(), fw.graphicsQueue(), [&](vk::CommandBuffer cb) {
     vk::Buffer buf = stagingBuffer.buffer();
-    texture.copyCubemap(cb, buf, 1, 4);
+    //for (uint32_t mipLevel = 0; mipLevel != 1; ++mipLevel) {
+    for (uint32_t mipLevel = 0; mipLevel != ktx.mipLevels(); ++mipLevel) {
+      auto width = ktx.width(mipLevel); 
+      auto height = ktx.height(mipLevel); 
+      auto depth = ktx.depth(mipLevel); 
+      for (uint32_t face = 0; face != ktx.faces(); ++face) {
+        texture.copy(cb, buf, mipLevel, face, width, height, depth, ktx.offset(mipLevel, 0, face));
+      }
+    }
     texture.setLayout(cb, vk::ImageLayout::eShaderReadOnlyOptimal);
   });
 
@@ -139,6 +154,9 @@ int main() {
   // Update the descriptor sets for the shader uniforms.
 
   vku::SamplerMaker sm{};
+  sm.magFilter(vk::Filter::eLinear);
+  sm.minFilter(vk::Filter::eLinear);
+  sm.mipmapMode(vk::SamplerMipmapMode::eNearest);
   vk::UniqueSampler sampler = sm.createUnique(device);
 
   vku::DescriptorSetUpdater update;

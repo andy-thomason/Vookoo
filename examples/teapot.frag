@@ -3,6 +3,7 @@
 
 layout(location = 0) in vec3 inNormal;
 layout(location = 1) in vec2 inUv;
+layout(location = 2) in vec3 inCameraDir;
 
 layout(location = 0) out vec4 outColour;
 
@@ -10,14 +11,16 @@ layout (binding = 0) uniform Uniform {
   mat4 modelToPerspective;
   mat4 modelToWorld;
   mat4 normalToWorld;
-  vec4 colour;
+  vec4 cameraPos;
 } u;
 
 layout (binding = 1) uniform samplerCube samp;
 
 void main() {
-  //outColour = vec4(normalize(inNormal)*0.5f + 0.5f, 1);
-  //outColour = vec4(inUv, 1, 1);
-  outColour = texture(samp, inNormal);
+  vec3 cameraDir = normalize(inCameraDir);
+  vec3 normal = normalize(inNormal);
+
+  vec3 reflectDir = normalize(reflect(cameraDir, normal));
+  outColour = texture(samp, reflectDir);
 }
 
