@@ -118,18 +118,18 @@ int main() {
 
   // Create an image, memory and view for the texture on the GPU.
 
-  auto irradianceBytes = vku::loadFile(SOURCE_DIR "okretnica.ktx");
-  vku::KTXFileLayout ktx(&*irradianceBytes.begin(), &*irradianceBytes.end());
+  auto cubeBytes = vku::loadFile(SOURCE_DIR "okretnica.ktx");
+  vku::KTXFileLayout ktx(cubeBytes.data(), cubeBytes.data()+cubeBytes.size());
   if (!ktx.ok()) {
     std::cout << "Could not load KTX file" << std::endl;
     exit(1);
   }
 
-  vku::TextureImageCube texture{device, fw.memprops(), ktx.width(0), ktx.height(0), ktx.mipLevels(), vk::Format::eR8G8B8A8Unorm};
+  vku::TextureImageCube cubeMap{device, fw.memprops(), ktx.width(0), ktx.height(0), ktx.mipLevels(), vk::Format::eR8G8B8A8Unorm};
 
-  vku::GenericBuffer stagingBuffer(device, fw.memprops(), vk::BufferUsageFlagBits::eTransferSrc, irradianceBytes.size());
-  stagingBuffer.update(device, (const void*)irradianceBytes.data(), irradianceBytes.size());
-  irradianceBytes = std::vector<uint8_t>{};
+  vku::GenericBuffer stagingBuffer(device, fw.memprops(), vk::BufferUsageFlagBits::eTransferSrc, cubeBytes.size());
+  stagingBuffer.update(device, (const void*)cubeBytes.data(), cubeBytes.size());
+  cubeBytes = std::vector<uint8_t>{};
 
   // Copy the staging buffer to the GPU texture and set the layout.
   vku::executeImmediately(device, window.commandPool(), fw.graphicsQueue(), [&](vk::CommandBuffer cb) {
@@ -140,10 +140,10 @@ int main() {
       auto height = ktx.height(mipLevel); 
       auto depth = ktx.depth(mipLevel); 
       for (uint32_t face = 0; face != ktx.faces(); ++face) {
-        texture.copy(cb, buf, mipLevel, face, width, height, depth, ktx.offset(mipLevel, 0, face));
+        cubeMap.copy(cb, buf, mipLevel, face, width, height, depth, ktx.offset(mipLevel, 0, face));
       }
     }
-    texture.setLayout(cb, vk::ImageLayout::eShaderReadOnlyOptimal);
+    cubeMap.setLayout(cb, vk::ImageLayout::eShaderReadOnlyOptimal);
   });
 
   // Free the staging buffer.
@@ -168,7 +168,7 @@ int main() {
 
   // Set initial sampler value
   update.beginImages(1, 0, vk::DescriptorType::eCombinedImageSampler);
-  update.image(*sampler, texture.imageView(), vk::ImageLayout::eShaderReadOnlyOptimal);
+  update.image(*sampler, cubeMap.imageView(), vk::ImageLayout::eShaderReadOnlyOptimal);
 
   update.update(device);
 
