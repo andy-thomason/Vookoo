@@ -111,7 +111,6 @@ int main() {
   ////////////////////////////////////////
   //
   // Build a pipeline for shadows
-
 #if 0
   uint32_t shadow_size = 256;
 
@@ -131,33 +130,25 @@ int main() {
 
   vku::DepthStencilImage shadowImage(device, fw.memprops(), shadow_size, shadow_size);
 
-  // This subpass dependency handles the transition from eShaderReadOnlyOptimal to eUndefined
-  // at the start of rendering.
-  vk::SubpassDependency dependency = {};
-  dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
-  dependency.dstSubpass = 0;
-  dependency.srcStageMask = vk::PipelineStageFlagBits::eColorAttachmentOutput;
-  dependency.srcAccessMask = {};
-  dependency.dstStageMask = vk::PipelineStageFlagBits::eColorAttachmentOutput;
-  dependency.dstAccessMask = vk::AccessFlagBits::eColorAttachmentRead|vk::AccessFlagBits::eColorAttachmentWrite;
-
-  // At the start, the buffer is in eUndefined layout.
-  // We will clear the buffer at the start (eClear)
-  vk::AttachmentDescription depthDesc{};
-  depthDesc.format = shadowImage.format();
-  depthDesc.samples = vk::SampleCountFlagBits::e1;
-  depthDesc.loadOp = vk::AttachmentLoadOp::eClear;
-  depthDesc.storeOp = vk::AttachmentStoreOp::eDontCare;
-  depthDesc.stencilLoadOp = vk::AttachmentLoadOp::eDontCare;
-  depthDesc.stencilStoreOp = vk::AttachmentStoreOp::eDontCare;
-  depthDesc.initialLayout = vk::ImageLayout::eUndefined;
-  depthDesc.finalLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
-
+  // Build the renderpass using only depth/stencil.
   vku::RenderpassMaker rpm;
-  rpm.attachmentDescription(depthDesc);
-  rpm.beginSubpass(vk::PipelineBindPoint::eGraphics);
-  rpm.subpassDepthStencilAttachment(vk::ImageLayout::eDepthStencilAttachmentOptimal, 0);
-  rpm.subpassDependency(dependency);
+
+  // The depth/stencil attachment.
+  rpm.attachmentBegin(shadowImage.format());
+  rpm.attachmentLoadOp(vk::AttachmentLoadOp::eClear);
+  rpm.attachmentStoreOp(vk::AttachmentStoreOp::eStore);
+  rpm.attachmentFinalLayout(vk::ImageLayout::eShaderReadOnlyOptimal);
+
+  // A subpass to render using the above attachment.
+  rpm.subpassBegin(vk::PipelineBindPoint::eGraphics);
+  rpm.subpassDepthStencilAttachment(vk::ImageLayout::eDepthStencilAttachmentOptimal, 1);
+
+  // A dependency to reset the layout of both attachments.
+  rpm.dependencyBegin(VK_SUBPASS_EXTERNAL, 0);
+  rpm.dependencySrcStageMask(vk::PipelineStageFlagBits::eColorAttachmentOutput);
+  rpm.dependencyDstStageMask(vk::PipelineStageFlagBits::eColorAttachmentOutput);
+
+  // Use the maker object to construct the vulkan object
   vk::UniqueRenderPass shadowRenderPass = rpm.createUnique(device);
 
   vk::ImageView attachments[1] = {shadowImage.imageView()};

@@ -345,49 +345,32 @@ public:
     auto memprops = physicalDevice.getMemoryProperties();
     depthStencilImage_ = vku::DepthStencilImage(device, memprops, width_, height_);
 
-    // This subpass dependency handles the transition from ePresentSrcKHR to eUndefined
-    // at the start of rendering.
-    vk::SubpassDependency dependency = {};
-    dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
-    dependency.dstSubpass = 0;
-    dependency.srcStageMask = vk::PipelineStageFlagBits::eColorAttachmentOutput;
-    dependency.srcAccessMask = {};
-    dependency.dstStageMask = vk::PipelineStageFlagBits::eColorAttachmentOutput;
-    dependency.dstAccessMask = vk::AccessFlagBits::eColorAttachmentRead|vk::AccessFlagBits::eColorAttachmentWrite;
-
-    // At the start, the buffer is in eUndefined layout.
-    // We will clear the buffer at the start (eClear)
-    // We will write the result out at the end (eStore)
-    // After this renderpass, we will switch to ePresentSrcKHR ready for the swap.
-    vk::AttachmentDescription colourDesc{};
-    colourDesc.format = swapchainImageFormat_;
-    colourDesc.samples = vk::SampleCountFlagBits::e1;
-    colourDesc.loadOp = vk::AttachmentLoadOp::eClear;
-    colourDesc.storeOp = vk::AttachmentStoreOp::eStore;
-    colourDesc.stencilLoadOp = vk::AttachmentLoadOp::eDontCare;
-    colourDesc.stencilStoreOp = vk::AttachmentStoreOp::eDontCare;
-    colourDesc.initialLayout = vk::ImageLayout::eUndefined;
-    colourDesc.finalLayout = vk::ImageLayout::ePresentSrcKHR;
-
-    // At the start, the buffer is in eUndefined layout.
-    // We will clear the buffer at the start (eClear)
-    vk::AttachmentDescription depthDesc{};
-    depthDesc.format = depthStencilImage_.format();
-    depthDesc.samples = vk::SampleCountFlagBits::e1;
-    depthDesc.loadOp = vk::AttachmentLoadOp::eClear;
-    depthDesc.storeOp = vk::AttachmentStoreOp::eDontCare;
-    depthDesc.stencilLoadOp = vk::AttachmentLoadOp::eDontCare;
-    depthDesc.stencilStoreOp = vk::AttachmentStoreOp::eDontCare;
-    depthDesc.initialLayout = vk::ImageLayout::eUndefined;
-    depthDesc.finalLayout = vk::ImageLayout::eDepthStencilAttachmentOptimal;
-
+    // Build the renderpass using two attachments, colour and depth/stencil.
     vku::RenderpassMaker rpm;
-    rpm.attachmentDescription(colourDesc);
-    rpm.attachmentDescription(depthDesc);
-    rpm.beginSubpass(vk::PipelineBindPoint::eGraphics);
+
+    // The only colour attachment.
+    rpm.attachmentBegin(swapchainImageFormat_);
+    rpm.attachmentLoadOp(vk::AttachmentLoadOp::eClear);
+    rpm.attachmentStoreOp(vk::AttachmentStoreOp::eStore);
+    rpm.attachmentFinalLayout(vk::ImageLayout::ePresentSrcKHR);
+
+    // The depth/stencil attachment.
+    rpm.attachmentBegin(depthStencilImage_.format());
+    rpm.attachmentLoadOp(vk::AttachmentLoadOp::eClear);
+    rpm.attachmentFinalLayout(vk::ImageLayout::eDepthStencilAttachmentOptimal);
+
+    // A subpass to render using the above two attachments.
+    rpm.subpassBegin(vk::PipelineBindPoint::eGraphics);
     rpm.subpassColorAttachment(vk::ImageLayout::eColorAttachmentOptimal, 0);
     rpm.subpassDepthStencilAttachment(vk::ImageLayout::eDepthStencilAttachmentOptimal, 1);
-    rpm.subpassDependency(dependency);
+
+    // A dependency to reset the layout of both attachments.
+    rpm.dependencyBegin(VK_SUBPASS_EXTERNAL, 0);
+    rpm.dependencySrcStageMask(vk::PipelineStageFlagBits::eColorAttachmentOutput);
+    rpm.dependencyDstStageMask(vk::PipelineStageFlagBits::eColorAttachmentOutput);
+    rpm.dependencyDstAccessMask(vk::AccessFlagBits::eColorAttachmentRead|vk::AccessFlagBits::eColorAttachmentWrite);
+
+    // Use the maker object to construct the vulkan object
     renderPass_ = rpm.createUnique(device);
 
     for (int i = 0; i != imageViews_.size(); ++i) {

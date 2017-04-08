@@ -103,25 +103,31 @@ public:
   RenderpassMaker() {
   }
 
-  /// Add an attachment description to the renderpass.
-  /// This describes the format and operations on a colour or depth buffer.
-  void attachmentDescription(vk::AttachmentDescription &desc) {
+  /// Begin an attachment description.
+  /// After this you can call attachment* many times
+  void attachmentBegin(vk::Format format) {
+    vk::AttachmentDescription desc{{}, format};
     s.attachmentDescriptions.push_back(desc);
   }
+
+  void attachmentFlags(vk::AttachmentDescriptionFlags value) { s.attachmentDescriptions.back().flags = value; };
+  void attachmentFormat(vk::Format value) { s.attachmentDescriptions.back().format = value; };
+  void attachmentSamples(vk::SampleCountFlagBits value) { s.attachmentDescriptions.back().samples = value; };
+  void attachmentLoadOp(vk::AttachmentLoadOp value) { s.attachmentDescriptions.back().loadOp = value; };
+  void attachmentStoreOp(vk::AttachmentStoreOp value) { s.attachmentDescriptions.back().storeOp = value; };
+  void attachmentStencilLoadOp(vk::AttachmentLoadOp value) { s.attachmentDescriptions.back().stencilLoadOp = value; };
+  void attachmentStencilStoreOp(vk::AttachmentStoreOp value) { s.attachmentDescriptions.back().stencilStoreOp = value; };
+  void attachmentInitialLayout(vk::ImageLayout value) { s.attachmentDescriptions.back().initialLayout = value; };
+  void attachmentFinalLayout(vk::ImageLayout value) { s.attachmentDescriptions.back().finalLayout = value; };
 
   /// Start a subpass description.
   /// After this you can can call subpassColorAttachment many times
   /// and subpassDepthStencilAttachment once.
-  void beginSubpass(vk::PipelineBindPoint bp) {
+  void subpassBegin(vk::PipelineBindPoint bp) {
     vk::SubpassDescription desc{};
     desc.pipelineBindPoint = bp;
     s.subpassDescriptions.push_back(desc);
   }
-
-  void subpassDependency(const vk::SubpassDependency &desc) {
-    s.subpassDependencies.push_back(desc);
-  }
-
 
   void subpassColorAttachment(vk::ImageLayout layout, uint32_t attachment) {
     vk::SubpassDescription &subpass = s.subpassDescriptions.back();
@@ -152,6 +158,21 @@ public:
     renderPassInfo.pDependencies = s.subpassDependencies.data();
     return device.createRenderPassUnique(renderPassInfo);
   }
+
+  void dependencyBegin(uint32_t srcSubpass, uint32_t dstSubpass) {
+    vk::SubpassDependency desc{};
+    desc.srcSubpass = srcSubpass;
+    desc.dstSubpass = dstSubpass;
+    s.subpassDependencies.push_back(desc);
+  }
+
+  void dependencySrcSubpass(uint32_t value) { s.subpassDependencies.back().srcSubpass = value; };
+  void dependencyDstSubpass(uint32_t value) { s.subpassDependencies.back().dstSubpass = value; };
+  void dependencySrcStageMask(vk::PipelineStageFlags value) { s.subpassDependencies.back().srcStageMask = value; };
+  void dependencyDstStageMask(vk::PipelineStageFlags value) { s.subpassDependencies.back().dstStageMask = value; };
+  void dependencySrcAccessMask(vk::AccessFlags value) { s.subpassDependencies.back().srcAccessMask = value; };
+  void dependencyDstAccessMask(vk::AccessFlags value) { s.subpassDependencies.back().dstAccessMask = value; };
+  void dependencyDependencyFlags(vk::DependencyFlags value) { s.subpassDependencies.back().dependencyFlags = value; };
 private:
   constexpr static int max_refs = 64;
 
