@@ -106,12 +106,11 @@ int main() {
 
   auto renderPass = window.renderPass();
   auto &cache = fw.pipelineCache();
-  auto final_pipeline = pm.createUnique(device, cache, *pipelineLayout, renderPass);
+  auto finalPipeline = pm.createUnique(device, cache, *pipelineLayout, renderPass);
 
   ////////////////////////////////////////
   //
   // Build a pipeline for shadows
-#if 0
   uint32_t shadow_size = 256;
 
   vku::ShaderModule shadow_vert{device, BINARY_DIR "teapot.shadow.vert.spv"};
@@ -154,7 +153,19 @@ int main() {
   vk::ImageView attachments[1] = {shadowImage.imageView()};
   vk::FramebufferCreateInfo fbci{{}, *shadowRenderPass, 1, attachments, shadow_size, shadow_size, 1 };
   vk::UniqueFramebuffer shadowFrameBuffer = device.createFramebufferUnique(fbci);
-#endif
+
+  auto shadowPipeline = pm.createUnique(device, cache, *pipelineLayout, *shadowRenderPass);
+
+  std::array<float, 4> clearColorValue{0, 0, 1, 1};
+  vk::ClearDepthStencilValue clearDepthValue{ 1.0f, 0 };
+  std::array<vk::ClearValue, 2> clearColours{vk::ClearValue{clearColorValue}, clearDepthValue};
+
+  vk::RenderPassBeginInfo shadowRpbi{};
+  shadowRpbi.renderPass = *shadowRenderPass;
+  shadowRpbi.framebuffer = *shadowFrameBuffer;
+  shadowRpbi.renderArea = vk::Rect2D{{0, 0}, {256, 256}};
+  shadowRpbi.clearValueCount = (uint32_t)clearColours.size();
+  shadowRpbi.pClearValues = clearColours.data();
 
   ////////////////////////////////////////
   //
@@ -219,8 +230,17 @@ int main() {
     [&](vk::CommandBuffer cb, int imageIndex, vk::RenderPassBeginInfo &rpbi) {
       vk::CommandBufferBeginInfo bi{};
       cb.begin(bi);
+
+      /*cb.beginRenderPass(shadowRpbi, vk::SubpassContents::eInline);
+      cb.bindPipeline(vk::PipelineBindPoint::eGraphics, *shadowPipeline);
+      cb.bindVertexBuffers(0, vbo.buffer(), vk::DeviceSize(0));
+      cb.bindIndexBuffer(ibo.buffer(), vk::DeviceSize(0), vk::IndexType::eUint32);
+      cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *pipelineLayout, 0, descriptorSets, nullptr);
+      cb.drawIndexed(indexCount, 1, 0, 0, 0);
+      cb.endRenderPass();*/
+
       cb.beginRenderPass(rpbi, vk::SubpassContents::eInline);
-      cb.bindPipeline(vk::PipelineBindPoint::eGraphics, *final_pipeline);
+      cb.bindPipeline(vk::PipelineBindPoint::eGraphics, *finalPipeline);
       cb.bindVertexBuffers(0, vbo.buffer(), vk::DeviceSize(0));
       cb.bindIndexBuffer(ibo.buffer(), vk::DeviceSize(0), vk::IndexType::eUint32);
       cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *pipelineLayout, 0, descriptorSets, nullptr);
