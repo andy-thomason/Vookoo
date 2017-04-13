@@ -382,17 +382,20 @@ public:
     vk::SemaphoreCreateInfo sci;
     imageAcquireSemaphore_ = device.createSemaphoreUnique(sci);
     commandCompleteSemaphore_ = device.createSemaphoreUnique(sci);
-    presubmitSemaphore_ = device.createSemaphoreUnique(sci);
+    dynamicSemaphore_ = device.createSemaphoreUnique(sci);
 
     typedef vk::CommandPoolCreateFlagBits ccbits;
 
     vk::CommandPoolCreateInfo cpci{ ccbits::eTransient|ccbits::eResetCommandBuffer, graphicsQueueFamilyIndex };
     commandPool_ = device.createCommandPoolUnique(cpci);
 
+    // Create static draw buffers
     vk::CommandBufferAllocateInfo cbai{ *commandPool_, vk::CommandBufferLevel::ePrimary, (uint32_t)framebuffers_.size() };
-    drawBuffers_ = device.allocateCommandBuffersUnique(cbai);
-    presubmitBuffers_ = device.allocateCommandBuffersUnique(cbai);
-    for (int i = 0; i != drawBuffers_.size(); ++i) {
+    staticDrawBuffers_ = device.allocateCommandBuffersUnique(cbai);
+    dynamicDrawBuffers_ = device.allocateCommandBuffersUnique(cbai);
+
+    // Create a set of fences to protect the command buffers from re-writing.
+    for (int i = 0; i != staticDrawBuffers_.size(); ++i) {
       vk::FenceCreateInfo fci;
       fci.flags = vk::FenceCreateFlagBits::eSignaled;
       commandBufferFences_.emplace_back(device.createFence(fci));
@@ -422,8 +425,8 @@ public:
 
   /// Build a static draw buffer. This will be rendered after any dynamic content generated in draw()
   void setStaticCommands(const std::function<staticCommandFunc_t> &func) {
-    for (int i = 0; i != drawBuffers_.size(); ++i) {
-      vk::CommandBuffer cb = *drawBuffers_[i];
+    for (int i = 0; i != staticDrawBuffers_.size(); ++i) {
+      vk::CommandBuffer cb = *staticDrawBuffers_[i];
 
       std::array<float, 4> clearColorValue{0, 0, 1, 1};
       vk::ClearDepthStencilValue clearDepthValue{ 1.0f, 0 };
@@ -439,9 +442,9 @@ public:
     }
   }
 
-  typedef void (preSubmitFunc_t)(vk::CommandBuffer pscb, int imageIndex);
+  typedef void (dynamicFunc_t)(vk::CommandBuffer pscb, int imageIndex);
 
-  static void defaultPreSubmitFunc(vk::CommandBuffer pscb, int imageIndex) {
+  static void defaultdynamicFunc(vk::CommandBuffer pscb, int imageIndex) {
     vk::CommandBufferBeginInfo bi{};
     pscb.begin(bi);
     pscb.end();
@@ -449,7 +452,7 @@ public:
 
   /// Queue the static command buffer for the next image in the swap chain. Optionally call a function to create a dynamic command buffer
   /// for uploading textures, changing uniforms etc.
-  void draw(const vk::Device &device, const vk::Queue &graphicsQueue, const std::function<void (vk::CommandBuffer pscb, int imageIndex)> &preSubmit = defaultPreSubmitFunc) {
+  void draw(const vk::Device &device, const vk::Queue &graphicsQueue, const std::function<void (vk::CommandBuffer pscb, int imageIndex)> &dynamic = defaultdynamicFunc) {
     static auto start = std::chrono::high_resolution_clock::now();
     auto time = std::chrono::high_resolution_clock::now();
     auto delta = time - start;
@@ -463,15 +466,15 @@ public:
     vk::PipelineStageFlags waitStages = vk::PipelineStageFlagBits::eColorAttachmentOutput;
     vk::Semaphore ccSema = *commandCompleteSemaphore_;
     vk::Semaphore iaSema = *imageAcquireSemaphore_;
-    vk::Semaphore psSema = *presubmitSemaphore_;
-    vk::CommandBuffer cb = *drawBuffers_[imageIndex];
-    vk::CommandBuffer pscb = *presubmitBuffers_[imageIndex];
+    vk::Semaphore psSema = *dynamicSemaphore_;
+    vk::CommandBuffer cb = *staticDrawBuffers_[imageIndex];
+    vk::CommandBuffer pscb = *dynamicDrawBuffers_[imageIndex];
 
     vk::Fence cbFence = commandBufferFences_[imageIndex];
     device.waitForFences(cbFence, 1, umax);
     device.resetFences(cbFence);
 
-    preSubmit(pscb, imageIndex);
+    dynamic(pscb, imageIndex);
 
     vk::SubmitInfo submit;
     submit.waitSemaphoreCount = 1;
@@ -546,7 +549,7 @@ public:
   const std::vector<vk::Image> &images() const { return images_; }
 
   /// Return the static command buffers.
-  const std::vector<vk::UniqueCommandBuffer> &commandBuffers() const { return drawBuffers_; }
+  const std::vector<vk::UniqueCommandBuffer> &commandBuffers() const { return staticDrawBuffers_; }
 
   /// Return the fences used to control the static buffers.
   const std::vector<vk::Fence> &commandBufferFences() const { return commandBufferFences_; }
@@ -570,15 +573,15 @@ private:
   vk::UniqueRenderPass renderPass_;
   vk::UniqueSemaphore imageAcquireSemaphore_;
   vk::UniqueSemaphore commandCompleteSemaphore_;
-  vk::UniqueSemaphore presubmitSemaphore_;
+  vk::UniqueSemaphore dynamicSemaphore_;
   vku::DepthStencilImage depthStencilImage_;
   std::vector<vk::ImageView> imageViews_;
   std::vector<vk::Image> images_;
   std::vector<vk::Fence> commandBufferFences_;
   std::vector<vk::UniqueFramebuffer> framebuffers_;
   vk::UniqueCommandPool commandPool_;
-  std::vector<vk::UniqueCommandBuffer> drawBuffers_;
-  std::vector<vk::UniqueCommandBuffer> presubmitBuffers_;
+  std::vector<vk::UniqueCommandBuffer> staticDrawBuffers_;
+  std::vector<vk::UniqueCommandBuffer> dynamicDrawBuffers_;
   uint32_t presentQueueFamily_ = 0;
   uint32_t width_;
   uint32_t height_;

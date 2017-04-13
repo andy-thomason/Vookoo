@@ -399,10 +399,14 @@ public:
   vk::UniquePipeline createUnique(const vk::Device &device,
                             const vk::PipelineCache &pipelineCache,
                             const vk::PipelineLayout &pipelineLayout,
-                            const vk::RenderPass &renderPass) {
+                            const vk::RenderPass &renderPass, bool defaultBlend=true) {
+
+//00000008 debugCallback: vkCreateGraphicsPipelines(): Render pass (0x2a) subpass 0 has colorAttachmentCount of 0 which doesn't match the pColorBlendState->attachmentCount of 1. For more information refer to Vulkan Spec Section '9.2. Graphics Pipelines' which states 'If pColorBlendState is not NULL, The attachmentCount member of pColorBlendState must be equal to the colorAttachmentCount used to create subpass' (https://www.khronos.org/registry/vulkan/specs/1.0-extensions/xhtml/vkspec.html#VkPipelineCreateFlagBits)
+
+
 
     // Add default colour blend attachment if necessary.
-    if (s.colorBlendAttachments_.empty()) {
+    if (s.colorBlendAttachments_.empty() && defaultBlend) {
       vk::PipelineColorBlendAttachmentState blend{};
       blend.blendEnable = 0;
       blend.srcColorBlendFactor = vk::BlendFactor::eOne;
@@ -415,8 +419,9 @@ public:
       blend.colorWriteMask = ccbf::eR|ccbf::eG|ccbf::eB|ccbf::eA;
       s.colorBlendAttachments_.push_back(blend);
     }
-    s.colorBlendState_.attachmentCount = (uint32_t)s.colorBlendAttachments_.size();
-    s.colorBlendState_.pAttachments = s.colorBlendAttachments_.data();
+    auto count = (uint32_t)s.colorBlendAttachments_.size();
+    s.colorBlendState_.attachmentCount = count;
+    s.colorBlendState_.pAttachments = count ? s.colorBlendAttachments_.data() : nullptr;
 
     vk::PipelineViewportStateCreateInfo viewportState{
         {}, 1, &s.viewport_, 1, &s.scissor_};
@@ -1096,13 +1101,13 @@ public:
     info.arrayLayers = 1;
     info.samples = vk::SampleCountFlagBits::e1;
     info.tiling = vk::ImageTiling::eOptimal;
-    info.usage = vk::ImageUsageFlagBits::eDepthStencilAttachment|vk::ImageUsageFlagBits::eTransferSrc;
+    info.usage = vk::ImageUsageFlagBits::eDepthStencilAttachment|vk::ImageUsageFlagBits::eTransferSrc|vk::ImageUsageFlagBits::eSampled;
     info.sharingMode = vk::SharingMode::eExclusive;
     info.queueFamilyIndexCount = 0;
     info.pQueueFamilyIndices = nullptr;
     info.initialLayout = vk::ImageLayout::eUndefined;
     typedef vk::ImageAspectFlagBits iafb;
-    create(device, memprops, info, vk::ImageViewType::e2D, iafb::eDepth|iafb::eStencil, false);
+    create(device, memprops, info, vk::ImageViewType::e2D, iafb::eDepth, false);
   }
 private:
 };

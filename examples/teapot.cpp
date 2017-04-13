@@ -2,6 +2,7 @@
 #include <vku/vku_framework.hpp>
 #include <vku/vku.hpp>
 #include <glm/glm.hpp>
+#include <glm/gtx/io.hpp>
 
 #include <gilgamesh/mesh.hpp>
 #include <gilgamesh/scene.hpp>
@@ -36,8 +37,9 @@ int main() {
   // Build the descriptor sets
 
   vku::DescriptorSetLayoutMaker dslm{};
-  dslm.buffer(0U, vk::DescriptorType::eUniformBuffer, vk::ShaderStageFlagBits::eVertex|vk::ShaderStageFlagBits::eFragment, 1);
-  dslm.image(1U, vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eFragment, 1);
+  dslm.buffer(0, vk::DescriptorType::eUniformBuffer, vk::ShaderStageFlagBits::eVertex|vk::ShaderStageFlagBits::eFragment, 1);
+  dslm.image(1, vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eFragment, 1);
+  dslm.image(2, vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eFragment, 1);
   auto layout = dslm.createUnique(device);
 
   vku::DescriptorSetMaker dsm{};
@@ -75,14 +77,33 @@ int main() {
     glm::mat4 modelToPerspective;
     glm::mat4 modelToWorld;
     glm::mat4 normalToWorld;
+    glm::mat4 modelToLight;
     glm::vec4 cameraPos;
   };
 
-  glm::mat4 cameraToPerspective = glm::perspective(glm::radians(45.0f), (float)window.width()/window.height(), 0.1f, 100.0f);
-  glm::mat4 modelToWorld = glm::translate(glm::mat4{}, glm::vec3(0, 2, -8));
-  modelToWorld = glm::rotate(modelToWorld, glm::radians(90.0f), glm::vec3(1, 0, 0));
-  
+  // World matrices of model, camera and light
+  glm::mat4 modelToWorld = glm::rotate(glm::mat4{}, glm::radians(-90.0f), glm::vec3(1, 0, 0));
+  glm::mat4 cameraToWorld = glm::translate(glm::mat4{}, glm::vec3(0, 2, 8));
+  glm::mat4 lightToWorld = glm::translate(glm::mat4{}, glm::vec3(8, 6, 0));
+  lightToWorld = glm::rotate(lightToWorld, glm::radians(90.0f), glm::vec3(0, 1, 0));
+  lightToWorld = glm::rotate(lightToWorld, glm::radians(-30.0f), glm::vec3(1, 0, 0));
+  //cameraToWorld = lightToWorld;
 
+  glm::mat4 worldToCamera = glm::inverse(cameraToWorld);
+  glm::mat4 worldToLight = glm::inverse(lightToWorld);
+
+  glm::mat4 leftHandCorrection(
+    1.0f,  0.0f, 0.0f, 0.0f,
+    0.0f, -1.0f, 0.0f, 0.0f,
+    0.0f,  0.0f, 0.5f, 0.0f,
+    0.0f,  0.0f, 0.5f, 1.0f);
+  glm::mat4 cameraToPerspective = leftHandCorrection * glm::perspective(glm::radians(45.0f), (float)window.width()/window.height(), 1.0f, 100.0f);
+  glm::mat4 lightToPerspective = leftHandCorrection * glm::perspective(glm::radians(45.0f), (float)256/256, 1.0f, 100.0f);
+
+  // correct for "Y is down"
+  //cameraToPerspective[1] = -cameraToPerspective[1];
+  //lightToPerspective[1] = -lightToPerspective[1];
+  
   // Create, but do not upload the uniform buffer as a device local buffer.
   vku::UniformBuffer ubo(fw.device(), fw.memprops(), sizeof(Uniform));
 
@@ -102,7 +123,7 @@ int main() {
   pm.vertexAttribute(2, 0, vk::Format::eR32G32Sfloat, (uint32_t)offsetof(Vertex, uv));
   pm.depthTestEnable(VK_TRUE);
   pm.cullMode(vk::CullModeFlagBits::eBack);
-  pm.frontFace(vk::FrontFace::eClockwise);
+  pm.frontFace(vk::FrontFace::eCounterClockwise);
 
   auto renderPass = window.renderPass();
   auto &cache = fw.pipelineCache();
@@ -124,8 +145,8 @@ int main() {
   spm.vertexAttribute(1, 0, vk::Format::eR32G32B32Sfloat, (uint32_t)offsetof(Vertex, normal));
   spm.vertexAttribute(2, 0, vk::Format::eR32G32Sfloat, (uint32_t)offsetof(Vertex, uv));
   spm.depthTestEnable(VK_TRUE);
-  spm.cullMode(vk::CullModeFlagBits::eBack);
-  spm.frontFace(vk::FrontFace::eClockwise);
+  pm.cullMode(vk::CullModeFlagBits::eBack);
+  pm.frontFace(vk::FrontFace::eCounterClockwise);
 
   vku::DepthStencilImage shadowImage(device, fw.memprops(), shadow_size, shadow_size);
 
@@ -140,12 +161,12 @@ int main() {
 
   // A subpass to render using the above attachment.
   rpm.subpassBegin(vk::PipelineBindPoint::eGraphics);
-  rpm.subpassDepthStencilAttachment(vk::ImageLayout::eDepthStencilAttachmentOptimal, 1);
+  rpm.subpassDepthStencilAttachment(vk::ImageLayout::eDepthStencilAttachmentOptimal, 0);
 
   // A dependency to reset the layout of both attachments.
   rpm.dependencyBegin(VK_SUBPASS_EXTERNAL, 0);
-  rpm.dependencySrcStageMask(vk::PipelineStageFlagBits::eColorAttachmentOutput);
-  rpm.dependencyDstStageMask(vk::PipelineStageFlagBits::eColorAttachmentOutput);
+  rpm.dependencySrcStageMask(vk::PipelineStageFlagBits::eEarlyFragmentTests);
+  rpm.dependencyDstStageMask(vk::PipelineStageFlagBits::eLateFragmentTests);
 
   // Use the maker object to construct the vulkan object
   vk::UniqueRenderPass shadowRenderPass = rpm.createUnique(device);
@@ -154,11 +175,10 @@ int main() {
   vk::FramebufferCreateInfo fbci{{}, *shadowRenderPass, 1, attachments, shadow_size, shadow_size, 1 };
   vk::UniqueFramebuffer shadowFrameBuffer = device.createFramebufferUnique(fbci);
 
-  auto shadowPipeline = pm.createUnique(device, cache, *pipelineLayout, *shadowRenderPass);
+  auto shadowPipeline = spm.createUnique(device, cache, *pipelineLayout, *shadowRenderPass, false);
 
-  std::array<float, 4> clearColorValue{0, 0, 1, 1};
   vk::ClearDepthStencilValue clearDepthValue{ 1.0f, 0 };
-  std::array<vk::ClearValue, 2> clearColours{vk::ClearValue{clearColorValue}, clearDepthValue};
+  std::array<vk::ClearValue, 1> clearColours{clearDepthValue};
 
   vk::RenderPassBeginInfo shadowRpbi{};
   shadowRpbi.renderPass = *shadowRenderPass;
@@ -223,6 +243,9 @@ int main() {
   update.beginImages(1, 0, vk::DescriptorType::eCombinedImageSampler);
   update.image(*sampler, cubeMap.imageView(), vk::ImageLayout::eShaderReadOnlyOptimal);
 
+  update.beginImages(2, 0, vk::DescriptorType::eCombinedImageSampler);
+  update.image(*sampler, shadowImage.imageView(), vk::ImageLayout::eShaderReadOnlyOptimal);
+
   update.update(device);
 
   // Set the static render commands for the main renderpass.
@@ -231,13 +254,13 @@ int main() {
       vk::CommandBufferBeginInfo bi{};
       cb.begin(bi);
 
-      /*cb.beginRenderPass(shadowRpbi, vk::SubpassContents::eInline);
+      cb.beginRenderPass(shadowRpbi, vk::SubpassContents::eInline);
       cb.bindPipeline(vk::PipelineBindPoint::eGraphics, *shadowPipeline);
       cb.bindVertexBuffers(0, vbo.buffer(), vk::DeviceSize(0));
       cb.bindIndexBuffer(ibo.buffer(), vk::DeviceSize(0), vk::IndexType::eUint32);
       cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *pipelineLayout, 0, descriptorSets, nullptr);
       cb.drawIndexed(indexCount, 1, 0, 0, 0);
-      cb.endRenderPass();*/
+      cb.endRenderPass();
 
       cb.beginRenderPass(rpbi, vk::SubpassContents::eInline);
       cb.bindPipeline(vk::PipelineBindPoint::eGraphics, *finalPipeline);
@@ -264,8 +287,9 @@ int main() {
         // This is good for small buffers only!
         Uniform uniform;
         modelToWorld = glm::rotate(modelToWorld, glm::radians(1.0f), glm::vec3(0, 0, 1));
-        uniform.modelToPerspective = cameraToPerspective * modelToWorld;
+        uniform.modelToPerspective = cameraToPerspective * worldToCamera * modelToWorld;
         uniform.normalToWorld = modelToWorld;
+        uniform.modelToLight = lightToPerspective * worldToLight * modelToWorld;
 
         // Record the dynamic buffer.
         vk::CommandBufferBeginInfo bi{};

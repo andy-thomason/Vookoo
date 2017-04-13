@@ -32,7 +32,7 @@ macro(example exname)
     MAIN_DEPENDENCY ${exname}.vert
   )
 
-  add_executable(${exname} ${exname}.cpp ${exname}.frag.spv ${exname}.vert.spv)
+  add_executable(${exname} ${exname}.cpp ${exname}.frag ${exname}.vert)
   target_link_libraries(${exname} glfw3)
   target_compile_features(${exname} PRIVATE cxx_range_for)
 
@@ -70,7 +70,7 @@ macro(example2 exname)
     MAIN_DEPENDENCY ${exname}.vert
   )
 
-  add_executable(${exname} ${exname}.cpp ${exname}.frag.spv ${exname}.vert.spv ${exname}.shadow.frag.spv ${exname}.shadow.vert.spv)
+  add_executable(${exname} ${exname}.cpp ${exname}.frag ${exname}.vert ${exname}.shadow.frag ${exname}.shadow.vert)
   target_link_libraries(${exname} glfw3)
   target_compile_features(${exname} PRIVATE cxx_range_for)
 
