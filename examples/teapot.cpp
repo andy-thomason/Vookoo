@@ -36,6 +36,7 @@ int main() {
   //
   // Build the descriptor sets
 
+  // This pipeline layout is going to be shared amongst several pipelines.
   vku::DescriptorSetLayoutMaker dslm{};
   dslm.buffer(0, vk::DescriptorType::eUniformBuffer, vk::ShaderStageFlagBits::eVertex|vk::ShaderStageFlagBits::eFragment, 1);
   dslm.image(1, vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eFragment, 1);
@@ -50,6 +51,8 @@ int main() {
   plm.descriptorSetLayout(*layout);
   auto pipelineLayout = plm.createUnique(device);
 
+
+  // Use Gilgamesh to build the Teapot.
   gilgamesh::simple_mesh mesh;
   gilgamesh::teapot shape;
   shape.build(mesh);
@@ -79,6 +82,7 @@ int main() {
     glm::mat4 normalToWorld;
     glm::mat4 modelToLight;
     glm::vec4 cameraPos;
+    glm::vec4 lightPos;
   };
 
   // World matrices of model, camera and light
@@ -87,10 +91,6 @@ int main() {
   glm::mat4 lightToWorld = glm::translate(glm::mat4{}, glm::vec3(8, 6, 0));
   lightToWorld = glm::rotate(lightToWorld, glm::radians(90.0f), glm::vec3(0, 1, 0));
   lightToWorld = glm::rotate(lightToWorld, glm::radians(-30.0f), glm::vec3(1, 0, 0));
-  //cameraToWorld = lightToWorld;
-
-  glm::mat4 worldToCamera = glm::inverse(cameraToWorld);
-  glm::mat4 worldToLight = glm::inverse(lightToWorld);
 
   glm::mat4 leftHandCorrection(
     1.0f,  0.0f, 0.0f, 0.0f,
@@ -100,10 +100,15 @@ int main() {
   glm::mat4 cameraToPerspective = leftHandCorrection * glm::perspective(glm::radians(45.0f), (float)window.width()/window.height(), 1.0f, 100.0f);
   glm::mat4 lightToPerspective = leftHandCorrection * glm::perspective(glm::radians(45.0f), (float)256/256, 1.0f, 100.0f);
 
-  // correct for "Y is down"
-  //cameraToPerspective[1] = -cameraToPerspective[1];
-  //lightToPerspective[1] = -lightToPerspective[1];
-  
+  bool lookFromLight = false;
+  if (lookFromLight) {
+    cameraToWorld = lightToWorld;
+    cameraToPerspective = lightToPerspective;
+  }
+
+  glm::mat4 worldToCamera = glm::inverse(cameraToWorld);
+  glm::mat4 worldToLight = glm::inverse(lightToWorld);
+
   // Create, but do not upload the uniform buffer as a device local buffer.
   vku::UniformBuffer ubo(fw.device(), fw.memprops(), sizeof(Uniform));
 
@@ -145,8 +150,8 @@ int main() {
   spm.vertexAttribute(1, 0, vk::Format::eR32G32B32Sfloat, (uint32_t)offsetof(Vertex, normal));
   spm.vertexAttribute(2, 0, vk::Format::eR32G32Sfloat, (uint32_t)offsetof(Vertex, uv));
   spm.depthTestEnable(VK_TRUE);
-  pm.cullMode(vk::CullModeFlagBits::eBack);
-  pm.frontFace(vk::FrontFace::eCounterClockwise);
+  spm.cullMode(vk::CullModeFlagBits::eBack);
+  spm.frontFace(vk::FrontFace::eClockwise);
 
   vku::DepthStencilImage shadowImage(device, fw.memprops(), shadow_size, shadow_size);
 
@@ -207,7 +212,6 @@ int main() {
   // Copy the staging buffer to the GPU texture and set the layout.
   vku::executeImmediately(device, window.commandPool(), fw.graphicsQueue(), [&](vk::CommandBuffer cb) {
     vk::Buffer buf = stagingBuffer.buffer();
-    //for (uint32_t mipLevel = 0; mipLevel != 1; ++mipLevel) {
     for (uint32_t mipLevel = 0; mipLevel != ktx.mipLevels(); ++mipLevel) {
       auto width = ktx.width(mipLevel); 
       auto height = ktx.height(mipLevel); 
@@ -230,7 +234,13 @@ int main() {
   sm.magFilter(vk::Filter::eLinear);
   sm.minFilter(vk::Filter::eLinear);
   sm.mipmapMode(vk::SamplerMipmapMode::eNearest);
-  vk::UniqueSampler sampler = sm.createUnique(device);
+  vk::UniqueSampler finalSampler = sm.createUnique(device);
+
+  vku::SamplerMaker ssm{};
+  ssm.magFilter(vk::Filter::eNearest);
+  ssm.minFilter(vk::Filter::eNearest);
+  ssm.mipmapMode(vk::SamplerMipmapMode::eNearest);
+  vk::UniqueSampler shadowSampler = ssm.createUnique(device);
 
   vku::DescriptorSetUpdater update;
   update.beginDescriptorSet(descriptorSets[0]);
@@ -239,12 +249,12 @@ int main() {
   update.beginBuffers(0, 0, vk::DescriptorType::eUniformBuffer);
   update.buffer(ubo.buffer(), 0, sizeof(Uniform));
 
-  // Set initial sampler value
+  // Set initial finalSampler value
   update.beginImages(1, 0, vk::DescriptorType::eCombinedImageSampler);
-  update.image(*sampler, cubeMap.imageView(), vk::ImageLayout::eShaderReadOnlyOptimal);
+  update.image(*finalSampler, cubeMap.imageView(), vk::ImageLayout::eShaderReadOnlyOptimal);
 
   update.beginImages(2, 0, vk::DescriptorType::eCombinedImageSampler);
-  update.image(*sampler, shadowImage.imageView(), vk::ImageLayout::eShaderReadOnlyOptimal);
+  update.image(*shadowSampler, shadowImage.imageView(), vk::ImageLayout::eShaderReadOnlyOptimal);
 
   update.update(device);
 
@@ -254,6 +264,7 @@ int main() {
       vk::CommandBufferBeginInfo bi{};
       cb.begin(bi);
 
+      // First renderpass. Draw the shadow.
       cb.beginRenderPass(shadowRpbi, vk::SubpassContents::eInline);
       cb.bindPipeline(vk::PipelineBindPoint::eGraphics, *shadowPipeline);
       cb.bindVertexBuffers(0, vbo.buffer(), vk::DeviceSize(0));
@@ -262,6 +273,7 @@ int main() {
       cb.drawIndexed(indexCount, 1, 0, 0, 0);
       cb.endRenderPass();
 
+      // Second renderpass. Draw the final image.
       cb.beginRenderPass(rpbi, vk::SubpassContents::eInline);
       cb.bindPipeline(vk::PipelineBindPoint::eGraphics, *finalPipeline);
       cb.bindVertexBuffers(0, vbo.buffer(), vk::DeviceSize(0));
@@ -269,6 +281,7 @@ int main() {
       cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *pipelineLayout, 0, descriptorSets, nullptr);
       cb.drawIndexed(indexCount, 1, 0, 0, 0);
       cb.endRenderPass();
+
       cb.end();
     }
   );
@@ -289,7 +302,10 @@ int main() {
         modelToWorld = glm::rotate(modelToWorld, glm::radians(1.0f), glm::vec3(0, 0, 1));
         uniform.modelToPerspective = cameraToPerspective * worldToCamera * modelToWorld;
         uniform.normalToWorld = modelToWorld;
+        uniform.modelToWorld = modelToWorld;
         uniform.modelToLight = lightToPerspective * worldToLight * modelToWorld;
+        uniform.lightPos = lightToWorld[3];
+        uniform.cameraPos = cameraToWorld[3];
 
         // Record the dynamic buffer.
         vk::CommandBufferBeginInfo bi{};
