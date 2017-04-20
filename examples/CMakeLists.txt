@@ -33,7 +33,7 @@ function(example exname)
 
   message(${shaders})
 
-  add_executable(${exname} ${exname}.cpp ${shaders})
+  add_executable(${exname} ${exname}.cpp ${shaders} ../include/vku/vku.hpp ../include/vku/vku_framework.hpp)
   target_link_libraries(${exname} glfw3)
   target_compile_features(${exname} PRIVATE cxx_range_for)
 
@@ -48,6 +48,7 @@ endfunction(example)
 
 example(helloTriangle vert frag)
 example(texture vert frag)
+example(firstgame vert frag)
 example(trypsin vert frag)
 example(teapot vert frag shadow.vert shadow.frag)
 

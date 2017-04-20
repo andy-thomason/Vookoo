@@ -401,10 +401,6 @@ public:
                             const vk::PipelineLayout &pipelineLayout,
                             const vk::RenderPass &renderPass, bool defaultBlend=true) {
 
-//00000008 debugCallback: vkCreateGraphicsPipelines(): Render pass (0x2a) subpass 0 has colorAttachmentCount of 0 which doesn't match the pColorBlendState->attachmentCount of 1. For more information refer to Vulkan Spec Section '9.2. Graphics Pipelines' which states 'If pColorBlendState is not NULL, The attachmentCount member of pColorBlendState must be equal to the colorAttachmentCount used to create subpass' (https://www.khronos.org/registry/vulkan/specs/1.0-extensions/xhtml/vkspec.html#VkPipelineCreateFlagBits)
-
-
-
     // Add default colour blend attachment if necessary.
     if (s.colorBlendAttachments_.empty() && defaultBlend) {
       vk::PipelineColorBlendAttachmentState blend{};
@@ -463,6 +459,48 @@ public:
   void colorBlend(const vk::PipelineColorBlendAttachmentState &state) {
     s.colorBlendAttachments_.push_back(state);
   }
+
+  /// Begin setting colour blend values.
+  /// If you don't do this, a default is used.
+  /// Follow this with blendEnable() blendSrcColorBlendFactor() etc.
+  /// Default is a regular alpha blend.
+  void blendBegin(vk::Bool32 enable) {
+    s.colorBlendAttachments_.emplace_back();
+    auto &blend = s.colorBlendAttachments_.back();
+    blend.blendEnable = enable;
+    blend.srcColorBlendFactor = vk::BlendFactor::eSrcAlpha;
+    blend.dstColorBlendFactor = vk::BlendFactor::eOneMinusSrcAlpha;
+    blend.colorBlendOp = vk::BlendOp::eAdd;
+    blend.srcAlphaBlendFactor = vk::BlendFactor::eSrcAlpha;
+    blend.dstAlphaBlendFactor = vk::BlendFactor::eOneMinusSrcAlpha;
+    blend.alphaBlendOp = vk::BlendOp::eAdd;
+    typedef vk::ColorComponentFlagBits ccbf;
+    blend.colorWriteMask = ccbf::eR|ccbf::eG|ccbf::eB|ccbf::eA;
+  }
+
+  /// Enable or disable blending (called after blendBegin())
+  void blendEnable(vk::Bool32 value) { s.colorBlendAttachments_.back().blendEnable = value; }
+
+  /// Source colour blend factor (called after blendBegin())
+  void blendSrcColorBlendFactor(vk::BlendFactor value) { s.colorBlendAttachments_.back().srcColorBlendFactor = value; }
+
+  /// Destination colour blend factor (called after blendBegin())
+  void blendDstColorBlendFactor(vk::BlendFactor value) { s.colorBlendAttachments_.back().dstColorBlendFactor = value; }
+
+  /// Blend operation (called after blendBegin())
+  void blendColorBlendOp(vk::BlendOp value) { s.colorBlendAttachments_.back().colorBlendOp = value; }
+
+  /// Source alpha blend factor (called after blendBegin())
+  void blendSrcAlphaBlendFactor(vk::BlendFactor value) { s.colorBlendAttachments_.back().srcAlphaBlendFactor = value; }
+
+  /// Destination alpha blend factor (called after blendBegin())
+  void blendDstAlphaBlendFactor(vk::BlendFactor value) { s.colorBlendAttachments_.back().dstAlphaBlendFactor = value; }
+
+  /// Alpha operation (called after blendBegin())
+  void blendAlphaBlendOp(vk::BlendOp value) { s.colorBlendAttachments_.back().alphaBlendOp = value; }
+
+  /// Colour write mask (called after blendBegin())
+  void blendColorWriteMask(vk::ColorComponentFlags value) { s.colorBlendAttachments_.back().colorWriteMask = value; }
 
   /// Add a vertex attribute to the pipeline.
   void vertexAttribute(uint32_t location_, uint32_t binding_, vk::Format format_, uint32_t offset_) {
@@ -631,6 +669,9 @@ public:
   template<class Type, class Allocator>
   VertexBuffer(const vk::Device &device, const vk::PhysicalDeviceMemoryProperties &memprops, const std::vector<Type, Allocator> &value) : GenericBuffer(device, memprops, vk::BufferUsageFlagBits::eVertexBuffer, value.size() * sizeof(Type)) {
     update(device, value);
+  }
+
+  VertexBuffer(const vk::Device &device, const vk::PhysicalDeviceMemoryProperties &memprops, size_t size) : GenericBuffer(device, memprops, vk::BufferUsageFlagBits::eVertexBuffer, size) {
   }
 
   template<class Type, class Allocator>
