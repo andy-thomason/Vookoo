@@ -67,6 +67,8 @@ int main() {
   //
   // Build the pipeline
 
+  // For this example we are using instancing and the eInstance vertex rate
+  // Which gives one value per four vertices in this case.
   vku::PipelineMaker pm{window.width(), window.height()};
   pm.blendBegin(VK_TRUE);
   pm.topology(vk::PrimitiveTopology::eTriangleFan);
@@ -79,8 +81,16 @@ int main() {
   pm.vertexAttribute(3, 0, vk::Format::eR32Sfloat, (uint32_t)offsetof(Sprite, angle));
   pm.vertexAttribute(4, 0, vk::Format::eR32G32B32A32Sfloat, (uint32_t)offsetof(Sprite, colour));
 
-  vku::GenericBuffer vboStaging{fw.device(), fw.memprops(), vk::BufferUsageFlagBits::eTransferSrc, sizeof(Sprite) * maxSprites};
-  vku::GenericBuffer vbo{fw.device(), fw.memprops(), vk::BufferUsageFlagBits::eTransferDst|vk::BufferUsageFlagBits::eVertexBuffer, sizeof(Sprite) * maxSprites, vk::MemoryPropertyFlagBits::eDeviceLocal};
+  std::vector<vku::GenericBuffer> vboStaging;
+  for (auto &i : window.images()) {
+    vboStaging.emplace_back(fw.device(), fw.memprops(), vk::BufferUsageFlagBits::eTransferSrc, sizeof(Sprite) * maxSprites);
+  }
+
+  vku::GenericBuffer vbo{
+    fw.device(), fw.memprops(),
+    vk::BufferUsageFlagBits::eTransferDst|vk::BufferUsageFlagBits::eVertexBuffer,
+    sizeof(Sprite) * maxSprites, vk::MemoryPropertyFlagBits::eDeviceLocal
+  };
 
   struct Uniform {
     glm::vec4 pixelsToScreen;
@@ -97,9 +107,9 @@ int main() {
   // Create a texture
 
   // Create an image, memory and view for the texture on the GPU.
-  uint32_t pixels_width = 32;
-  uint32_t pixels_height = 32;
-  vku::TextureImage2D texture{device, fw.memprops(), pixels_width, pixels_height, 1, vk::Format::eB8G8R8A8Unorm};
+  uint32_t pixels_width = 64;
+  uint32_t pixels_height = 64;
+  vku::TextureImage2D texture{device, fw.memprops(), pixels_width, pixels_height, 1, vk::Format::eR8G8B8A8Unorm};
 
   auto pixels = vku::loadFile(SOURCE_DIR "firstgame.data");
   vku::GenericBuffer stagingBuffer{device, fw.memprops(), vk::BufferUsageFlagBits::eTransferSrc, pixels.size()};
@@ -137,13 +147,18 @@ int main() {
   // Set the static render commands for the main renderpass.
   window.setStaticCommands(
     [&](vk::CommandBuffer cb, int imageIndex, vk::RenderPassBeginInfo &rpbi) {
+      std::array<float, 4> clearColorValue{0.1f, 0.1f, 0.1f, 1};
+      vk::ClearDepthStencilValue clearDepthValue{ 1.0f, 0 };
+      std::array<vk::ClearValue, 2> clearColours{vk::ClearValue{clearColorValue}, clearDepthValue};
+      rpbi.pClearValues = clearColours.data();
+
       vk::CommandBufferBeginInfo bi{};
       cb.begin(bi);
       cb.beginRenderPass(rpbi, vk::SubpassContents::eInline);
       cb.bindPipeline(vk::PipelineBindPoint::eGraphics, *pipeline);
       cb.bindVertexBuffers(0, vbo.buffer(), vk::DeviceSize(0));
       cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *pipelineLayout, 0, descriptorSets, nullptr);
-      cb.draw(4, 1, 0, 0);
+      cb.draw(4, maxSprites, 0, 0);
       cb.endRenderPass();
       cb.end();
     }
@@ -154,12 +169,18 @@ int main() {
     exit(1);
   }
 
+  int frameNumber = 0;
   while (!glfwWindowShouldClose(glfwwindow)) {
     glfwPollEvents();
 
-    sprites[0].angle += 0.01f;
-    sprites[0].size = glm::vec2(32, 32);
-    vboStaging.update(fw.device(), sprites);
+    //sprites[0].angle += 0.01f;
+    sprites[0].size = glm::vec2(100, 100);
+    if (frameNumber % 16 == 0) {
+      sprites[0].sprite++;
+      sprites[0].sprite &= 3;
+    }
+
+    frameNumber++;
 
     window.draw(fw.device(), fw.graphicsQueue(),
       [&](vk::CommandBuffer pscb, int imageIndex) {
@@ -167,6 +188,8 @@ int main() {
         float rw = 2.0f/window.width();
         float rh = 2.0f/window.height();
         uniform.pixelsToScreen = glm::vec4(rw, rh, 0, 0);
+
+        vboStaging[imageIndex].update(fw.device(), sprites);
 
         // Record the dynamic buffer.
         vk::CommandBufferBeginInfo bi{};
@@ -179,7 +202,7 @@ int main() {
         // The vertex buffer is too big to update through updateBuffer, so we'll use a staging buffer.
         // we can't just write to vbo as it may be in use by other command buffers.
         vk::BufferCopy region{0, 0, sizeof(Sprite) * maxSprites};
-        pscb.copyBuffer(vboStaging.buffer(), vbo.buffer(), region);
+        pscb.copyBuffer(vboStaging[imageIndex].buffer(), vbo.buffer(), region);
 
         pscb.end();
       }

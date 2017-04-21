@@ -14,6 +14,6 @@ layout (binding = 1) uniform sampler2D samp;
 
 void main() {
   outColor = texture(samp, uv);
-  //outColor = vec4(1, 0, 0, 1);
+  outColor.w = 1;
 }
 

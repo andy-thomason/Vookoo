@@ -9,8 +9,7 @@ layout(location = 4) in vec4 colour;
 
 layout(location = 0) out vec2 uv;
 
-layout (binding = 0) uniform UBO 
-{
+layout (binding = 0) uniform UBO {
   vec4 pixelsToScreen;
 } ubo;
 
@@ -25,5 +24,5 @@ void main() {
   vec2 world = pos + rot * (local * size * 0.5);
   vec2 p = world * ubo.pixelsToScreen.xy + ubo.pixelsToScreen.zw;
   gl_Position = vec4(p, 0.0, 1.0);
-  uv = local * 0.5 + 0.5;
+  uv = local * 0.25 + 0.25 + vec2((sprite&1) * 0.5, (sprite>>1) * 0.5);
 }
