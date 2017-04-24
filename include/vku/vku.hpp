@@ -80,10 +80,13 @@ inline uint32_t mipScale(uint32_t value, uint32_t mipLevel) {
 /// load a binary file into a vector
 inline std::vector<uint8_t> loadFile(const std::string &filename) {
   std::ifstream is(filename, std::ios::binary|std::ios::ate);
-  size_t size = is.tellg();
-  is.seekg(0);
-  std::vector<uint8_t> bytes(size);
-  is.read((char*)bytes.data(), size);
+  std::vector<uint8_t> bytes;
+  if (!is.fail()) {
+    size_t size = is.tellg();
+    is.seekg(0);
+    bytes.resize(size);
+    is.read((char*)bytes.data(), size);
+  }
   return std::move(bytes);
 }
 
@@ -666,6 +669,9 @@ private:
 /// This class is a specialisation of GenericBuffer for vertex buffers.
 class VertexBuffer : public GenericBuffer {
 public:
+  VertexBuffer() {
+  }
+
   template<class Type, class Allocator>
   VertexBuffer(const vk::Device &device, const vk::PhysicalDeviceMemoryProperties &memprops, const std::vector<Type, Allocator> &value) : GenericBuffer(device, memprops, vk::BufferUsageFlagBits::eVertexBuffer, value.size() * sizeof(Type)) {
     update(device, value);
@@ -683,6 +689,9 @@ public:
 /// This class is a specialisation of GenericBuffer for vertex buffers.
 class IndexBuffer : public GenericBuffer {
 public:
+  IndexBuffer() {
+  }
+
   template<class Type, class Allocator>
   IndexBuffer(const vk::Device &device, const vk::PhysicalDeviceMemoryProperties &memprops, const std::vector<Type, Allocator> &value) : GenericBuffer(device, memprops, vk::BufferUsageFlagBits::eIndexBuffer, value.size() * sizeof(Type)) {
     update(device, value);
@@ -697,6 +706,9 @@ public:
 /// This class is a specialisation of GenericBuffer for uniform buffers.
 class UniformBuffer : public GenericBuffer {
 public:
+  UniformBuffer() {
+  }
+
   template<class Type, class Allocator>
   UniformBuffer(const vk::Device &device, const vk::PhysicalDeviceMemoryProperties &memprops, const std::vector<Type, Allocator> &value) : GenericBuffer(device, memprops, vk::BufferUsageFlagBits::eUniformBuffer|vk::BufferUsageFlagBits::eTransferDst, value.size() * sizeof(Type)) {
     update(device, value);

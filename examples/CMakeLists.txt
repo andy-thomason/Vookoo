@@ -49,6 +49,6 @@ endfunction(example)
 example(helloTriangle vert frag)
 example(texture vert frag)
 example(firstgame vert frag)
-example(trypsin vert frag)
+example(molvoo vert frag)
 example(teapot vert frag shadow.vert shadow.frag)
 

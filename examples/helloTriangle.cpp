@@ -29,7 +29,12 @@ int main() {
 
   vk::Device device = fw.device();
 
-  vku::Window window{fw.instance(), fw.device(), fw.physicalDevice(), fw.graphicsQueueFamilyIndex(), glfwwindow};
+  vku::Window window{fw.instance(), device, fw.physicalDevice(), fw.graphicsQueueFamilyIndex(), glfwwindow};
+
+  if (!window.ok()) {
+    std::cout << "Window creation failed" << std::endl;
+    exit(1);
+  }
 
   vku::ShaderModule vert_{device, BINARY_DIR "helloTriangle.vert.spv"};
   vku::ShaderModule frag_{device, BINARY_DIR "helloTriangle.frag.spv"};
@@ -45,13 +50,14 @@ int main() {
     {{-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}}
   };
 
+  vku::VertexBuffer buffer(device, fw.memprops(), vertices);
+
   vku::PipelineMaker pm{(uint32_t)width, (uint32_t)height};
   pm.shader(vk::ShaderStageFlagBits::eVertex, vert_);
   pm.shader(vk::ShaderStageFlagBits::eFragment, frag_);
   pm.vertexBinding(0, (uint32_t)sizeof(Vertex));
   pm.vertexAttribute(0, 0, vk::Format::eR32G32Sfloat, (uint32_t)offsetof(Vertex, pos));
   pm.vertexAttribute(1, 0, vk::Format::eR32G32B32Sfloat, (uint32_t)offsetof(Vertex, colour));
-  vku::VertexBuffer buffer(fw.device(), fw.memprops(), vertices);
 
   auto renderPass = window.renderPass();
   auto &cache = fw.pipelineCache();
@@ -72,14 +78,9 @@ int main() {
     }
   );
 
-  if (!window.ok()) {
-    std::cout << "Window creation failed" << std::endl;
-    exit(1);
-  }
-
   while (!glfwWindowShouldClose(glfwwindow)) {
     glfwPollEvents();
-    window.draw(fw.device(), fw.graphicsQueue());
+    window.draw(device, fw.graphicsQueue());
     std::this_thread::sleep_for(std::chrono::milliseconds(16));
   }
 
