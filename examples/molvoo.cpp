@@ -27,6 +27,7 @@ public:
 
     vku::DescriptorSetLayoutMaker dslm{};
     dslm.buffer(0U, vk::DescriptorType::eUniformBuffer, vk::ShaderStageFlagBits::eVertex|vk::ShaderStageFlagBits::eFragment, 1);
+    dslm.buffer(1U, vk::DescriptorType::eStorageBuffer, vk::ShaderStageFlagBits::eVertex, 1);
     layout_ = dslm.createUnique(device);
 
     vku::DescriptorSetMaker dsm{};
@@ -45,10 +46,10 @@ public:
     pm.topology(vk::PrimitiveTopology::ePointList);
     pm.shader(vk::ShaderStageFlagBits::eVertex, vert_);
     pm.shader(vk::ShaderStageFlagBits::eFragment, frag_);
-    pm.vertexBinding(0, (uint32_t)sizeof(Vertex));
-    pm.vertexAttribute(0, 0, vk::Format::eR32G32B32Sfloat, (uint32_t)offsetof(Vertex, pos));
-    pm.vertexAttribute(1, 0, vk::Format::eR32Sfloat, (uint32_t)offsetof(Vertex, radius));
-    pm.vertexAttribute(2, 0, vk::Format::eR32G32B32A32Sfloat, (uint32_t)offsetof(Vertex, colour));
+    pm.vertexBinding(0, (uint32_t)sizeof(Atom));
+    pm.vertexAttribute(0, 0, vk::Format::eR32G32B32Sfloat, (uint32_t)offsetof(Atom, pos));
+    pm.vertexAttribute(1, 0, vk::Format::eR32Sfloat, (uint32_t)offsetof(Atom, radius));
+    pm.vertexAttribute(2, 0, vk::Format::eR32G32B32A32Sfloat, (uint32_t)offsetof(Atom, colour));
     pm.depthTestEnable(VK_TRUE);
     pm.cullMode(vk::CullModeFlagBits::eBack);
     pm.frontFace(vk::FrontFace::eClockwise);
@@ -57,6 +58,9 @@ public:
 
     // Create, but do not upload the uniform buffer as a device local buffer.
     ubo_ = vku::UniformBuffer(device, memprops, sizeof(Uniform));
+
+    size_t maxAtoms = 10000;
+    atoms_ = vku::GenericBuffer(device, memprops, vk::BufferUsageFlagBits::eStorageBuffer, maxAtoms * sizeof(Atom) * 3);
 
     ////////////////////////////////////////
     //
@@ -71,6 +75,7 @@ public:
     // Set initial uniform buffer value
     update.beginBuffers(0, 0, vk::DescriptorType::eUniformBuffer);
     update.buffer(ubo_.buffer(), 0, sizeof(Uniform));
+    update.buffer(atoms_.buffer(), 0, sizeof(Uniform));
 
     update.update(device);
   }
@@ -87,8 +92,10 @@ public:
     cb.updateBuffer(ubo_.buffer(), 0, sizeof(Uniform), (void*)&uniform);
   }
 
-  struct Vertex {
-    glm::vec3 pos; float radius; glm::vec3 colour;
+  struct Atom {
+    glm::vec3 pos;
+    float radius;
+    glm::vec3 colour;
   };
   
   using mat4 = glm::mat4;
@@ -112,6 +119,7 @@ private:
   vku::ShaderModule vert_;
   vku::ShaderModule frag_;
   vku::UniformBuffer ubo_;
+  vku::GenericBuffer atoms_;
 };
 
 class MoleculeModel {
@@ -124,25 +132,23 @@ public:
     gilgamesh::pdb_decoder pdb(pdb_text.data(), pdb_text.data() + pdb_text.size());
 
     std::string chains = pdb.chains();
-    auto atoms = pdb.atoms(chains);
+    auto pdbAtoms = pdb.atoms(chains);
 
     glm::vec3 mean(0);
-    for (auto &atom : atoms) {
+    for (auto &atom : pdbAtoms) {
       glm::vec3 pos(atom.x(), atom.y(), atom.z());
       mean += pos;
     }
-    mean /= (float)atoms.size();
+    mean /= (float)pdbAtoms.size();
 
-    typedef RaytracePipeline::Vertex Vertex;
-    std::vector<Vertex> vertices;
-    for (auto &atom : atoms) {
+    for (auto &atom : pdbAtoms) {
       glm::vec3 pos(atom.x(), atom.y(), atom.z());
       glm::vec3 colour = atom.colorByElement();
-      vertices.emplace_back(Vertex{pos - mean, 1.0f, colour});
+      atoms_.push_back(Atom{pos - mean, 1.0f, colour});
     }
 
-    vbo_ = vku::VertexBuffer(device, memprops, vertices);
-    numVertices_ = (uint32_t)vertices.size();
+    vbo_ = vku::VertexBuffer(device, memprops, atoms_);
+    numAtoms_ = (uint32_t)atoms_.size();
   }
 
   void draw(vk::CommandBuffer cb, const RaytracePipeline &raytracePipeline) {
@@ -150,11 +156,14 @@ public:
     cb.bindVertexBuffers(0, vbo_.buffer(), vk::DeviceSize(0));
     //cb.bindIndexBuffer(ibo.buffer(), vk::DeviceSize(0), vk::IndexType::eUint32);
     cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, raytracePipeline.pipelineLayout(), 0, raytracePipeline.descriptorSets(), nullptr);
-    cb.draw(numVertices_, 1, 0, 0);
+    cb.draw(numAtoms_, 1, 0, 0);
   }
 private:
+  typedef RaytracePipeline::Atom Atom;
+
   vku::VertexBuffer vbo_;
-  uint32_t numVertices_;
+  uint32_t numAtoms_;
+  std::vector<Atom> atoms_;
 };
 
 class Molvoo {
@@ -211,13 +220,23 @@ private:
       exit(1);
     }
 
+    int prevXpos = 0, prevYpos = 0;
+    bool start = true;
     while (!glfwWindowShouldClose(glfwwindow)) {
       glfwPollEvents();
 
       double xpos, ypos;
       glfwGetCursorPos(glfwwindow, &xpos, &ypos);
-      printf("%f %f\n", xpos, ypos);
-
+      int dx = int(xpos) - prevXpos;
+      int dy = int(ypos) - prevYpos;
+      if (!start) {
+        printf("%d %d\n", dx, dy);
+        modelToWorld = glm::rotate(modelToWorld, glm::radians((float)dx), glm::vec3(0, 1, 0));
+        modelToWorld = glm::rotate(modelToWorld, glm::radians((float)dy), glm::vec3(1, 0, 0));
+      }
+      start = false;
+      prevXpos = int(xpos);
+      prevYpos = int(ypos);
 
       window.draw(fw.device(), fw.graphicsQueue(),
         [&](vk::CommandBuffer pscb, int imageIndex) {
