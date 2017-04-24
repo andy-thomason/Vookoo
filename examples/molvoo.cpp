@@ -170,6 +170,7 @@ private:
 
     const char *title = "molvoo";
     auto glfwwindow = glfwCreateWindow(1600, 1200, title, nullptr, nullptr);
+    glfwSetInputMode(glfwwindow, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
     vku::Framework fw{title};
     if (!fw.ok()) {
@@ -212,6 +213,11 @@ private:
 
     while (!glfwWindowShouldClose(glfwwindow)) {
       glfwPollEvents();
+
+      double xpos, ypos;
+      glfwGetCursorPos(glfwwindow, &xpos, &ypos);
+      printf("%f %f\n", xpos, ypos);
+
 
       window.draw(fw.device(), fw.graphicsQueue(),
         [&](vk::CommandBuffer pscb, int imageIndex) {
