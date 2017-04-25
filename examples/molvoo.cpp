@@ -8,12 +8,13 @@
 #include <gilgamesh/decoders/pdb_decoder.hpp>
 #include <vector>
 
+
 class RaytracePipeline {
 public:
   RaytracePipeline() {
   }
 
-  RaytracePipeline(vk::Device device, vk::DescriptorPool descriptorPool, vk::PipelineCache cache, vk::PhysicalDeviceMemoryProperties memprops, vk::RenderPass renderPass, uint32_t width, uint32_t height) {
+  RaytracePipeline(vk::Device device, vk::DescriptorPool descriptorPool, vk::PipelineCache cache, vk::PhysicalDeviceMemoryProperties memprops, vk::RenderPass renderPass, uint32_t width, uint32_t height, int numImageIndices) {
     ////////////////////////////////////////
     //
     // Build the shader modules
@@ -43,13 +44,13 @@ public:
     // Build the pipeline including enabling the depth test
 
     vku::PipelineMaker pm{width, height};
-    pm.topology(vk::PrimitiveTopology::ePointList);
+    //pm.topology(vk::PrimitiveTopology::ePointList);
     pm.shader(vk::ShaderStageFlagBits::eVertex, vert_);
     pm.shader(vk::ShaderStageFlagBits::eFragment, frag_);
-    pm.vertexBinding(0, (uint32_t)sizeof(Atom));
+    /*pm.vertexBinding(0, (uint32_t)sizeof(Atom));
     pm.vertexAttribute(0, 0, vk::Format::eR32G32B32Sfloat, (uint32_t)offsetof(Atom, pos));
     pm.vertexAttribute(1, 0, vk::Format::eR32Sfloat, (uint32_t)offsetof(Atom, radius));
-    pm.vertexAttribute(2, 0, vk::Format::eR32G32B32A32Sfloat, (uint32_t)offsetof(Atom, colour));
+    pm.vertexAttribute(2, 0, vk::Format::eR32G32B32A32Sfloat, (uint32_t)offsetof(Atom, colour));*/
     pm.depthTestEnable(VK_TRUE);
     pm.cullMode(vk::CullModeFlagBits::eBack);
     pm.frontFace(vk::FrontFace::eClockwise);
@@ -60,7 +61,8 @@ public:
     ubo_ = vku::UniformBuffer(device, memprops, sizeof(Uniform));
 
     size_t maxAtoms = 10000;
-    atoms_ = vku::GenericBuffer(device, memprops, vk::BufferUsageFlagBits::eStorageBuffer, maxAtoms * sizeof(Atom) * 3);
+    size_t sbsize = maxAtoms * sizeof(Atom) * numImageIndices;
+    atoms_ = vku::GenericBuffer(device, memprops, vk::BufferUsageFlagBits::eStorageBuffer, sbsize);
 
     ////////////////////////////////////////
     //
@@ -75,18 +77,19 @@ public:
     // Set initial uniform buffer value
     update.beginBuffers(0, 0, vk::DescriptorType::eUniformBuffer);
     update.buffer(ubo_.buffer(), 0, sizeof(Uniform));
-    update.buffer(atoms_.buffer(), 0, sizeof(Uniform));
+    update.beginBuffers(1, 0, vk::DescriptorType::eStorageBuffer);
+    update.buffer(atoms_.buffer(), 0, sbsize);
 
     update.update(device);
   }
 
-  void update(vk::CommandBuffer cb, const glm::mat4 &cameraToPerspective, const glm::mat4 &modelToWorld) {
+  void update(vk::CommandBuffer cb, const glm::mat4 &cameraToPerspective, const glm::mat4 &modelToWorld, const glm::mat4 &cameraToWorld) {
     // Generate the uniform buffer inline in the command buffer.
     // This is good for small buffers only!
+    glm::mat4 worldToCamera = glm::inverse(cameraToWorld);
     Uniform uniform;
-    //modelToWorld = glm::rotate(modelToWorld, glm::radians(1.0f), glm::vec3(0, 0, 1));
-    //modelToWorld = glm::rotate(modelToWorld, glm::radians(1.0f), glm::vec3(0, 1, 0));
-    uniform.modelToPerspective = cameraToPerspective * modelToWorld;
+    uniform.modelToPerspective = cameraToPerspective * worldToCamera * modelToWorld;
+    uniform.modelToWorld = modelToWorld;
     uniform.normalToWorld = modelToWorld;
     uniform.pointScale = 256; //(float)window.width();
     cb.updateBuffer(ubo_.buffer(), 0, sizeof(Uniform), (void*)&uniform);
@@ -100,6 +103,7 @@ public:
   
   using mat4 = glm::mat4;
   using vec4 = glm::vec4;
+
   struct Uniform {
     mat4 modelToPerspective;
     mat4 modelToWorld;
@@ -153,10 +157,11 @@ public:
 
   void draw(vk::CommandBuffer cb, const RaytracePipeline &raytracePipeline) {
     cb.bindPipeline(vk::PipelineBindPoint::eGraphics, raytracePipeline.pipeline());
-    cb.bindVertexBuffers(0, vbo_.buffer(), vk::DeviceSize(0));
+    //cb.bindVertexBuffers(0, vbo_.buffer(), vk::DeviceSize(0));
     //cb.bindIndexBuffer(ibo.buffer(), vk::DeviceSize(0), vk::IndexType::eUint32);
     cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, raytracePipeline.pipelineLayout(), 0, raytracePipeline.descriptorSets(), nullptr);
-    cb.draw(numAtoms_, 1, 0, 0);
+    //cb.draw(numAtoms_, 1, 0, 0);
+    cb.draw(6, 1, 0, 0);
   }
 private:
   typedef RaytracePipeline::Atom Atom;
@@ -169,42 +174,60 @@ private:
 class Molvoo {
 public:
   Molvoo(int argc, char **argv) {
-    run();
+    init();
   }
+
+  bool poll() { return doPoll(); }
+
+  ~Molvoo() {
+    device_.waitIdle();
+    glfwDestroyWindow(glfwwindow_);
+    glfwTerminate();
+  }
+
 private:
-  void run() {
+  void init() {
     glfwInit();
 
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
 
     const char *title = "molvoo";
-    auto glfwwindow = glfwCreateWindow(1600, 1200, title, nullptr, nullptr);
-    glfwSetInputMode(glfwwindow, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+    glfwwindow_ = glfwCreateWindow(1600, 1200, title, nullptr, nullptr);
+    glfwSetInputMode(glfwwindow_, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
-    vku::Framework fw{title};
-    if (!fw.ok()) {
+    fw_ = vku::Framework{title};
+    if (!fw_.ok()) {
       std::cout << "Framework creation failed" << std::endl;
       exit(1);
     }
 
-    vk::Device device = fw.device();
+    device_ = fw_.device();
 
-    vku::Window window{fw.instance(), fw.device(), fw.physicalDevice(), fw.graphicsQueueFamilyIndex(), glfwwindow};
-    if (!window.ok()) {
+    window_ = vku::Window{fw_.instance(), fw_.device(), fw_.physicalDevice(), fw_.graphicsQueueFamilyIndex(), glfwwindow_};
+    if (!window_.ok()) {
       std::cout << "Window creation failed" << std::endl;
       exit(1);
     }
 
-    glm::mat4 cameraToPerspective = glm::perspective(glm::radians(45.0f), (float)window.width()/window.height(), 0.1f, 1000.0f);
-    glm::mat4 modelToWorld = glm::translate(glm::mat4{}, glm::vec3(0, 0, -50));
     //modelToWorld = glm::rotate(modelToWorld, glm::radians(90.0f), glm::vec3(1, 0, 0));
-  
+    // This matrix converts between OpenGL perspective and Vulkan perspective.
+    // It flips the Y axis and shrinks the Z value to [0,1]
+    glm::mat4 leftHandCorrection(
+      1.0f,  0.0f, 0.0f, 0.0f,
+      0.0f, -1.0f, 0.0f, 0.0f,
+      0.0f,  0.0f, 0.5f, 0.0f,
+      0.0f,  0.0f, 0.5f, 1.0f
+    );
 
-    raytracePipeline_ = RaytracePipeline(device, fw.descriptorPool(), fw.pipelineCache(), fw.memprops(), window.renderPass(), window.width(), window.height());
-    moleculeModel_ = MoleculeModel(SOURCE_DIR "molvoo.pdb", device, fw.memprops());
+    moleculeState_.cameraToPerspective = leftHandCorrection * glm::perspective(glm::radians(45.0f), (float)window_.width()/window_.height(), 0.1f, 1000.0f);
+    moleculeState_.modelToWorld = glm::mat4{};
+    moleculeState_.cameraToWorld = glm::translate(glm::mat4{}, glm::vec3(0, 0, 50));
+
+    raytracePipeline_ = RaytracePipeline(device_, fw_.descriptorPool(), fw_.pipelineCache(), fw_.memprops(), window_.renderPass(), window_.width(), window_.height(), window_.numImageIndices());
+    moleculeModel_ = MoleculeModel(SOURCE_DIR "molvoo.pdb", device_, fw_.memprops());
 
     // Set the static render commands for the main renderpass.
-    window.setStaticCommands(
+    window_.setStaticCommands(
       [&](vk::CommandBuffer cb, int imageIndex, vk::RenderPassBeginInfo &rpbi) {
         vk::CommandBufferBeginInfo bi{};
         cb.begin(bi);
@@ -215,52 +238,72 @@ private:
       }
     );
 
-    if (!window.ok()) {
+    if (!window_.ok()) {
       std::cout << "Window creation failed" << std::endl;
       exit(1);
     }
-
-    int prevXpos = 0, prevYpos = 0;
-    bool start = true;
-    while (!glfwWindowShouldClose(glfwwindow)) {
-      glfwPollEvents();
-
-      double xpos, ypos;
-      glfwGetCursorPos(glfwwindow, &xpos, &ypos);
-      int dx = int(xpos) - prevXpos;
-      int dy = int(ypos) - prevYpos;
-      if (!start) {
-        printf("%d %d\n", dx, dy);
-        modelToWorld = glm::rotate(modelToWorld, glm::radians((float)dx), glm::vec3(0, 1, 0));
-        modelToWorld = glm::rotate(modelToWorld, glm::radians((float)dy), glm::vec3(1, 0, 0));
-      }
-      start = false;
-      prevXpos = int(xpos);
-      prevYpos = int(ypos);
-
-      window.draw(fw.device(), fw.graphicsQueue(),
-        [&](vk::CommandBuffer pscb, int imageIndex) {
-          // Record the dynamic buffer.
-          vk::CommandBufferBeginInfo bi{};
-          pscb.begin(bi);
-          raytracePipeline_.update(pscb, cameraToPerspective, modelToWorld);
-          pscb.end();
-        }
-      );
-
-      std::this_thread::sleep_for(std::chrono::milliseconds(16));
-    }
-
-    device.waitIdle();
-    glfwDestroyWindow(glfwwindow);
-    glfwTerminate();
   }
+
+  bool doPoll() {
+    if (glfwWindowShouldClose(glfwwindow_)) return false;
+
+    glfwPollEvents();
+
+    double xpos, ypos;
+    glfwGetCursorPos(glfwwindow_, &xpos, &ypos);
+    int dx = int(xpos) - mouseState_.prevXpos;
+    int dy = int(ypos) - mouseState_.prevYpos;
+    if (!mouseState_.start) {
+      float xspeed = 0.1f;
+      float yspeed = 0.1f;
+      moleculeState_.modelToWorld = glm::rotate(moleculeState_.modelToWorld, glm::radians(dx * xspeed), glm::vec3(0, 1, 0));
+      moleculeState_.modelToWorld = glm::rotate(moleculeState_.modelToWorld, glm::radians(dy * yspeed), glm::vec3(1, 0, 0));
+    }
+    mouseState_.start = false;
+    mouseState_.prevXpos = int(xpos);
+    mouseState_.prevYpos = int(ypos);
+
+    //moleculeState_.modelToWorld = glm::rotate(moleculeState_.modelToWorld, glm::radians(1.0f), glm::vec3(0, 1, 0));
+
+    window_.draw(fw_.device(), fw_.graphicsQueue(),
+      [&](vk::CommandBuffer pscb, int imageIndex) {
+        // Record the dynamic buffer.
+        vk::CommandBufferBeginInfo bi{};
+        pscb.begin(bi);
+        raytracePipeline_.update(pscb, moleculeState_.cameraToPerspective, moleculeState_.modelToWorld, moleculeState_.cameraToWorld);
+        pscb.end();
+      }
+    );
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(16));
+    return true;
+  }
+
+  vku::Framework fw_;
+  vku::Window  window_;
 
   RaytracePipeline raytracePipeline_;
   MoleculeModel moleculeModel_;
+  struct MouseState {
+    int prevXpos = 0;
+    int prevYpos = 0;
+    bool start = true;
+  };
+  MouseState mouseState_;
+  GLFWwindow *glfwwindow_;
+  vk::Device device_;
+
+  struct MoleculeState {
+    glm::mat4 cameraToPerspective;
+    glm::mat4 modelToWorld;
+    glm::mat4 cameraToWorld;
+  };
+  MoleculeState moleculeState_;
 };
 
 int main(int argc, char **argv) {
   Molvoo viewer(argc, argv);
+  while (viewer.poll()) {
+  }
   return 0;
 }

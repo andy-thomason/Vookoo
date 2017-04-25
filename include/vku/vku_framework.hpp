@@ -51,6 +51,7 @@ namespace vku {
 /// This class provides an optional interface to the vulkan instance, devices and queues.
 /// It is not used by any of the other classes directly and so can be safely ignored if Vookoo
 /// is embedded in an engine.
+/// See https://vulkan-tutorial.com for details of many operations here.
 class Framework {
 public:
   Framework() {
@@ -131,8 +132,8 @@ public:
         (uint32_t)layers.size(), layers.data(),
         (uint32_t)device_extensions.size(), device_extensions.data()});
 
-    graphicsQueue_ = device_->getQueue(graphicsQueueFamilyIndex_, 0);
-    computeQueue_ = device_->getQueue(computeQueueFamilyIndex_, 0);
+    //vk::Queue graphicsQueue_ = device_->getQueue(graphicsQueueFamilyIndex_, 0);
+    //vk::Queue computeQueue_ = device_->getQueue(computeQueueFamilyIndex_, 0);
 
     vk::PipelineCacheCreateInfo pipelineCacheInfo{};
     pipelineCache_ = device_->createPipelineCacheUnique(pipelineCacheInfo);
@@ -140,6 +141,7 @@ public:
     std::vector<vk::DescriptorPoolSize> poolSizes;
     poolSizes.emplace_back(vk::DescriptorType::eUniformBuffer, 128);
     poolSizes.emplace_back(vk::DescriptorType::eCombinedImageSampler, 128);
+    poolSizes.emplace_back(vk::DescriptorType::eStorageBuffer, 128);
 
     // Create an arbitrary number of descriptors in a pool.
     // Allow the descriptors to be freed, possibly not optimal behaviour.
@@ -171,10 +173,10 @@ public:
   const vk::Device device() const { return *device_; }
 
   /// Get the queue used to submit graphics jobs
-  const vk::Queue graphicsQueue() const { return graphicsQueue_; }
+  const vk::Queue graphicsQueue() const { return device_->getQueue(graphicsQueueFamilyIndex_, 0); }
 
   /// Get the queue used to submit compute jobs
-  const vk::Queue computeQueue() const { return computeQueue_; }
+  const vk::Queue computeQueue() const { return device_->getQueue(computeQueueFamilyIndex_, 0); }
 
   /// Get the physical device.
   const vk::PhysicalDevice &physicalDevice() const { return physical_device_; }
@@ -215,6 +217,8 @@ public:
     }
   }
 
+  Framework &operator=(Framework &&rhs) = default;
+
   /// Returns true if the Framework has been built correctly.
   bool ok() const { return ok_; }
 
@@ -230,8 +234,6 @@ private:
 
   vk::UniqueInstance instance_;
   vk::UniqueDevice device_;
-  vk::Queue graphicsQueue_;
-  vk::Queue computeQueue_;
   vk::DebugReportCallbackEXT callback_;
   vk::PhysicalDevice physical_device_;
   vk::UniquePipelineCache pipelineCache_;
@@ -268,17 +270,18 @@ public:
     presentQueueFamily_ = 0;
     auto &pd = physicalDevice;
     auto qprops = pd.getQueueFamilyProperties();
+    bool found = false;
     for (uint32_t qi = 0; qi != qprops.size(); ++qi) {
       auto &qprop = qprops[qi];
       VkBool32 presentSupport = false;
       if (pd.getSurfaceSupportKHR(qi, *surface_)) {
-        presentQueue_ = device.getQueue(qi, 0);
         presentQueueFamily_ = qi;
+        found = true;
       }
     }
 
-    if (!presentQueue_) {
-      std::cout << "No Vulkan queues found\n";
+    if (!found) {
+      std::cout << "No Vulkan present queues found\n";
       return;
     }
 
@@ -502,11 +505,14 @@ public:
     presentInfo.pImageIndices = &imageIndex;
     presentInfo.waitSemaphoreCount = 1;
     presentInfo.pWaitSemaphores = &ccSema;
-    presentQueue_.presentKHR(presentInfo);
+    presentQueue().presentKHR(presentInfo);
   }
 
   /// Return the queue family index used to present the surface to the display.
   uint32_t presentQueueFamily() const { return presentQueueFamily_; }
+
+  /// Get the queue used to submit graphics jobs
+  const vk::Queue presentQueue() const { return device_.getQueue(presentQueueFamily_, 0); }
 
   /// Return true if this window was created sucessfully.
   bool ok() const { return ok_; }
@@ -526,6 +532,8 @@ public:
       device_.destroyFence(f);
     }
   }
+
+  Window &operator=(Window &&rhs) = default;
 
   /// Return the width of the display.
   uint32_t width() const { return width_; }
@@ -568,20 +576,22 @@ public:
 
 private:
   vk::UniqueSurfaceKHR surface_;
-  vk::Queue presentQueue_;
   vk::UniqueSwapchainKHR swapchain_;
   vk::UniqueRenderPass renderPass_;
   vk::UniqueSemaphore imageAcquireSemaphore_;
   vk::UniqueSemaphore commandCompleteSemaphore_;
   vk::UniqueSemaphore dynamicSemaphore_;
-  vku::DepthStencilImage depthStencilImage_;
+  vk::UniqueCommandPool commandPool_;
+
   std::vector<vk::ImageView> imageViews_;
   std::vector<vk::Image> images_;
   std::vector<vk::Fence> commandBufferFences_;
   std::vector<vk::UniqueFramebuffer> framebuffers_;
-  vk::UniqueCommandPool commandPool_;
   std::vector<vk::UniqueCommandBuffer> staticDrawBuffers_;
   std::vector<vk::UniqueCommandBuffer> dynamicDrawBuffers_;
+
+  vku::DepthStencilImage depthStencilImage_;
+
   uint32_t presentQueueFamily_ = 0;
   uint32_t width_;
   uint32_t height_;

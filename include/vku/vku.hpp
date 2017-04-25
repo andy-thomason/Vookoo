@@ -72,12 +72,13 @@ inline void executeImmediately(vk::Device device, vk::CommandPool commandPool, v
   device.freeCommandBuffers(commandPool, cbs);
 }
 
-/// scale a value by mip level
+/// Scale a value by mip level, but do not reduce to zero.
 inline uint32_t mipScale(uint32_t value, uint32_t mipLevel) {
   return std::max(value >> mipLevel, (uint32_t)1);
 }
 
-/// load a binary file into a vector
+/// Load a binary file into a vector.
+/// The vector will be zero-length if this fails.
 inline std::vector<uint8_t> loadFile(const std::string &filename) {
   std::ifstream is(filename, std::ios::binary|std::ios::ate);
   std::vector<uint8_t> bytes;
@@ -89,8 +90,6 @@ inline std::vector<uint8_t> loadFile(const std::string &filename) {
   }
   return std::move(bytes);
 }
-
-/// See https://vulkan-tutorial.com for details of many operations here.
 
 /// Factory for renderpasses.
 /// example:
@@ -730,99 +729,95 @@ class DescriptorSetUpdater {
 public:
   DescriptorSetUpdater(int maxBuffers = 10, int maxImages = 10, int maxBufferViews = 0) {
     // we must pre-size these buffers as we take pointers to their members.
-    s.bufferInfo.resize(maxBuffers);
-    s.imageInfo.resize(maxImages);
-    s.bufferViews.resize(maxBufferViews);
+    bufferInfo_.resize(maxBuffers);
+    imageInfo_.resize(maxImages);
+    bufferViews_.resize(maxBufferViews);
   }
 
   void beginDescriptorSet(vk::DescriptorSet dstSet) {
-    s.dstSet = dstSet;
+    dstSet_ = dstSet;
   }
 
   void beginImages(uint32_t dstBinding, uint32_t dstArrayElement, vk::DescriptorType descriptorType) {
     vk::WriteDescriptorSet wdesc{};
-    wdesc.dstSet = s.dstSet;
+    wdesc.dstSet = dstSet_;
     wdesc.dstBinding = dstBinding;
     wdesc.dstArrayElement = dstArrayElement;
     wdesc.descriptorCount = 0;
     wdesc.descriptorType = descriptorType;
-    wdesc.pImageInfo = s.imageInfo.data() + s.numImages;
-    s.descriptorWrites.push_back(wdesc);
+    wdesc.pImageInfo = imageInfo_.data() + numImages_;
+    descriptorWrites_.push_back(wdesc);
   }
 
   void image(vk::Sampler sampler, vk::ImageView imageView, vk::ImageLayout imageLayout) {
-    if (!s.descriptorWrites.empty() && s.numImages != s.imageInfo.size() && s.descriptorWrites.back().pImageInfo) {
-      s.descriptorWrites.back().descriptorCount++;
-      s.imageInfo[s.numImages++] = vk::DescriptorImageInfo{sampler, imageView, imageLayout};
+    if (!descriptorWrites_.empty() && numImages_ != imageInfo_.size() && descriptorWrites_.back().pImageInfo) {
+      descriptorWrites_.back().descriptorCount++;
+      imageInfo_[numImages_++] = vk::DescriptorImageInfo{sampler, imageView, imageLayout};
     } else {
-      s.ok = false;
+      ok_ = false;
     }
   }
 
   void beginBuffers(uint32_t dstBinding, uint32_t dstArrayElement, vk::DescriptorType descriptorType) {
     vk::WriteDescriptorSet wdesc{};
-    wdesc.dstSet = s.dstSet;
+    wdesc.dstSet = dstSet_;
     wdesc.dstBinding = dstBinding;
     wdesc.dstArrayElement = dstArrayElement;
     wdesc.descriptorCount = 0;
     wdesc.descriptorType = descriptorType;
-    wdesc.pBufferInfo = s.bufferInfo.data() + s.numBuffers;
-    s.descriptorWrites.push_back(wdesc);
+    wdesc.pBufferInfo = bufferInfo_.data() + numBuffers_;
+    descriptorWrites_.push_back(wdesc);
   }
 
   void buffer(vk::Buffer buffer, vk::DeviceSize offset, vk::DeviceSize range) {
-    if (!s.descriptorWrites.empty() && s.numBuffers != s.bufferInfo.size() && s.descriptorWrites.back().pBufferInfo) {
-      s.descriptorWrites.back().descriptorCount++;
-      s.bufferInfo[s.numBuffers++] = vk::DescriptorBufferInfo{buffer, offset, range};
+    if (!descriptorWrites_.empty() && numBuffers_ != bufferInfo_.size() && descriptorWrites_.back().pBufferInfo) {
+      descriptorWrites_.back().descriptorCount++;
+      bufferInfo_[numBuffers_++] = vk::DescriptorBufferInfo{buffer, offset, range};
     } else {
-      s.ok = false;
+      ok_ = false;
     }
   }
 
   void beginBufferViews(uint32_t dstBinding, uint32_t dstArrayElement, vk::DescriptorType descriptorType) {
     vk::WriteDescriptorSet wdesc{};
-    wdesc.dstSet = s.dstSet;
+    wdesc.dstSet = dstSet_;
     wdesc.dstBinding = dstBinding;
     wdesc.dstArrayElement = dstArrayElement;
     wdesc.descriptorCount = 0;
     wdesc.descriptorType = descriptorType;
-    wdesc.pTexelBufferView = s.bufferViews.data() + s.numBufferViews;
-    s.descriptorWrites.push_back(wdesc);
+    wdesc.pTexelBufferView = bufferViews_.data() + numBufferViews_;
+    descriptorWrites_.push_back(wdesc);
   }
 
   void bufferView(vk::BufferView view) {
-    if (!s.descriptorWrites.empty() && s.numBufferViews != s.bufferViews.size() && s.descriptorWrites.back().pImageInfo) {
-      s.descriptorWrites.back().descriptorCount++;
-      s.bufferViews[s.numBufferViews++] = view;
+    if (!descriptorWrites_.empty() && numBufferViews_ != bufferViews_.size() && descriptorWrites_.back().pImageInfo) {
+      descriptorWrites_.back().descriptorCount++;
+      bufferViews_[numBufferViews_++] = view;
     } else {
-      s.ok = false;
+      ok_ = false;
     }
   }
 
   void copy(vk::DescriptorSet srcSet, uint32_t srcBinding, uint32_t srcArrayElement, vk::DescriptorSet dstSet, uint32_t dstBinding, uint32_t dstArrayElement, uint32_t descriptorCount) {
-    s.descriptorCopies.emplace_back(srcSet, srcBinding, srcArrayElement, dstSet, dstBinding, dstArrayElement, descriptorCount);
+    descriptorCopies_.emplace_back(srcSet, srcBinding, srcArrayElement, dstSet, dstBinding, dstArrayElement, descriptorCount);
   }
 
   void update(const vk::Device &device) const {
-    device.updateDescriptorSets( s.descriptorWrites, s.descriptorCopies );
+    device.updateDescriptorSets( descriptorWrites_, descriptorCopies_ );
   }
 
-  bool ok() const { return s.ok; }
+  bool ok() const { return ok_; }
 private:
-  struct State {
-    std::vector<vk::DescriptorBufferInfo> bufferInfo;
-    std::vector<vk::DescriptorImageInfo> imageInfo;
-    std::vector<vk::WriteDescriptorSet> descriptorWrites;
-    std::vector<vk::CopyDescriptorSet> descriptorCopies;
-    std::vector<vk::BufferView> bufferViews;
-    vk::DescriptorSet dstSet;
-    int numBuffers = 0;
-    int numImages = 0;
-    int numBufferViews = 0;
-    bool ok = true;
-  };
-
-  State s;
+  std::vector<vk::DescriptorBufferInfo> bufferInfo_;
+  std::vector<vk::DescriptorImageInfo> imageInfo_;
+  std::vector<vk::WriteDescriptorSet> descriptorWrites_;
+  std::vector<vk::CopyDescriptorSet> descriptorCopies_;
+  std::vector<vk::BufferView> bufferViews_;
+  vk::DescriptorSet dstSet_;
+  int numBuffers_ = 0;
+  int numImages_ = 0;
+  int numBufferViews_ = 0;
+  bool ok_ = true;
 };
 
 /// A factory class for descriptor set layouts. (An interface to the shaders)
@@ -1079,10 +1074,12 @@ protected:
     vk::DeviceSize size;
     vk::ImageLayout currentLayout;
     vk::ImageCreateInfo info;
+
   };
 
   State s;
 };
+
 
 /// A 2D texture image living on the GPU or a staging buffer visible to the CPU.
 class TextureImage2D : public GenericImage {
@@ -1610,6 +1607,7 @@ private:
   std::vector<uint32_t> imageOffsets_;
   std::vector<uint32_t> imageSizes_;
 };
+
 
 } // namespace vku
 
