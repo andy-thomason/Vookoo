@@ -1057,7 +1057,6 @@ protected:
 
     if (!hostImage) {
       vk::ImageViewCreateInfo viewInfo{};
-      viewInfo.flags;
       viewInfo.image = *s.image;
       viewInfo.viewType = viewType;
       viewInfo.format = info.format;
@@ -1240,21 +1239,19 @@ inline vk::Format GLtoVKFormat(uint32_t glFormat) {
   switch (glFormat) {
     case 0x1907: return vk::Format::eR8G8B8Unorm; // GL_RGB
     case 0x1908: return vk::Format::eR8G8B8A8Unorm; // GL_RGBA
-    /*case 0x83A0: return vk::Format::eRGB; // GL_RGB_S3TC
-    case 0x83A1: return vk::Format::eRGB; // GL_RGB4_S3TC
-    case 0x83A2: return vk::Format::eRGB; // GL_RGBA_S3TC
-    case 0x83A3: return vk::Format::eRGB; // GL_RGBA4_S3TC
-    case 0x83A4: return vk::Format::eRGB; // GL_RGBA_DXT5_S3TC
-    case 0x83A5: return vk::Format::eRGB; // GL_RGBA4_DXT5_S3TC*/
+    case 0x83F0: return vk::Format::eBc1RgbUnormBlock; // GL_COMPRESSED_RGB_S3TC_DXT1_EXT
+    case 0x83F1: return vk::Format::eBc1RgbaUnormBlock; // GL_COMPRESSED_RGBA_S3TC_DXT1_EXT
+    case 0x83F2: return vk::Format::eBc3UnormBlock; // GL_COMPRESSED_RGBA_S3TC_DXT3_EXT
+    case 0x83F3: return vk::Format::eBc5UnormBlock; // GL_COMPRESSED_RGBA_S3TC_DXT5_EXT
   }
   return vk::Format::eUndefined;
 }
 
 /// Description of blocks for compressed formats.
 struct BlockParams {
-  uint32_t blockWidth;
-  uint32_t blockHeight;
-  uint32_t bytesPerBlock;
+  uint8_t blockWidth;
+  uint8_t blockHeight;
+  uint8_t bytesPerBlock;
 };
 
 /// Get the details of vulkan texture formats.
@@ -1389,7 +1386,7 @@ inline BlockParams getBlockParams(vk::Format format) {
     case vk::Format::eS8Uint: return BlockParams{1, 1, 1};
     case vk::Format::eD16UnormS8Uint: return BlockParams{1, 1, 3};
     case vk::Format::eD24UnormS8Uint: return BlockParams{1, 1, 4};
-    //case vk::Format::eD32SfloatS8Uint: return BlockParams{1, 1, 5};
+    case vk::Format::eD32SfloatS8Uint: return BlockParams{0, 0, 0};
     case vk::Format::eBc1RgbUnormBlock: return BlockParams{4, 4, 8};
     case vk::Format::eBc1RgbSrgbBlock: return BlockParams{4, 4, 8};
     case vk::Format::eBc1RgbaUnormBlock: return BlockParams{4, 4, 8};
@@ -1402,7 +1399,7 @@ inline BlockParams getBlockParams(vk::Format format) {
     case vk::Format::eBc4SnormBlock: return BlockParams{4, 4, 16};
     case vk::Format::eBc5UnormBlock: return BlockParams{4, 4, 16};
     case vk::Format::eBc5SnormBlock: return BlockParams{4, 4, 16};
-    /*case vk::Format::eBc6HUfloatBlock: return BlockParams{0, 0, 0};
+    case vk::Format::eBc6HUfloatBlock: return BlockParams{0, 0, 0};
     case vk::Format::eBc6HSfloatBlock: return BlockParams{0, 0, 0};
     case vk::Format::eBc7UnormBlock: return BlockParams{0, 0, 0};
     case vk::Format::eBc7SrgbBlock: return BlockParams{0, 0, 0};
@@ -1451,7 +1448,7 @@ inline BlockParams getBlockParams(vk::Format format) {
     case vk::Format::ePvrtc12BppSrgbBlockIMG: return BlockParams{0, 0, 0};
     case vk::Format::ePvrtc14BppSrgbBlockIMG: return BlockParams{0, 0, 0};
     case vk::Format::ePvrtc22BppSrgbBlockIMG: return BlockParams{0, 0, 0};
-    case vk::Format::ePvrtc24BppSrgbBlockIMG: return BlockParams{0, 0, 0};*/
+    case vk::Format::ePvrtc24BppSrgbBlockIMG: return BlockParams{0, 0, 0};
   }
   return BlockParams{0, 0, 0};
 }
@@ -1536,39 +1533,12 @@ public:
   }
 
   uint32_t offset(uint32_t mipLevel, uint32_t arrayLayer, uint32_t face) {
-    /*auto xblocks = mipScale(header.pixelWidth / blockParams_.blockWidth, mipLevel);
-    auto yblocks = mipScale(header.pixelHeight / blockParams_.blockHeight, mipLevel);
-    auto faceSize = xblocks * yblocks * blockParams_.bytesPerBlock;*/
     return imageOffsets_[mipLevel] + (arrayLayer * header.numberOfFaces + face) * imageSizes_[mipLevel];
   }
 
   uint32_t size(uint32_t mipLevel) {
     return imageSizes_[mipLevel];
   }
-  /*
-  for each keyValuePair that fits in bytesOfKeyValueData
-      UInt32   keyAndValueByteSize
-      Byte     keyAndValue[keyAndValueByteSize]
-      Byte     valuePadding[3 - ((keyAndValueByteSize + 3) % 4)]
-  end
-    
-  for each mipmap_level in numberOfMipmapLevels*
-      UInt32 imageSize; 
-      for each array_element in numberOfArrayElements*
-         for each face in numberOfFaces
-             for each z_slice in pixelDepth*
-                 for each row or row_of_blocks in pixelHeight*
-                     for each pixel or block_of_pixels in pixelWidth
-                         Byte data[format-specific-number-of-bytes]**
-                     end
-                 end
-             end
-             Byte cubePadding[0-3]
-         end
-      end
-      Byte mipPadding[3 - ((imageSize + 3) % 4)]
-  end
-  */
 
   bool ok() const { return ok_; }
   vk::Format format() const { return format_; }

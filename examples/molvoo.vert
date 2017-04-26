@@ -21,6 +21,16 @@ out gl_PerVertex {
   //float gl_ClipDistance[];
 };
 
+struct Atom {
+  vec3 pos;
+  float radius;
+  vec3 colour;
+};
+
+layout(std430, binding=1) buffer Atoms {
+  Atom atoms[];
+} a;
+
 // 1   4 5
 // 0 2   3
 const vec2 verts[] = {
@@ -29,8 +39,11 @@ const vec2 verts[] = {
 };
 
 void main() {
-  gl_Position = vec4(verts[gl_VertexIndex % 6], 0, 1.0);
-  //gl_Position = u.modelToPerspective * vec4(inPosition.xyz, 1.0);
+  Atom atom = a.atoms[gl_VertexIndex / 6];
+  vec2 vpos = verts[gl_VertexIndex % 6];
+  //gl_Position = vec4(vpos, 0.5, 1.0);
+  gl_Position = u.modelToPerspective * vec4(atom.pos.xy, atom.pos.z, 1.0);
+  gl_Position.xy += vpos;
   //gl_PointSize = u.pointScale * inRadius / gl_Position.w;
   //outColour = inColour;
   outColour = vec3(1, 0, 0);

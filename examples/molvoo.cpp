@@ -51,9 +51,9 @@ public:
     pm.vertexAttribute(0, 0, vk::Format::eR32G32B32Sfloat, (uint32_t)offsetof(Atom, pos));
     pm.vertexAttribute(1, 0, vk::Format::eR32Sfloat, (uint32_t)offsetof(Atom, radius));
     pm.vertexAttribute(2, 0, vk::Format::eR32G32B32A32Sfloat, (uint32_t)offsetof(Atom, colour));*/
-    pm.depthTestEnable(VK_TRUE);
-    pm.cullMode(vk::CullModeFlagBits::eBack);
-    pm.frontFace(vk::FrontFace::eClockwise);
+    //pm.depthTestEnable(VK_TRUE);
+    //pm.cullMode(vk::CullModeFlagBits::eBack);
+    //pm.frontFace(vk::FrontFace::eClockwise);
 
     pipeline_ = pm.createUnique(device, cache, *pipelineLayout_, renderPass);
 
