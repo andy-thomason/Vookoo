@@ -610,6 +610,38 @@ private:
   State s;
 };
 
+/// A class for building compute pipelines.
+class ComputePipelineMaker {
+public:
+  ComputePipelineMaker() {
+  }
+
+  /// Add a shader module to the pipeline.
+  void shader(vk::ShaderStageFlagBits stage, vku::ShaderModule &shader,
+                 const char *entryPoint = "main") {
+    stage_.module = shader.module();
+    stage_.pName = entryPoint;
+    stage_.stage = stage;
+  }
+
+  /// Set the compute shader module.
+  ComputePipelineMaker &module(const vk::PipelineShaderStageCreateInfo &value) {
+    stage_ = value;
+  }
+
+  /// Create a managed handle to a compute shader.
+  vk::UniquePipeline createUnique(vk::Device device, const vk::PipelineCache &pipelineCache, const vk::PipelineLayout &pipelineLayout) {
+    vk::ComputePipelineCreateInfo pipelineInfo{};
+
+    pipelineInfo.stage = stage_;
+    pipelineInfo.layout = pipelineLayout;
+
+    return device.createComputePipelineUnique(pipelineCache, pipelineInfo);
+  }
+private:
+  vk::PipelineShaderStageCreateInfo stage_;
+};
+
 /// A generic buffer that may be used as a vertex buffer, uniform buffer or other kinds of memory resident data.
 /// Buffers require memory objects which represent GPU and CPU resources.
 class GenericBuffer {
@@ -620,28 +652,33 @@ public:
   GenericBuffer(const vk::Device &device, const vk::PhysicalDeviceMemoryProperties &memprops, vk::BufferUsageFlags usage, vk::DeviceSize size, vk::MemoryPropertyFlags memflags = vk::MemoryPropertyFlagBits::eHostCoherent | vk::MemoryPropertyFlagBits::eHostVisible) {
     // Create the buffer object without memory.
     vk::BufferCreateInfo ci{};
-    ci.size = s.size = size;
+    ci.size = size_ = size;
     ci.usage = usage;
     ci.sharingMode = vk::SharingMode::eExclusive;
-    s.buffer = device.createBufferUnique(ci);
+    buffer_ = device.createBufferUnique(ci);
 
     // Find out how much memory and which heap to allocate from.
-    auto memreq = device.getBufferMemoryRequirements(*s.buffer);
+    auto memreq = device.getBufferMemoryRequirements(*buffer_);
 
     // Create a memory object to bind to the buffer.
     vk::MemoryAllocateInfo mai{};
     mai.allocationSize = memreq.size;
     mai.memoryTypeIndex = vku::findMemoryTypeIndex(memprops, memreq.memoryTypeBits, memflags);
-    s.mem = device.allocateMemoryUnique(mai);
+    mem_ = device.allocateMemoryUnique(mai);
 
-    device.bindBufferMemory(*s.buffer, *s.mem, 0);
+    device.bindBufferMemory(*buffer_, *mem_, 0);
   }
 
   /// Copy memory from the host to the buffer object.
   void update(const vk::Device &device, const void *value, vk::DeviceSize size) {
-    void *ptr = device.mapMemory(*s.mem, 0, s.size, vk::MemoryMapFlags{});
+    void *ptr = device.mapMemory(*mem_, 0, size_, vk::MemoryMapFlags{});
     memcpy(ptr, value, (size_t)size);
-    device.unmapMemory(*s.mem);
+    device.unmapMemory(*mem_);
+  }
+
+  void barrier(vk::CommandBuffer cb, vk::PipelineStageFlags srcStageMask, vk::PipelineStageFlags dstStageMask, vk::DependencyFlags dependencyFlags, vk::AccessFlags srcAccessMask, vk::AccessFlags dstAccessMask, uint32_t srcQueueFamilyIndex, uint32_t dstQueueFamilyIndex) {
+    vk::BufferMemoryBarrier bmb{srcAccessMask, dstAccessMask, srcQueueFamilyIndex, dstQueueFamilyIndex, *buffer_, 0, size_};
+    cb.pipelineBarrier(srcStageMask, dstStageMask, dependencyFlags, nullptr, bmb, nullptr);
   }
 
   template<class Type, class Allocator>
@@ -654,15 +691,16 @@ public:
     update(device, (void*)&value, vk::DeviceSize(sizeof(Type)));
   }
 
-  vk::Buffer buffer() const { return *s.buffer; }
-private:
-  struct State {
-    vk::UniqueBuffer buffer;
-    vk::UniqueDeviceMemory mem;
-    vk::DeviceSize size;
-  };
+  void *map(const vk::Device &device) const { return device.mapMemory(*mem_, 0, size_, vk::MemoryMapFlags{}); };
+  void unmap(const vk::Device &device) const { return device.unmapMemory(*mem_); };
 
-  State s;
+  vk::Buffer buffer() const { return *buffer_; }
+  vk::DeviceMemory mem() const { return *mem_; }
+  vk::DeviceSize size() const { return size_; }
+private:
+  vk::UniqueBuffer buffer_;
+  vk::UniqueDeviceMemory mem_;
+  vk::DeviceSize size_;
 };
 
 /// This class is a specialisation of GenericBuffer for vertex buffers.
@@ -734,10 +772,12 @@ public:
     bufferViews_.resize(maxBufferViews);
   }
 
+  /// Call this to begin a new descriptor set.
   void beginDescriptorSet(vk::DescriptorSet dstSet) {
     dstSet_ = dstSet;
   }
 
+  /// Call this to begin a new set of images.
   void beginImages(uint32_t dstBinding, uint32_t dstArrayElement, vk::DescriptorType descriptorType) {
     vk::WriteDescriptorSet wdesc{};
     wdesc.dstSet = dstSet_;
@@ -749,6 +789,7 @@ public:
     descriptorWrites_.push_back(wdesc);
   }
 
+  /// Call this to add a combined image sampler.
   void image(vk::Sampler sampler, vk::ImageView imageView, vk::ImageLayout imageLayout) {
     if (!descriptorWrites_.empty() && numImages_ != imageInfo_.size() && descriptorWrites_.back().pImageInfo) {
       descriptorWrites_.back().descriptorCount++;
@@ -758,6 +799,7 @@ public:
     }
   }
 
+  /// Call this to start defining buffers.
   void beginBuffers(uint32_t dstBinding, uint32_t dstArrayElement, vk::DescriptorType descriptorType) {
     vk::WriteDescriptorSet wdesc{};
     wdesc.dstSet = dstSet_;
@@ -769,6 +811,7 @@ public:
     descriptorWrites_.push_back(wdesc);
   }
 
+  /// Call this to add a new buffer.
   void buffer(vk::Buffer buffer, vk::DeviceSize offset, vk::DeviceSize range) {
     if (!descriptorWrites_.empty() && numBuffers_ != bufferInfo_.size() && descriptorWrites_.back().pBufferInfo) {
       descriptorWrites_.back().descriptorCount++;
@@ -778,6 +821,7 @@ public:
     }
   }
 
+  /// Call this to start adding buffer views. (for example, writable images).
   void beginBufferViews(uint32_t dstBinding, uint32_t dstArrayElement, vk::DescriptorType descriptorType) {
     vk::WriteDescriptorSet wdesc{};
     wdesc.dstSet = dstSet_;
@@ -789,6 +833,7 @@ public:
     descriptorWrites_.push_back(wdesc);
   }
 
+  /// Call this to add a buffer view. (Texel images)
   void bufferView(vk::BufferView view) {
     if (!descriptorWrites_.empty() && numBufferViews_ != bufferViews_.size() && descriptorWrites_.back().pImageInfo) {
       descriptorWrites_.back().descriptorCount++;
@@ -798,14 +843,17 @@ public:
     }
   }
 
+  /// Copy an existing descriptor.
   void copy(vk::DescriptorSet srcSet, uint32_t srcBinding, uint32_t srcArrayElement, vk::DescriptorSet dstSet, uint32_t dstBinding, uint32_t dstArrayElement, uint32_t descriptorCount) {
     descriptorCopies_.emplace_back(srcSet, srcBinding, srcArrayElement, dstSet, dstBinding, dstArrayElement, descriptorCount);
   }
 
+  /// Call this to update the descriptor sets with their pointers (but not data).
   void update(const vk::Device &device) const {
     device.updateDescriptorSets( descriptorWrites_, descriptorCopies_ );
   }
 
+  /// Returns true if the updater is error free.
   bool ok() const { return ok_; }
 private:
   std::vector<vk::DescriptorBufferInfo> bufferInfo_;
@@ -844,6 +892,7 @@ public:
     s.bindings.emplace_back(binding, descriptorType, descriptorCount, stageFlags, nullptr);
   }
 
+  /// Create a self-deleting descriptor set object.
   vk::UniqueDescriptorSetLayout createUnique(vk::Device device) const {
     vk::DescriptorSetLayoutCreateInfo dsci{};
     dsci.bindingCount = (uint32_t)s.bindings.size();
@@ -864,9 +913,11 @@ private:
 /// A factory class for descriptor sets (A set of uniform bindings)
 class DescriptorSetMaker {
 public:
+  // Construct a new, empty DescriptorSetMaker.
   DescriptorSetMaker() {
   }
 
+  /// Add another layout describing a descriptor set.
   void layout(vk::DescriptorSetLayout layout) {
     s.layouts.push_back(layout);
   }
@@ -1235,6 +1286,7 @@ private:
   State s;
 };
 
+/// KTX files use OpenGL format values. This converts some common ones to Vulkan equivalents.
 inline vk::Format GLtoVKFormat(uint32_t glFormat) {
   switch (glFormat) {
     case 0x1907: return vk::Format::eR8G8B8Unorm; // GL_RGB

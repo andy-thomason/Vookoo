@@ -95,16 +95,32 @@ public:
     auto pds = instance_->enumeratePhysicalDevices();
     physical_device_ = pds[0];
     auto qprops = physical_device_.getQueueFamilyProperties();
-    graphicsQueueFamilyIndex_ = 0;
-    computeQueueFamilyIndex_ = 0;
+    const auto badQueue = ~(uint32_t)0;
+    graphicsQueueFamilyIndex_ = badQueue;
+    computeQueueFamilyIndex_ = badQueue;
+    vk::QueueFlags search = vk::QueueFlagBits::eGraphics|vk::QueueFlagBits::eCompute;
+
+    // Look for an omnipurpose queue family first
+    // It is better if we can schedule operations without barriers and semaphores.
+    // The Spec says: "If an implementation exposes any queue family that supports graphics operations,
+    // at least one queue family of at least one physical device exposed by the implementation
+    // must support both graphics and compute operations."
+    // Also: All commands that are allowed on a queue that supports transfer operations are
+    // also allowed on a queue that supports either graphics or compute operations...
+    // As a result we can expect a queue family with at least all three and maybe all four modes.
     for (uint32_t qi = 0; qi != qprops.size(); ++qi) {
       auto &qprop = qprops[qi];
-      if (qprop.queueFlags & vk::QueueFlagBits::eGraphics) {
+      //std::cout << vk::to_string(qprop.queueFlags) << "\n";
+      if ((qprop.queueFlags & search) == search) {
         graphicsQueueFamilyIndex_ = qi;
-      }
-      if (qprop.queueFlags & vk::QueueFlagBits::eCompute) {
         computeQueueFamilyIndex_ = qi;
+        break;
       }
+    }
+
+    if (graphicsQueueFamilyIndex_ == badQueue || computeQueueFamilyIndex_ == badQueue) {
+      std::cout << "oops, missing a queue\n";
+      return;
     }
 
     memprops_ = physical_device_.getMemoryProperties();
@@ -311,7 +327,8 @@ public:
     } else if (std::find(pms.begin(), pms.end(), vk::PresentModeKHR::eFifo) != pms.end()) {
       presentMode = vk::PresentModeKHR::eFifo;
     }
-    std::cout << "using " << vk::to_string(presentMode) << "\n";
+
+    //std::cout << "using " << vk::to_string(presentMode) << "\n";
 
     vk::SwapchainCreateInfoKHR swapinfo{};
     std::array<uint32_t, 2> queueFamilyIndices = { graphicsQueueFamilyIndex, presentQueueFamily_ };

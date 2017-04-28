@@ -1,0 +1,19 @@
+#version 450
+#extension GL_ARB_separate_shader_objects : enable
+
+struct Atom {
+  vec3 pos;
+  float radius;
+  vec3 colour;
+};
+
+layout (local_size_x = 64) in;
+
+layout(std430, binding=1) buffer Atoms {
+  Atom atoms[];
+} a;
+
+void main() {
+  uvec3 gid = gl_GlobalInvocationID;
+  a.atoms[0].pos = vec3(20.0, 20.0, 20.0);
+}

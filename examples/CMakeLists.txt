@@ -24,16 +24,16 @@ function(example exname)
   
   foreach(shader ${ARGN})
     add_custom_command(
-      OUTPUT ${exname}.${shader}.spv
-      COMMAND glslangValidator -V ${PROJECT_SOURCE_DIR}/${exname}.${shader} -o ${PROJECT_BINARY_DIR}/${exname}.${shader}.spv
-      MAIN_DEPENDENCY ${exname}.${shader}
+      OUTPUT ${shader}.spv
+      COMMAND glslangValidator -V ${PROJECT_SOURCE_DIR}/${exname}/${shader} -o ${PROJECT_BINARY_DIR}/${shader}.spv
+      MAIN_DEPENDENCY ${exname}/${shader}
     )
-    list(APPEND shaders "${exname}.${shader}")
+    list(APPEND shaders "${exname}/${shader}")
   endforeach(shader)
 
   message(${shaders})
 
-  add_executable(${exname} ${exname}.cpp ${shaders} ../include/vku/vku.hpp ../include/vku/vku_framework.hpp)
+  add_executable(${exname} ${exname}/${exname}.cpp ${shaders} ../include/vku/vku.hpp ../include/vku/vku_framework.hpp)
   target_link_libraries(${exname} glfw3)
   target_compile_features(${exname} PRIVATE cxx_range_for)
 
@@ -46,9 +46,9 @@ function(example exname)
   endif()
 endfunction(example)
 
-example(helloTriangle vert frag)
-example(texture vert frag)
-example(firstgame vert frag)
-example(molvoo vert frag)
-example(teapot vert frag shadow.vert shadow.frag)
+example(helloTriangle helloTriangle.vert helloTriangle.frag)
+example(texture texture.vert texture.frag)
+example(firstgame firstGame.vert firstGame.frag)
+example(molvoo molvoo.vert molvoo.frag molvoo.comp)
+example(teapot teapot.vert teapot.frag teapot.shadow.vert teapot.shadow.frag)
 
