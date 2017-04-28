@@ -23,11 +23,11 @@ out gl_PerVertex {
 
 struct Atom {
   vec3 pos;
-  float radius;
   vec3 colour;
+  float radius;
 };
 
-layout(std430, binding=1) buffer Atoms {
+layout(std140, binding=1) buffer Atoms {
   Atom atoms[];
 } a;
 

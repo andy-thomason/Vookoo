@@ -92,8 +92,11 @@ public:
 
   struct Atom {
     vec3 pos;
-    float radius;
+    int pad1;
     vec3 colour;
+    int pad2;
+    float radius;
+    int pad3[3];
   };
   
   struct Uniform {
@@ -142,7 +145,11 @@ public:
     for (auto &atom : pdbAtoms) {
       glm::vec3 pos(atom.x(), atom.y(), atom.z());
       glm::vec3 colour = atom.colorByElement();
-      atoms.push_back(Atom{pos - mean, 1.0f, colour});
+      Atom a{};
+      a.pos = pos - mean;
+      a.radius = 1.0f;
+      a.colour = colour;
+      atoms.push_back(a);
     }
 
     numAtoms_ = (uint32_t)atoms.size();
