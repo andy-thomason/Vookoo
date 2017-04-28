@@ -670,24 +670,24 @@ public:
   }
 
   /// Copy memory from the host to the buffer object.
-  void update(const vk::Device &device, const void *value, vk::DeviceSize size) {
+  void update(const vk::Device &device, const void *value, vk::DeviceSize size) const {
     void *ptr = device.mapMemory(*mem_, 0, size_, vk::MemoryMapFlags{});
     memcpy(ptr, value, (size_t)size);
     device.unmapMemory(*mem_);
   }
 
-  void barrier(vk::CommandBuffer cb, vk::PipelineStageFlags srcStageMask, vk::PipelineStageFlags dstStageMask, vk::DependencyFlags dependencyFlags, vk::AccessFlags srcAccessMask, vk::AccessFlags dstAccessMask, uint32_t srcQueueFamilyIndex, uint32_t dstQueueFamilyIndex) {
+  void barrier(vk::CommandBuffer cb, vk::PipelineStageFlags srcStageMask, vk::PipelineStageFlags dstStageMask, vk::DependencyFlags dependencyFlags, vk::AccessFlags srcAccessMask, vk::AccessFlags dstAccessMask, uint32_t srcQueueFamilyIndex, uint32_t dstQueueFamilyIndex) const {
     vk::BufferMemoryBarrier bmb{srcAccessMask, dstAccessMask, srcQueueFamilyIndex, dstQueueFamilyIndex, *buffer_, 0, size_};
     cb.pipelineBarrier(srcStageMask, dstStageMask, dependencyFlags, nullptr, bmb, nullptr);
   }
 
   template<class Type, class Allocator>
-  void update(const vk::Device &device, const std::vector<Type, Allocator> &value) {
+  void update(const vk::Device &device, const std::vector<Type, Allocator> &value) const {
     update(device, (void*)value.data(), vk::DeviceSize(value.size() * sizeof(Type)));
   }
 
   template<class Type>
-  void update(const vk::Device &device, const Type &value) {
+  void update(const vk::Device &device, const Type &value) const {
     update(device, (void*)&value, vk::DeviceSize(sizeof(Type)));
   }
 

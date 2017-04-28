@@ -1,4 +1,3 @@
-
 #include <vku/vku_framework.hpp>
 #include <vku/vku.hpp>
 #include <glm/glm.hpp>
@@ -7,7 +6,6 @@
 #include <gilgamesh/mesh.hpp>
 #include <gilgamesh/decoders/pdb_decoder.hpp>
 #include <vector>
-
 
 class RaytracePipeline {
 public:
@@ -31,10 +29,6 @@ public:
     dslm.buffer(0U, vk::DescriptorType::eUniformBuffer, vk::ShaderStageFlagBits::eAll, 1);
     dslm.buffer(1U, vk::DescriptorType::eStorageBuffer, vk::ShaderStageFlagBits::eAll, 1);
     layout_ = dslm.createUnique(device);
-
-    vku::DescriptorSetMaker dsm{};
-    dsm.layout(*layout_);
-    descriptorSets_ = dsm.create(device, descriptorPool);
 
     vku::PipelineLayoutMaker plm{};
     plm.descriptorSetLayout(*layout_);
@@ -61,31 +55,9 @@ public:
     // Create, but do not upload the uniform buffer as a device local buffer.
     ubo_ = vku::UniformBuffer(device, memprops, sizeof(Uniform));
 
-    size_t maxAtoms = 10000;
-    size_t sbsize = maxAtoms * sizeof(Atom);
-    using buf = vk::BufferUsageFlagBits;
-    atoms_ = vku::GenericBuffer(device, memprops, buf::eStorageBuffer, sbsize, vk::MemoryPropertyFlagBits::eDeviceLocal);
-
-    ////////////////////////////////////////
-    //
-    // Update the descriptor sets for the shader uniforms.
-
-    vku::SamplerMaker sm{};
-    vk::UniqueSampler sampler = sm.createUnique(device);
-
-    vku::DescriptorSetUpdater update;
-    update.beginDescriptorSet(descriptorSets_[0]);
-
-    // Set initial uniform buffer value
-    update.beginBuffers(0, 0, vk::DescriptorType::eUniformBuffer);
-    update.buffer(ubo_.buffer(), 0, sizeof(Uniform));
-    update.beginBuffers(1, 0, vk::DescriptorType::eStorageBuffer);
-    update.buffer(atoms_.buffer(), 0, sbsize);
-
-    update.update(device);
   }
 
-  void update(vk::Device device, vk::CommandBuffer cb, uint32_t computeFamilyIndex, uint32_t graphicsFamilyIndex, const glm::mat4 &cameraToPerspective, const glm::mat4 &modelToWorld, const glm::mat4 &cameraToWorld) {
+  void update(vk::Device device, vk::CommandBuffer cb, uint32_t computeFamilyIndex, uint32_t graphicsFamilyIndex, const glm::mat4 &cameraToPerspective, const glm::mat4 &modelToWorld, const glm::mat4 &cameraToWorld, const vku::GenericBuffer &atoms, uint32_t numAtoms, vk::DescriptorSet descriptorSet) {
     // Generate the uniform buffer inline in the command buffer.
     // This is good for small buffers only!
     glm::mat4 worldToCamera = glm::inverse(cameraToWorld);
@@ -95,6 +67,23 @@ public:
     uniform.normalToWorld = modelToWorld;
     uniform.pointScale = 256; //(float)window.width();
     cb.updateBuffer(ubo_.buffer(), 0, sizeof(Uniform), (void*)&uniform);
+
+    cb.bindDescriptorSets(vk::PipelineBindPoint::eCompute, pipelineLayout(), 0, descriptorSet, nullptr);
+    cb.bindPipeline(vk::PipelineBindPoint::eCompute, *computePipeline_);
+    
+    using psflags = vk::PipelineStageFlagBits;
+    using aflags = vk::AccessFlagBits;
+    atoms.barrier(
+      cb, psflags::eTopOfPipe, psflags::eComputeShader, {},
+      aflags::eShaderRead, aflags::eShaderRead|aflags::eShaderWrite, graphicsFamilyIndex, graphicsFamilyIndex
+    );
+
+    cb.dispatch(numAtoms, 1, 1);
+        
+    atoms.barrier(
+      cb, psflags::eComputeShader, psflags::eTopOfPipe, {},
+      aflags::eShaderRead|aflags::eShaderWrite, aflags::eShaderRead, graphicsFamilyIndex, graphicsFamilyIndex
+    );
   }
 
   using mat4 = glm::mat4;
@@ -117,18 +106,17 @@ public:
 
   vk::Pipeline pipeline() const { return *pipeline_; }
   vk::PipelineLayout pipelineLayout() const { return *pipelineLayout_; }
-  const std::vector<vk::DescriptorSet> &descriptorSets() const { return descriptorSets_; }
-//private:
+  const vku::UniformBuffer &ubo() const { return ubo_; }
+  vk::DescriptorSetLayout descriptorSetLayout() const { return *layout_; }
+private:
   vk::UniquePipeline pipeline_;
   vk::UniquePipeline computePipeline_;
   vk::UniqueDescriptorSetLayout layout_;
-  std::vector<vk::DescriptorSet> descriptorSets_;
   vk::UniquePipelineLayout pipelineLayout_;
   vku::ShaderModule vert_;
   vku::ShaderModule frag_;
   vku::ShaderModule comp_;
   vku::UniformBuffer ubo_;
-  vku::GenericBuffer atoms_;
 };
 
 class MoleculeModel {
@@ -136,7 +124,7 @@ public:
   MoleculeModel() {
   }
 
-  MoleculeModel(const std::string &filename, vk::Device device, vk::PhysicalDeviceMemoryProperties memprops) {
+  MoleculeModel(const std::string &filename, vk::Device device, vk::PhysicalDeviceMemoryProperties memprops, vk::CommandPool commandPool, vk::Queue queue) {
     auto pdb_text = vku::loadFile(filename);
     gilgamesh::pdb_decoder pdb(pdb_text.data(), pdb_text.data() + pdb_text.size());
 
@@ -150,25 +138,69 @@ public:
     }
     mean /= (float)pdbAtoms.size();
 
-    std::vector<Atom> atoms_;
+    std::vector<Atom> atoms;
     for (auto &atom : pdbAtoms) {
       glm::vec3 pos(atom.x(), atom.y(), atom.z());
       glm::vec3 colour = atom.colorByElement();
-      atoms_.push_back(Atom{pos - mean, 1.0f, colour});
+      atoms.push_back(Atom{pos - mean, 1.0f, colour});
     }
 
-    numAtoms_ = (uint32_t)atoms_.size();
+    numAtoms_ = (uint32_t)atoms.size();
+
+    size_t sbsize = numAtoms_ * sizeof(Atom) + 0x100;
+    using buf = vk::BufferUsageFlagBits;
+    atoms_ = vku::GenericBuffer(device, memprops, buf::eStorageBuffer|buf::eTransferDst, sbsize, vk::MemoryPropertyFlagBits::eDeviceLocal);
+
+    auto tmp = vku::GenericBuffer(device, memprops, buf::eTransferSrc, sbsize);
+    tmp.update(device, atoms);
+
+    vku::executeImmediately(device, commandPool, queue, [&](vk::CommandBuffer cb) {
+      vk::BufferCopy bc{0, 0, sbsize};
+      cb.copyBuffer(tmp.buffer(), atoms_.buffer(), bc);
+    });
   }
 
   void draw(vk::CommandBuffer cb, const RaytracePipeline &raytracePipeline, int imageIndex) {
     cb.bindPipeline(vk::PipelineBindPoint::eGraphics, raytracePipeline.pipeline());
-    cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, raytracePipeline.pipelineLayout(), 0, raytracePipeline.descriptorSets(), nullptr);
-    cb.draw(6, 1, 0, 0);
+    cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, raytracePipeline.pipelineLayout(), 0, descriptorSet_, nullptr);
+    cb.draw(numAtoms_ * 6, 1, 0, 0);
   }
+
+  void buildDescriptorSets(vk::Device device, vk::DescriptorSetLayout layout, vk::Buffer ubo, vk::DescriptorPool descriptorPool) {
+    ////////////////////////////////////////
+    //
+    // Update the descriptor sets for the shader uniforms.
+
+    //vku::SamplerMaker sm{};
+    //vk::UniqueSampler sampler = sm.createUnique(device);
+
+    vku::DescriptorSetMaker dsm{};
+    dsm.layout(layout);
+    auto descriptorSets = dsm.create(device, descriptorPool);
+    descriptorSet_ = descriptorSets[0];
+
+    vku::DescriptorSetUpdater update;
+    update.beginDescriptorSet(descriptorSet_);
+
+    // Set initial uniform buffer value
+    update.beginBuffers(0, 0, vk::DescriptorType::eUniformBuffer);
+    update.buffer(ubo, 0, sizeof(Uniform));
+    update.beginBuffers(1, 0, vk::DescriptorType::eStorageBuffer);
+    update.buffer(atoms_.buffer(), 0, numAtoms_ * sizeof(Atom));
+
+    update.update(device);
+  }
+
+  vk::DescriptorSet descriptorSet() const { return descriptorSet_; }
+  uint32_t numAtoms() const { return numAtoms_; }
+  const vku::GenericBuffer &atoms() const { return atoms_; }
 private:
   using Atom = RaytracePipeline::Atom;
+  using Uniform = RaytracePipeline::Uniform;
 
   uint32_t numAtoms_;
+  vku::GenericBuffer atoms_;
+  vk::DescriptorSet descriptorSet_;
 };
 
 class Molvoo {
@@ -224,7 +256,8 @@ private:
     moleculeState_.cameraToWorld = glm::translate(glm::mat4{}, glm::vec3(0, 0, 50));
 
     raytracePipeline_ = RaytracePipeline(device_, fw_.descriptorPool(), fw_.pipelineCache(), fw_.memprops(), window_.renderPass(), window_.width(), window_.height(), window_.numImageIndices());
-    moleculeModel_ = MoleculeModel(SOURCE_DIR "molvoo.pdb", device_, fw_.memprops());
+    moleculeModel_ = MoleculeModel(SOURCE_DIR "molvoo/molvoo.pdb", device_, fw_.memprops(), window_.commandPool(), fw_.graphicsQueue());
+    moleculeModel_.buildDescriptorSets(device_, raytracePipeline_.descriptorSetLayout(), raytracePipeline_.ubo().buffer(), fw_.descriptorPool());
 
     // Set the static render commands for the main renderpass.
     window_.setStaticCommands(
@@ -260,8 +293,11 @@ private:
     if (!mouseState_.start) {
       float xspeed = 0.1f;
       float yspeed = 0.1f;
-      moleculeState_.modelToWorld = glm::rotate(moleculeState_.modelToWorld, glm::radians(dx * xspeed), glm::vec3(0, 1, 0));
-      moleculeState_.modelToWorld = glm::rotate(moleculeState_.modelToWorld, glm::radians(dy * yspeed), glm::vec3(1, 0, 0));
+      glm::mat4 worldToModel = glm::inverse(moleculeState_.modelToWorld);
+      glm::vec3 xaxis = worldToModel[0];
+      glm::vec3 yaxis = worldToModel[1];
+      moleculeState_.modelToWorld = glm::rotate(moleculeState_.modelToWorld, glm::radians(dy * yspeed), xaxis);
+      moleculeState_.modelToWorld = glm::rotate(moleculeState_.modelToWorld, glm::radians(dx * xspeed), yaxis);
     }
     mouseState_.start = false;
     mouseState_.prevXpos = int(xpos);
@@ -276,49 +312,11 @@ private:
         pscb.begin(bi);
         raytracePipeline_.update(
           fw_.device(), pscb, fw_.graphicsQueueFamilyIndex(), fw_.graphicsQueueFamilyIndex(),
-          moleculeState_.cameraToPerspective, moleculeState_.modelToWorld, moleculeState_.cameraToWorld
-        );
-        pscb.bindDescriptorSets(vk::PipelineBindPoint::eCompute, raytracePipeline_.pipelineLayout(), 0, raytracePipeline_.descriptorSets(), nullptr);
-        pscb.bindPipeline(vk::PipelineBindPoint::eCompute, *raytracePipeline_.computePipeline_);
-    
-        using psflags = vk::PipelineStageFlagBits;
-        using aflags = vk::AccessFlagBits;
-        raytracePipeline_.atoms_.barrier(
-          pscb, psflags::eTopOfPipe, psflags::eComputeShader, {},
-          aflags::eShaderRead, aflags::eShaderRead|aflags::eShaderWrite, fw_.graphicsQueueFamilyIndex(), fw_.graphicsQueueFamilyIndex()
-        );
-
-        pscb.dispatch(1, 1, 1);
-        
-        raytracePipeline_.atoms_.barrier(
-          pscb, psflags::eComputeShader, psflags::eTopOfPipe, {},
-          aflags::eShaderRead|aflags::eShaderWrite, aflags::eShaderRead, fw_.graphicsQueueFamilyIndex(), fw_.graphicsQueueFamilyIndex()
+          moleculeState_.cameraToPerspective, moleculeState_.modelToWorld, moleculeState_.cameraToWorld,
+          moleculeModel_.atoms(),
+          moleculeModel_.numAtoms(), moleculeModel_.descriptorSet()
         );
         pscb.end();
-
-        #if 0
-        vku::executeImmediately(fw_.device(), *computeCommandPool_, fw_.computeQueue(), [&](vk::CommandBuffer cb){
-          cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, raytracePipeline_.pipelineLayout(), 0, raytracePipeline_.descriptorSets(), nullptr);
-          cb.bindPipeline(vk::PipelineBindPoint::eCompute, *raytracePipeline_.computePipeline_);
-    
-          cb.dispatch(1, 1, 1);
-          /*using psflags = vk::PipelineStageFlagBits;
-          using aflags = vk::AccessFlagBits;
-          raytracePipeline_.atoms_.barrier(
-            cb, psflags::eComputeShader, psflags::eAllGraphics, {},
-            aflags::eShaderWrite, aflags::eShaderRead, fw_.graphicsQueueFamilyIndex(), fw_.graphicsQueueFamilyIndex()
-          );*/
-          //cb.fillBuffer(raytracePipeline_.atoms_.buffer(), 0, raytracePipeline_.atoms_.size(), 0x3f800000);
-        });
-        #endif
-
-        using Atom = RaytracePipeline::Atom;
-        //Atom *atoms = (Atom*)raytracePipeline_.atoms_.map(fw_.device());
-        //Atom atom0 = atoms[0];
-        //int *p = (int*)raytracePipeline_.atoms_.map(fw_.device());
-        //raytracePipeline_.atoms_.unmap(fw_.device());
-        //printf("%f %f %f\n", atom0.pos.x, atom0.pos.y, atom0.pos.z);
-        //printf("%08x\n", *p);
       }
     );
 
