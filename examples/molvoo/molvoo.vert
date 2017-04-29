@@ -27,7 +27,7 @@ struct Atom {
   float radius;
 };
 
-layout(std140, binding=1) buffer Atoms {
+layout(std430, binding=1) buffer Atoms {
   Atom atoms[];
 } a;
 

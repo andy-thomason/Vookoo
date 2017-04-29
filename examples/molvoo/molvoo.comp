@@ -7,7 +7,7 @@ struct Atom {
   float radius;
 };
 
-layout(std140, binding=1) buffer Atoms {
+layout(std430, binding=1) buffer Atoms {
   Atom atoms[];
 } a;
 
@@ -15,5 +15,5 @@ layout (local_size_x = 64) in;
 
 void main() {
   uint id = gl_GlobalInvocationID.x;
-  //a.atoms[id].pos = vec3(cos(id * 0.1) * 8.0, sin(id * 0.1) * 8.0, 0.0);
+  //a.atoms[id].pos += vec3(cos(id * 0.1) * 0.1, sin(id * 0.1) * 0.1, 0.0);
 }

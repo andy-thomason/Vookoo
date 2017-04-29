@@ -113,7 +113,7 @@ int main() {
 
   auto pixels = vku::loadFile(SOURCE_DIR "firstgame.data");
   vku::GenericBuffer stagingBuffer{device, fw.memprops(), vk::BufferUsageFlagBits::eTransferSrc, pixels.size()};
-  stagingBuffer.update(device, pixels.data(), pixels.size());
+  stagingBuffer.updateLocal(device, pixels.data(), pixels.size());
 
   // Copy the staging buffer to the GPU texture and set the layout.
   vku::executeImmediately(device, window.commandPool(), fw.graphicsQueue(), [&](vk::CommandBuffer cb) {
@@ -189,7 +189,7 @@ int main() {
         float rh = 2.0f/window.height();
         uniform.pixelsToScreen = glm::vec4(rw, rh, 0, 0);
 
-        vboStaging[imageIndex].update(fw.device(), sprites);
+        vboStaging[imageIndex].updateLocal(fw.device(), sprites);
 
         // Record the dynamic buffer.
         vk::CommandBufferBeginInfo bi{};

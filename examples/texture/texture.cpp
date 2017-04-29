@@ -72,7 +72,8 @@ int main() {
   struct Uniform { glm::vec4 colour; };
   Uniform uniform;
   uniform.colour = glm::vec4(0, 1, 1, 1);
-  vku::UniformBuffer ubo(fw.device(), fw.memprops(), uniform);
+  vku::UniformBuffer ubo(fw.device(), fw.memprops(), sizeof(Uniform));
+  ubo.upload(device, fw.memprops(), window.commandPool(), fw.graphicsQueue(), uniform);
 
   auto renderPass = window.renderPass();
   auto &cache = fw.pipelineCache();

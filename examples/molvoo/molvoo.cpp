@@ -92,11 +92,11 @@ public:
 
   struct Atom {
     vec3 pos;
-    int pad1;
+    //int pad1;
     vec3 colour;
-    int pad2;
+    //int pad2;
     float radius;
-    int pad3[3];
+    //int pad3[3];
   };
   
   struct Uniform {
@@ -158,13 +158,7 @@ public:
     using buf = vk::BufferUsageFlagBits;
     atoms_ = vku::GenericBuffer(device, memprops, buf::eStorageBuffer|buf::eTransferDst, sbsize, vk::MemoryPropertyFlagBits::eDeviceLocal);
 
-    auto tmp = vku::GenericBuffer(device, memprops, buf::eTransferSrc, sbsize);
-    tmp.update(device, atoms);
-
-    vku::executeImmediately(device, commandPool, queue, [&](vk::CommandBuffer cb) {
-      vk::BufferCopy bc{0, 0, sbsize};
-      cb.copyBuffer(tmp.buffer(), atoms_.buffer(), bc);
-    });
+    atoms_.upload(device, memprops, commandPool, queue, atoms);
   }
 
   void draw(vk::CommandBuffer cb, const RaytracePipeline &raytracePipeline, int imageIndex) {

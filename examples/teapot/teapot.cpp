@@ -223,7 +223,7 @@ int main() {
   vku::TextureImageCube cubeMap{device, fw.memprops(), ktx.width(0), ktx.height(0), ktx.mipLevels(), vk::Format::eR8G8B8A8Unorm};
 
   vku::GenericBuffer stagingBuffer(device, fw.memprops(), vk::BufferUsageFlagBits::eTransferSrc, cubeBytes.size());
-  stagingBuffer.update(device, (const void*)cubeBytes.data(), cubeBytes.size());
+  stagingBuffer.updateLocal(device, (const void*)cubeBytes.data(), cubeBytes.size());
   cubeBytes = std::vector<uint8_t>{};
 
   // Copy the staging buffer to the GPU texture and set the layout.

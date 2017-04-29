@@ -649,7 +649,7 @@ public:
   GenericBuffer() {
   }
 
-  GenericBuffer(const vk::Device &device, const vk::PhysicalDeviceMemoryProperties &memprops, vk::BufferUsageFlags usage, vk::DeviceSize size, vk::MemoryPropertyFlags memflags = vk::MemoryPropertyFlagBits::eHostCoherent | vk::MemoryPropertyFlagBits::eHostVisible) {
+  GenericBuffer(const vk::Device &device, const vk::PhysicalDeviceMemoryProperties &memprops, vk::BufferUsageFlags usage, vk::DeviceSize size, vk::MemoryPropertyFlags memflags = vk::MemoryPropertyFlagBits::eDeviceLocal) {
     // Create the buffer object without memory.
     vk::BufferCreateInfo ci{};
     ci.size = size_ = size;
@@ -669,11 +669,34 @@ public:
     device.bindBufferMemory(*buffer_, *mem_, 0);
   }
 
-  /// Copy memory from the host to the buffer object.
-  void update(const vk::Device &device, const void *value, vk::DeviceSize size) const {
+  /// For a host buffer, copy memory to the buffer object.
+  void updateLocal(const vk::Device &device, const void *value, vk::DeviceSize size) const {
     void *ptr = device.mapMemory(*mem_, 0, size_, vk::MemoryMapFlags{});
     memcpy(ptr, value, (size_t)size);
     device.unmapMemory(*mem_);
+  }
+
+  /// For a device local buffer, copy memory to the buffer object.
+  void upload(vk::Device device, const vk::PhysicalDeviceMemoryProperties &memprops, vk::CommandPool commandPool, vk::Queue queue, const void *value, vk::DeviceSize size) const {
+    using buf = vk::BufferUsageFlagBits;
+    using pfb = vk::MemoryPropertyFlagBits;
+    auto tmp = vku::GenericBuffer(device, memprops, buf::eTransferSrc, size, pfb::eHostVisible);
+    tmp.updateLocal(device, value, size);
+
+    vku::executeImmediately(device, commandPool, queue, [&](vk::CommandBuffer cb) {
+      vk::BufferCopy bc{0, 0, size};
+      cb.copyBuffer(tmp.buffer(), *buffer_, bc);
+    });
+  }
+
+  template<typename T>
+  void upload(vk::Device device, const vk::PhysicalDeviceMemoryProperties &memprops, vk::CommandPool commandPool, vk::Queue queue, const std::vector<T> &value) const {
+    upload(device, memprops, commandPool, queue, value.data(), value.size() * sizeof(T));
+  }
+
+  template<typename T>
+  void upload(vk::Device device, const vk::PhysicalDeviceMemoryProperties &memprops, vk::CommandPool commandPool, vk::Queue queue, const T &value) const {
+    upload(device, memprops, commandPool, queue, &value, sizeof(value));
   }
 
   void barrier(vk::CommandBuffer cb, vk::PipelineStageFlags srcStageMask, vk::PipelineStageFlags dstStageMask, vk::DependencyFlags dependencyFlags, vk::AccessFlags srcAccessMask, vk::AccessFlags dstAccessMask, uint32_t srcQueueFamilyIndex, uint32_t dstQueueFamilyIndex) const {
@@ -682,13 +705,13 @@ public:
   }
 
   template<class Type, class Allocator>
-  void update(const vk::Device &device, const std::vector<Type, Allocator> &value) const {
-    update(device, (void*)value.data(), vk::DeviceSize(value.size() * sizeof(Type)));
+  void updateLocal(const vk::Device &device, const std::vector<Type, Allocator> &value) const {
+    updateLocal(device, (void*)value.data(), vk::DeviceSize(value.size() * sizeof(Type)));
   }
 
   template<class Type>
-  void update(const vk::Device &device, const Type &value) const {
-    update(device, (void*)&value, vk::DeviceSize(sizeof(Type)));
+  void updateLocal(const vk::Device &device, const Type &value) const {
+    updateLocal(device, (void*)&value, vk::DeviceSize(sizeof(Type)));
   }
 
   void *map(const vk::Device &device) const { return device.mapMemory(*mem_, 0, size_, vk::MemoryMapFlags{}); };
@@ -711,15 +734,10 @@ public:
 
   template<class Type, class Allocator>
   VertexBuffer(const vk::Device &device, const vk::PhysicalDeviceMemoryProperties &memprops, const std::vector<Type, Allocator> &value) : GenericBuffer(device, memprops, vk::BufferUsageFlagBits::eVertexBuffer, value.size() * sizeof(Type)) {
-    update(device, value);
+    updateLocal(device, value);
   }
 
   VertexBuffer(const vk::Device &device, const vk::PhysicalDeviceMemoryProperties &memprops, size_t size) : GenericBuffer(device, memprops, vk::BufferUsageFlagBits::eVertexBuffer, size) {
-  }
-
-  template<class Type, class Allocator>
-  void update(const vk::Device &device, const std::vector<Type, Allocator> &value) {
-    GenericBuffer::update(device, (void*)value.data(), vk::DeviceSize(value.size() * sizeof(Type)));
   }
 };
 
@@ -731,12 +749,7 @@ public:
 
   template<class Type, class Allocator>
   IndexBuffer(const vk::Device &device, const vk::PhysicalDeviceMemoryProperties &memprops, const std::vector<Type, Allocator> &value) : GenericBuffer(device, memprops, vk::BufferUsageFlagBits::eIndexBuffer, value.size() * sizeof(Type)) {
-    update(device, value);
-  }
-
-  template<class Type, class Allocator>
-  void update(const vk::Device &device, const std::vector<Type, Allocator> &value) {
-    GenericBuffer::update(device, (void*)value.data(), vk::DeviceSize(value.size() * sizeof(Type)));
+    updateLocal(device, value);
   }
 };
 
@@ -746,20 +759,9 @@ public:
   UniformBuffer() {
   }
 
-  template<class Type, class Allocator>
-  UniformBuffer(const vk::Device &device, const vk::PhysicalDeviceMemoryProperties &memprops, const std::vector<Type, Allocator> &value) : GenericBuffer(device, memprops, vk::BufferUsageFlagBits::eUniformBuffer|vk::BufferUsageFlagBits::eTransferDst, value.size() * sizeof(Type)) {
-    update(device, value);
-  }
-
-  template<class Type>
-  UniformBuffer(const vk::Device &device, const vk::PhysicalDeviceMemoryProperties &memprops, const Type &value) : GenericBuffer(device, memprops, vk::BufferUsageFlagBits::eUniformBuffer|vk::BufferUsageFlagBits::eTransferDst, sizeof(Type)) {
-    update(device, value);
-  }
-
-  /// Device local buffer for high performance update.
+  /// Device local uniform buffer.
   UniformBuffer(const vk::Device &device, const vk::PhysicalDeviceMemoryProperties &memprops, size_t size) : GenericBuffer(device, memprops, vk::BufferUsageFlagBits::eUniformBuffer|vk::BufferUsageFlagBits::eTransferDst, (vk::DeviceSize)size, vk::MemoryPropertyFlagBits::eDeviceLocal) {
   }
-
 };
 
 /// Convenience class for updating descriptor sets (uniforms)
