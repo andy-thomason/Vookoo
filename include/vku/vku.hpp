@@ -676,7 +676,8 @@ public:
     device.unmapMemory(*mem_);
   }
 
-  /// For a device local buffer, copy memory to the buffer object.
+  /// For a device local buffer, copy memory to the buffer object immediately.
+  /// Note that this will stall the pipeline!
   void upload(vk::Device device, const vk::PhysicalDeviceMemoryProperties &memprops, vk::CommandPool commandPool, vk::Queue queue, const void *value, vk::DeviceSize size) const {
     using buf = vk::BufferUsageFlagBits;
     using pfb = vk::MemoryPropertyFlagBits;

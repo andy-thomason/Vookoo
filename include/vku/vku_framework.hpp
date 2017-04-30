@@ -448,7 +448,7 @@ public:
     for (int i = 0; i != staticDrawBuffers_.size(); ++i) {
       vk::CommandBuffer cb = *staticDrawBuffers_[i];
 
-      std::array<float, 4> clearColorValue{0, 0, 1, 1};
+      std::array<float, 4> clearColorValue{0.75f, 0.75f, 0.75f, 1};
       vk::ClearDepthStencilValue clearDepthValue{ 1.0f, 0 };
       std::array<vk::ClearValue, 2> clearColours{vk::ClearValue{clearColorValue}, clearDepthValue};
       vk::RenderPassBeginInfo rpbi;

@@ -3,8 +3,8 @@
 
 struct Atom {
   vec3 pos;
-  vec3 colour;
   float radius;
+  vec3 colour;
 };
 
 layout(std430, binding=1) buffer Atoms {

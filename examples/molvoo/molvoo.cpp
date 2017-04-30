@@ -42,7 +42,7 @@ public:
     //pm.topology(vk::PrimitiveTopology::ePointList);
     pm.shader(vk::ShaderStageFlagBits::eVertex, vert_);
     pm.shader(vk::ShaderStageFlagBits::eFragment, frag_);
-    //pm.depthTestEnable(VK_TRUE);
+    pm.depthTestEnable(VK_TRUE);
     //pm.cullMode(vk::CullModeFlagBits::eBack);
     //pm.frontFace(vk::FrontFace::eClockwise);
 
@@ -54,7 +54,6 @@ public:
 
     // Create, but do not upload the uniform buffer as a device local buffer.
     ubo_ = vku::UniformBuffer(device, memprops, sizeof(Uniform));
-
   }
 
   void update(vk::Device device, vk::CommandBuffer cb, uint32_t computeFamilyIndex, uint32_t graphicsFamilyIndex, const glm::mat4 &cameraToPerspective, const glm::mat4 &modelToWorld, const glm::mat4 &cameraToWorld, const vku::GenericBuffer &atoms, uint32_t numAtoms, vk::DescriptorSet descriptorSet) {
@@ -62,10 +61,12 @@ public:
     // This is good for small buffers only!
     glm::mat4 worldToCamera = glm::inverse(cameraToWorld);
     Uniform uniform;
-    uniform.modelToPerspective = cameraToPerspective * worldToCamera * modelToWorld;
+    uniform.worldToPerspective = cameraToPerspective * worldToCamera;
     uniform.modelToWorld = modelToWorld;
+    uniform.cameraToWorld = cameraToWorld;
     uniform.normalToWorld = modelToWorld;
-    uniform.pointScale = 256; //(float)window.width();
+    uniform.pointScale = glm::vec2(1.5f, 2.0f); //(float)window.width();
+
     cb.updateBuffer(ubo_.buffer(), 0, sizeof(Uniform), (void*)&uniform);
 
     cb.bindDescriptorSets(vk::PipelineBindPoint::eCompute, pipelineLayout(), 0, descriptorSet, nullptr);
@@ -87,24 +88,24 @@ public:
   }
 
   using mat4 = glm::mat4;
+  using vec2 = glm::vec2;
   using vec3 = glm::vec3;
   using vec4 = glm::vec4;
 
   struct Atom {
     vec3 pos;
-    //int pad1;
-    vec3 colour;
-    //int pad2;
     float radius;
-    //int pad3[3];
+    vec3 colour;
+    int pad2;
   };
   
   struct Uniform {
-    mat4 modelToPerspective;
+    mat4 worldToPerspective;
     mat4 modelToWorld;
     mat4 normalToWorld;
+    mat4 cameraToWorld;
     vec4 colour;
-    float pointScale;
+    vec2 pointScale;
   };
 
   vk::Pipeline pipeline() const { return *pipeline_; }
@@ -145,6 +146,9 @@ public:
     for (auto &atom : pdbAtoms) {
       glm::vec3 pos(atom.x(), atom.y(), atom.z());
       glm::vec3 colour = atom.colorByElement();
+      colour.r = colour.r * 0.75f + 0.25f;
+      colour.g = colour.g * 0.75f + 0.25f;
+      colour.b = colour.b * 0.75f + 0.25f;
       Atom a{};
       a.pos = pos - mean;
       a.radius = 1.0f;
@@ -164,7 +168,7 @@ public:
   void draw(vk::CommandBuffer cb, const RaytracePipeline &raytracePipeline, int imageIndex) {
     cb.bindPipeline(vk::PipelineBindPoint::eGraphics, raytracePipeline.pipeline());
     cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, raytracePipeline.pipelineLayout(), 0, descriptorSet_, nullptr);
-    cb.draw(numAtoms_ * 6, 1, 0, 0);
+    cb.draw(numAtoms_ * 6, 8000, 0, 0);
   }
 
   void buildDescriptorSets(vk::Device device, vk::DescriptorSetLayout layout, vk::Buffer ubo, vk::DescriptorPool descriptorPool) {
