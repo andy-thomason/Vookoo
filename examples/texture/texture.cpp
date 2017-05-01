@@ -67,7 +67,7 @@ int main() {
   pm.vertexBinding(0, (uint32_t)sizeof(Vertex));
   pm.vertexAttribute(0, 0, vk::Format::eR32G32Sfloat, (uint32_t)offsetof(Vertex, pos));
   pm.vertexAttribute(1, 0, vk::Format::eR32G32B32Sfloat, (uint32_t)offsetof(Vertex, colour));
-  vku::VertexBuffer vbo(fw.device(), fw.memprops(), vertices);
+  vku::HostVertexBuffer vbo(fw.device(), fw.memprops(), vertices);
 
   struct Uniform { glm::vec4 colour; };
   Uniform uniform;

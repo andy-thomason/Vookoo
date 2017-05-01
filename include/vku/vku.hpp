@@ -727,29 +727,48 @@ private:
   vk::DeviceSize size_;
 };
 
-/// This class is a specialisation of GenericBuffer for vertex buffers.
+/// This class is a specialisation of GenericBuffer for high performance vertex buffers on the GPU.
+/// You must upload the contents before use.
 class VertexBuffer : public GenericBuffer {
 public:
   VertexBuffer() {
   }
 
-  template<class Type, class Allocator>
-  VertexBuffer(const vk::Device &device, const vk::PhysicalDeviceMemoryProperties &memprops, const std::vector<Type, Allocator> &value) : GenericBuffer(device, memprops, vk::BufferUsageFlagBits::eVertexBuffer, value.size() * sizeof(Type)) {
-    updateLocal(device, value);
-  }
-
-  VertexBuffer(const vk::Device &device, const vk::PhysicalDeviceMemoryProperties &memprops, size_t size) : GenericBuffer(device, memprops, vk::BufferUsageFlagBits::eVertexBuffer, size) {
+  VertexBuffer(const vk::Device &device, const vk::PhysicalDeviceMemoryProperties &memprops, size_t size) : GenericBuffer(device, memprops, vk::BufferUsageFlagBits::eVertexBuffer, size, vk::MemoryPropertyFlagBits::eDeviceLocal) {
   }
 };
 
-/// This class is a specialisation of GenericBuffer for vertex buffers.
+/// This class is a specialisation of GenericBuffer for low performance vertex buffers on the host.
+class HostVertexBuffer : public GenericBuffer {
+public:
+  HostVertexBuffer() {
+  }
+
+  template<class Type, class Allocator>
+  HostVertexBuffer(const vk::Device &device, const vk::PhysicalDeviceMemoryProperties &memprops, const std::vector<Type, Allocator> &value) : GenericBuffer(device, memprops, vk::BufferUsageFlagBits::eVertexBuffer, value.size() * sizeof(Type), vk::MemoryPropertyFlagBits::eHostVisible) {
+    updateLocal(device, value);
+  }
+};
+
+/// This class is a specialisation of GenericBuffer for high performance index buffers.
+/// You must upload the contents before use.
 class IndexBuffer : public GenericBuffer {
 public:
   IndexBuffer() {
   }
 
+  IndexBuffer(const vk::Device &device, const vk::PhysicalDeviceMemoryProperties &memprops, vk::DeviceSize size) : GenericBuffer(device, memprops, vk::BufferUsageFlagBits::eIndexBuffer, size, vk::MemoryPropertyFlagBits::eDeviceLocal) {
+  }
+};
+
+/// This class is a specialisation of GenericBuffer for low performance vertex buffers in CPU memory.
+class HostIndexBuffer : public GenericBuffer {
+public:
+  HostIndexBuffer() {
+  }
+
   template<class Type, class Allocator>
-  IndexBuffer(const vk::Device &device, const vk::PhysicalDeviceMemoryProperties &memprops, const std::vector<Type, Allocator> &value) : GenericBuffer(device, memprops, vk::BufferUsageFlagBits::eIndexBuffer, value.size() * sizeof(Type)) {
+  HostIndexBuffer(const vk::Device &device, const vk::PhysicalDeviceMemoryProperties &memprops, const std::vector<Type, Allocator> &value) : GenericBuffer(device, memprops, vk::BufferUsageFlagBits::eIndexBuffer, value.size() * sizeof(Type), vk::MemoryPropertyFlagBits::eHostVisible) {
     updateLocal(device, value);
   }
 };

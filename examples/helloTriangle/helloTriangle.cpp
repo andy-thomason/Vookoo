@@ -50,7 +50,7 @@ int main() {
     {{-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}}
   };
 
-  vku::VertexBuffer buffer(device, fw.memprops(), vertices);
+  vku::HostVertexBuffer buffer(device, fw.memprops(), vertices);
 
   vku::PipelineMaker pm{(uint32_t)width, (uint32_t)height};
   pm.shader(vk::ShaderStageFlagBits::eVertex, vert_);

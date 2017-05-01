@@ -31,7 +31,6 @@ int main() {
     std::cout << "Window creation failed" << std::endl;
     exit(1);
   }
-
   ////////////////////////////////////////
   //
   // Build the descriptor sets
@@ -72,8 +71,8 @@ int main() {
   }
   std::vector<uint32_t> indices = mesh.indices32();
 
-  vku::VertexBuffer vbo(fw.device(), fw.memprops(), vertices);
-  vku::IndexBuffer ibo(fw.device(), fw.memprops(), indices);
+  vku::HostVertexBuffer vbo(fw.device(), fw.memprops(), vertices);
+  vku::HostIndexBuffer ibo(fw.device(), fw.memprops(), indices);
   uint32_t indexCount = (uint32_t)indices.size();
 
   struct Uniform {
@@ -222,7 +221,7 @@ int main() {
 
   vku::TextureImageCube cubeMap{device, fw.memprops(), ktx.width(0), ktx.height(0), ktx.mipLevels(), vk::Format::eR8G8B8A8Unorm};
 
-  vku::GenericBuffer stagingBuffer(device, fw.memprops(), vk::BufferUsageFlagBits::eTransferSrc, cubeBytes.size());
+  vku::GenericBuffer stagingBuffer(device, fw.memprops(), vk::BufferUsageFlagBits::eTransferSrc, cubeBytes.size(), vk::MemoryPropertyFlagBits::eHostVisible);
   stagingBuffer.updateLocal(device, (const void*)cubeBytes.data(), cubeBytes.size());
   cubeBytes = std::vector<uint8_t>{};
 

@@ -41,7 +41,7 @@ void main() {
   vec3 normal = normalize(intersection - inCentre);
   vec3 lightDir = normalize(vec3(1, 1, 1));
   vec3 ambient = inColour * 0.3;
-  float dfactor = max(0, dot(lightDir, normal));
+  float dfactor = max(0.0, dot(lightDir, normal));
   outColour = vec4(ambient + inColour * dfactor, 1);
 
   vec4 persp = u.worldToPerspective * vec4(inRayStart + intersection, 1);
