@@ -66,6 +66,7 @@ public:
     uniform.cameraToWorld = cameraToWorld;
     uniform.normalToWorld = modelToWorld;
     uniform.pointScale = glm::vec2(1.5f, 2.0f); //(float)window.width();
+    uniform.timeStep = 1.0f/60;
 
     cb.updateBuffer(ubo_.buffer(), 0, sizeof(Uniform), (void*)&uniform);
 
@@ -79,6 +80,7 @@ public:
       aflags::eShaderRead, aflags::eShaderRead|aflags::eShaderWrite, graphicsFamilyIndex, graphicsFamilyIndex
     );
 
+    // Do the physics update on the GPU
     cb.dispatch(numAtoms, 1, 1);
         
     atoms.barrier(
@@ -91,12 +93,24 @@ public:
   using vec2 = glm::vec2;
   using vec3 = glm::vec3;
   using vec4 = glm::vec4;
+  using uint = uint32_t;
 
   struct Atom {
     vec3 pos;
     float radius;
     vec3 colour;
+    float mass;
+    vec3 velocity;
+    int pad;
+    vec3 acceleration;
     int pad2;
+  };
+
+  struct Connection {
+    uint from;
+    uint to;
+    float length;
+    float springConstant;
   };
   
   struct Uniform {
@@ -106,6 +120,7 @@ public:
     mat4 cameraToWorld;
     vec4 colour;
     vec2 pointScale;
+    float timeStep;
   };
 
   vk::Pipeline pipeline() const { return *pipeline_; }
@@ -153,8 +168,11 @@ public:
       a.pos = pos - mean;
       a.radius = 1.0f;
       a.colour = colour;
+      a.velocity = glm::vec3(0, 0, 0);
       atoms.push_back(a);
     }
+
+    atoms[0].velocity = glm::vec3(1, 0, 0);
 
     numAtoms_ = (uint32_t)atoms.size();
 
@@ -168,7 +186,8 @@ public:
   void draw(vk::CommandBuffer cb, const RaytracePipeline &raytracePipeline, int imageIndex) {
     cb.bindPipeline(vk::PipelineBindPoint::eGraphics, raytracePipeline.pipeline());
     cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, raytracePipeline.pipelineLayout(), 0, descriptorSet_, nullptr);
-    cb.draw(numAtoms_ * 6, 8000, 0, 0);
+    //cb.draw(numAtoms_ * 6, 8000, 0, 0);
+    cb.draw(numAtoms_ * 6, 1, 0, 0);
   }
 
   void buildDescriptorSets(vk::Device device, vk::DescriptorSetLayout layout, vk::Buffer ubo, vk::DescriptorPool descriptorPool) {
@@ -222,6 +241,7 @@ public:
     glfwTerminate();
   }
 
+
 private:
   void init() {
     glfwInit();
@@ -230,7 +250,7 @@ private:
 
     const char *title = "molvoo";
     glfwwindow_ = glfwCreateWindow(1600, 1200, title, nullptr, nullptr);
-    glfwSetInputMode(glfwwindow_, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+    //glfwSetInputMode(glfwwindow_, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
     fw_ = vku::Framework{title};
     if (!fw_.ok()) {
@@ -256,9 +276,8 @@ private:
       0.0f,  0.0f, 0.5f, 1.0f
     );
 
-    moleculeState_.cameraToPerspective = leftHandCorrection * glm::perspective(glm::radians(45.0f), (float)window_.width()/window_.height(), 0.1f, 1000.0f);
-    moleculeState_.modelToWorld = glm::mat4{};
-    moleculeState_.cameraToWorld = glm::translate(glm::mat4{}, glm::vec3(0, 0, 50));
+    cameraState_.cameraToPerspective = leftHandCorrection * glm::perspective(glm::radians(45.0f), (float)window_.width()/window_.height(), 0.1f, 1000.0f);
+    //moleculeState_.modelToWorld = glm::mat4{};
 
     raytracePipeline_ = RaytracePipeline(device_, fw_.descriptorPool(), fw_.pipelineCache(), fw_.memprops(), window_.renderPass(), window_.width(), window_.height(), window_.numImageIndices());
     moleculeModel_ = MoleculeModel(SOURCE_DIR "molvoo/molvoo.pdb", device_, fw_.memprops(), window_.commandPool(), fw_.graphicsQueue());
@@ -284,6 +303,11 @@ private:
     using ccbits = vk::CommandPoolCreateFlagBits;
     vk::CommandPoolCreateInfo ccpci{ ccbits::eTransient|ccbits::eResetCommandBuffer, fw_.graphicsQueueFamilyIndex() };
     computeCommandPool_ = fw_.device().createCommandPoolUnique(ccpci);
+
+    glfwSetWindowUserPointer(glfwwindow_, (void*)this);
+    glfwSetScrollCallback(glfwwindow_, scrollHandler);
+    glfwSetMouseButtonCallback(glfwwindow_, mouseButtonHandler);
+    glfwSetKeyCallback(glfwwindow_, keyHandler);
   }
 
   bool doPoll() {
@@ -291,22 +315,22 @@ private:
 
     glfwPollEvents();
 
-    double xpos, ypos;
-    glfwGetCursorPos(glfwwindow_, &xpos, &ypos);
-    int dx = int(xpos) - mouseState_.prevXpos;
-    int dy = int(ypos) - mouseState_.prevYpos;
-    if (!mouseState_.start) {
+    if (mouseState_.rotating) {
+      double xpos, ypos;
+      glfwGetCursorPos(glfwwindow_, &xpos, &ypos);
+      float dx = float(xpos - mouseState_.prevXpos);
+      float dy = float(ypos - mouseState_.prevYpos);
       float xspeed = 0.1f;
       float yspeed = 0.1f;
       glm::mat4 worldToModel = glm::inverse(moleculeState_.modelToWorld);
       glm::vec3 xaxis = worldToModel[0];
       glm::vec3 yaxis = worldToModel[1];
-      moleculeState_.modelToWorld = glm::rotate(moleculeState_.modelToWorld, glm::radians(dy * yspeed), xaxis);
-      moleculeState_.modelToWorld = glm::rotate(moleculeState_.modelToWorld, glm::radians(dx * xspeed), yaxis);
-    }
-    mouseState_.start = false;
-    mouseState_.prevXpos = int(xpos);
-    mouseState_.prevYpos = int(ypos);
+      auto &mat = moleculeState_.modelToWorld;
+      mat = glm::rotate(mat, glm::radians(dy * yspeed), xaxis);
+      mat = glm::rotate(mat, glm::radians(dx * xspeed), yaxis);
+      mouseState_.prevXpos = xpos;
+      mouseState_.prevYpos = ypos;
+    }    
 
     //moleculeState_.modelToWorld = glm::rotate(moleculeState_.modelToWorld, glm::radians(1.0f), glm::vec3(0, 1, 0));
 
@@ -315,9 +339,11 @@ private:
         // Record the dynamic buffer.
         vk::CommandBufferBeginInfo bi{};
         pscb.begin(bi);
+        glm::mat4 cameraToWorld = glm::translate(glm::mat4{}, glm::vec3(0, 0, cameraState_.cameraDistance));
+        glm::mat4 modelToWorld = moleculeState_.modelToWorld;
         raytracePipeline_.update(
           fw_.device(), pscb, fw_.graphicsQueueFamilyIndex(), fw_.graphicsQueueFamilyIndex(),
-          moleculeState_.cameraToPerspective, moleculeState_.modelToWorld, moleculeState_.cameraToWorld,
+          cameraState_.cameraToPerspective, modelToWorld, cameraToWorld,
           moleculeModel_.atoms(),
           moleculeModel_.numAtoms(), moleculeModel_.descriptorSet()
         );
@@ -329,27 +355,82 @@ private:
     return true;
   }
 
+  static void scrollHandler(GLFWwindow *window, double dx, double dy) {
+    Molvoo &app = *(Molvoo*)glfwGetWindowUserPointer(window);
+    app.cameraState_.cameraDistance -= (float)dy * 4.0f;
+  }
+
+  static void mouseButtonHandler(GLFWwindow *window, int button, int action, int mods) {
+    Molvoo &app = *(Molvoo*)glfwGetWindowUserPointer(window);
+    auto &mouseState_ = app.mouseState_; 
+    switch (button) {
+      case GLFW_MOUSE_BUTTON_1: {
+      } break;
+ 
+      case GLFW_MOUSE_BUTTON_2: {
+        if (action == GLFW_PRESS) {
+          mouseState_.rotating = true;
+          glfwGetCursorPos(window, &mouseState_.prevXpos, &mouseState_.prevYpos);
+        } else {
+          mouseState_.rotating = false;
+        }
+      } break;
+ 
+      case GLFW_MOUSE_BUTTON_3: {
+      } break;
+    }
+  }
+
+  static void keyHandler(GLFWwindow *window, int key, int scancode, int action, int mods) {
+    Molvoo &app = *(Molvoo*)glfwGetWindowUserPointer(window);
+    auto &pos = app.moleculeState_.modelToWorld[3];
+    auto &cam = app.cameraState_.cameraRotation;
+
+    // move the molecule along the camera x and y axis.
+    switch (key) {
+      case GLFW_KEY_LEFT: {
+        pos += cam[0] * 0.5f;
+      } break;
+      case GLFW_KEY_RIGHT: {
+        pos -= cam[0] * 0.5f;
+      } break;
+      case GLFW_KEY_UP: {
+        pos -= cam[1] * 0.5f;
+      } break;
+      case GLFW_KEY_DOWN: {
+        pos += cam[1] * 0.5f;
+      } break;
+    }
+  }
+
   vku::Framework fw_;
   vku::Window  window_;
 
   RaytracePipeline raytracePipeline_;
   MoleculeModel moleculeModel_;
+
   struct MouseState {
-    int prevXpos = 0;
-    int prevYpos = 0;
-    bool start = true;
+    double prevXpos = 0;
+    double prevYpos = 0;
+    bool rotating = false;
   };
   MouseState mouseState_;
+
   GLFWwindow *glfwwindow_;
   vk::Device device_;
   vk::UniqueCommandPool computeCommandPool_;
 
   struct MoleculeState {
-    glm::mat4 cameraToPerspective;
     glm::mat4 modelToWorld;
-    glm::mat4 cameraToWorld;
   };
   MoleculeState moleculeState_;
+
+  struct CameraState {
+    glm::mat4 cameraRotation;
+    glm::mat4 cameraToPerspective;
+    float cameraDistance = 50.0f;
+  };
+  CameraState cameraState_;
 };
 
 int main(int argc, char **argv) {

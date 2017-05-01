@@ -14,6 +14,7 @@ layout (binding = 0) uniform Uniform {
   mat4 cameraToWorld;
   vec4 colour;
   vec2 pointScale;
+  float timeStep;
 } u;
 
 out gl_PerVertex {
@@ -25,6 +26,9 @@ struct Atom {
   vec3 pos;
   float radius;
   vec3 colour;
+  float mass;
+  vec3 velocity;
+  int pad;
 };
 
 layout(std430, binding=1) buffer Atoms {
@@ -42,9 +46,9 @@ void main() {
   Atom atom = a.atoms[gl_VertexIndex / 6];
   vec2 vpos = verts[gl_VertexIndex % 6] * (atom.radius * 1.1);
   vec3 pos = atom.pos;
-  pos.x += (gl_InstanceIndex % 20 - 10) * 100.0;
-  pos.y += (gl_InstanceIndex / 20 % 20 - 10) * 100.0;
-  pos.z += (gl_InstanceIndex / 400 % 20 - 10) * 100.0;
+  //pos.x += (gl_InstanceIndex % 20 - 10) * 100.0;
+  //pos.y += (gl_InstanceIndex / 20 % 20 - 10) * 100.0;
+  //pos.z += (gl_InstanceIndex / 400 % 20 - 10) * 100.0;
   vec3 worldCentre = vec3(u.modelToWorld * vec4(pos, 1));
   vec3 worldPos = worldCentre + u.cameraToWorld[0].xyz * vpos.x + u.cameraToWorld[1].xyz * vpos.y;
   vec3 cameraPos = u.cameraToWorld[3].xyz;

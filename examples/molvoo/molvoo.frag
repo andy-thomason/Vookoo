@@ -16,6 +16,7 @@ layout (binding = 0) uniform Uniform {
   mat4 cameraToWorld;
   vec4 colour;
   vec2 pointScale;
+  float timeStep;
 } u;
 
 // Ray-sphere (c, r) in ray space (d)
@@ -33,9 +34,6 @@ void main() {
 
   float t = (-b - sqrt(q)) * 0.5;
   if (t < 0) discard;
-
-  //float z = t * t + t * b + c;
-  //if (abs(z) > 0.01) discard;
 
   vec3 intersection = rayDir * t;
   vec3 normal = normalize(intersection - inCentre);
