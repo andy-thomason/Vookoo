@@ -13,8 +13,6 @@ layout (binding = 0) uniform Uniform {
   float timeStep;
 } u;
 
-#include "structures.h"
-
 struct Atom {
   vec3 pos;
   float radius;
@@ -34,5 +32,5 @@ layout (local_size_x = 64) in;
 
 void main() {
   uint id = gl_GlobalInvocationID.x;
-  a.atoms[id].pos += a.atoms[id].velocity * u.timeStep;
+  //a.atoms[id].pos += a.atoms[id].velocity * u.timeStep;
 }

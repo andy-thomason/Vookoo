@@ -29,6 +29,8 @@ struct Atom {
   float mass;
   vec3 velocity;
   int pad;
+  vec3 acceleration;
+  int pad2;
 };
 
 layout(std430, binding=1) buffer Atoms {
