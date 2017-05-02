@@ -11,6 +11,7 @@ layout (binding = 0) uniform Uniform {
   vec4 colour;
   vec2 pointScale;
   float timeStep;
+  uint numAtoms;
 } u;
 
 struct Atom {
@@ -31,6 +32,6 @@ layout(std430, binding=1) buffer Atoms {
 layout (local_size_x = 64) in;
 
 void main() {
-  uint id = gl_GlobalInvocationID.x;
-  //a.atoms[id].pos += a.atoms[id].velocity * u.timeStep;
+  uint id = 0; //gl_GlobalInvocationID.x;
+  a.atoms[id].pos += a.atoms[id].velocity * u.colour.x;
 }

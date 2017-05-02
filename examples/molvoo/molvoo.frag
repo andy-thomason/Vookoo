@@ -17,6 +17,7 @@ layout (binding = 0) uniform Uniform {
   vec4 colour;
   vec2 pointScale;
   float timeStep;
+  uint numAtoms;
 } u;
 
 // Ray-sphere (c, r) in ray space (d)

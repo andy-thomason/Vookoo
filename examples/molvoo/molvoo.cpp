@@ -67,21 +67,28 @@ public:
     uniform.normalToWorld = modelToWorld;
     uniform.pointScale = glm::vec2(1.5f, 2.0f); //(float)window.width();
     uniform.timeStep = 1.0f/60;
+    uniform.numAtoms = numAtoms;
+
+    using psflags = vk::PipelineStageFlagBits;
+    using aflags = vk::AccessFlagBits;
 
     cb.updateBuffer(ubo_.buffer(), 0, sizeof(Uniform), (void*)&uniform);
+
+    ubo_.barrier(
+      cb, psflags::eHost, psflags::eTopOfPipe, {},
+      aflags::eHostWrite, aflags::eShaderRead, graphicsFamilyIndex, graphicsFamilyIndex
+    );
 
     cb.bindDescriptorSets(vk::PipelineBindPoint::eCompute, pipelineLayout(), 0, descriptorSet, nullptr);
     cb.bindPipeline(vk::PipelineBindPoint::eCompute, *computePipeline_);
     
-    using psflags = vk::PipelineStageFlagBits;
-    using aflags = vk::AccessFlagBits;
     atoms.barrier(
       cb, psflags::eTopOfPipe, psflags::eComputeShader, {},
       aflags::eShaderRead, aflags::eShaderRead|aflags::eShaderWrite, graphicsFamilyIndex, graphicsFamilyIndex
     );
 
     // Do the physics update on the GPU
-    cb.dispatch(numAtoms, 1, 1);
+    cb.dispatch(1, 1, 1);
         
     atoms.barrier(
       cb, psflags::eComputeShader, psflags::eTopOfPipe, {},
@@ -121,6 +128,7 @@ public:
     vec4 colour;
     vec2 pointScale;
     float timeStep;
+    uint numAtoms;
   };
 
   vk::Pipeline pipeline() const { return *pipeline_; }
