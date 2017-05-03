@@ -7,15 +7,12 @@ layout(location = 2) out float outRadius;
 layout(location = 3) out vec3 outRayDir;
 layout(location = 4) out vec3 outRayStart;
 
-layout (binding = 0) uniform Uniform {
+layout (binding = 1) uniform Uniform {
   mat4 worldToPerspective;
   mat4 modelToWorld;
   mat4 normalToWorld;
   mat4 cameraToWorld;
   vec4 colour;
-  vec2 pointScale;
-  float timeStep;
-  uint numAtoms;
 } u;
 
 out gl_PerVertex {
@@ -34,7 +31,7 @@ struct Atom {
   int pad2;
 };
 
-layout(std430, binding=1) buffer Atoms {
+layout(std430, binding=0) buffer Atoms {
   Atom atoms[];
 } a;
 

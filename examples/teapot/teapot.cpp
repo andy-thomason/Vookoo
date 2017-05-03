@@ -309,7 +309,7 @@ int main() {
     glfwPollEvents();
 
     window.draw(fw.device(), fw.graphicsQueue(),
-      [&](vk::CommandBuffer pscb, int imageIndex) {
+      [&](vk::CommandBuffer cb, int imageIndex, vk::RenderPassBeginInfo &rpbi) {
         Uniform uniform{};
         modelToWorld = glm::rotate(modelToWorld, glm::radians(1.0f), glm::vec3(0, 0, 1));
         uniform.modelToPerspective = cameraToPerspective * worldToCamera * modelToWorld;
@@ -321,23 +321,23 @@ int main() {
 
         // Record the dynamic buffer.
         vk::CommandBufferBeginInfo bi{};
-        pscb.begin(bi);
+        cb.begin(bi);
 
         // Copy the uniform data to the buffer. (note this is done
         // inline and so we can discard "unform" afterwards)
-        pscb.updateBuffer(ubo.buffer(), 0, sizeof(Uniform), (void*)&uniform);
+        cb.updateBuffer(ubo.buffer(), 0, sizeof(Uniform), (void*)&uniform);
 
         // First renderpass. Draw the shadow.
-        pscb.beginRenderPass(shadowRpbi, vk::SubpassContents::eInline);
-        pscb.bindPipeline(vk::PipelineBindPoint::eGraphics, *shadowPipeline);
-        pscb.bindVertexBuffers(0, vbo.buffer(), vk::DeviceSize(0));
-        pscb.bindIndexBuffer(ibo.buffer(), vk::DeviceSize(0), vk::IndexType::eUint32);
-        pscb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *pipelineLayout, 0, descriptorSets, nullptr);
-        pscb.setDepthBias(depthBiasConstantFactor, 0.0f, depthBiasSlopeFactor);
-        pscb.drawIndexed(indexCount, 1, 0, 0, 0);
-        pscb.endRenderPass();
+        cb.beginRenderPass(shadowRpbi, vk::SubpassContents::eInline);
+        cb.bindPipeline(vk::PipelineBindPoint::eGraphics, *shadowPipeline);
+        cb.bindVertexBuffers(0, vbo.buffer(), vk::DeviceSize(0));
+        cb.bindIndexBuffer(ibo.buffer(), vk::DeviceSize(0), vk::IndexType::eUint32);
+        cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *pipelineLayout, 0, descriptorSets, nullptr);
+        cb.setDepthBias(depthBiasConstantFactor, 0.0f, depthBiasSlopeFactor);
+        cb.drawIndexed(indexCount, 1, 0, 0, 0);
+        cb.endRenderPass();
 
-        pscb.end();
+        cb.end();
       }
     );
 

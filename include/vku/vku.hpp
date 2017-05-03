@@ -363,8 +363,8 @@ public:
 
   /// Add a push constant range to the pipeline.
   /// These describe the size and location of variables in the push constant area.
-  void pushConstantRange(vk::PushConstantRange range) {
-    pushConstantRanges_.push_back(range);
+  void pushConstantRange(vk::ShaderStageFlags stageFlags_, uint32_t offset_, uint32_t size_) {
+    pushConstantRanges_.emplace_back(stageFlags_, offset_, size_);
   }
 
 private:

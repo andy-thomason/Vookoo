@@ -1,4 +1,3 @@
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 // Demo framework for the Vookoo for the Vookoo high level C++ Vulkan interface.
@@ -421,6 +420,13 @@ public:
       commandBufferFences_.emplace_back(device.createFence(fci));
     }
 
+    for (int i = 0; i != staticDrawBuffers_.size(); ++i) {
+      vk::CommandBuffer cb = *staticDrawBuffers_[i];
+      vk::CommandBufferBeginInfo bi{};
+      cb.begin(bi);
+      cb.end();
+    }
+
     ok_ = true;
   }
 
@@ -441,10 +447,16 @@ public:
     }
   }
 
-  typedef void (staticCommandFunc_t)(vk::CommandBuffer cb, int imageIndex, vk::RenderPassBeginInfo &rpbi);
+  static void defaultRenderFunc(vk::CommandBuffer cb, int imageIndex, vk::RenderPassBeginInfo &rpbi) {
+    vk::CommandBufferBeginInfo bi{};
+    cb.begin(bi);
+    cb.end();
+  }
+
+  typedef void (renderFunc_t)(vk::CommandBuffer cb, int imageIndex, vk::RenderPassBeginInfo &rpbi);
 
   /// Build a static draw buffer. This will be rendered after any dynamic content generated in draw()
-  void setStaticCommands(const std::function<staticCommandFunc_t> &func) {
+  void setStaticCommands(const std::function<renderFunc_t> &func) {
     for (int i = 0; i != staticDrawBuffers_.size(); ++i) {
       vk::CommandBuffer cb = *staticDrawBuffers_[i];
 
@@ -462,17 +474,9 @@ public:
     }
   }
 
-  typedef void (dynamicFunc_t)(vk::CommandBuffer pscb, int imageIndex);
-
-  static void defaultdynamicFunc(vk::CommandBuffer pscb, int imageIndex) {
-    vk::CommandBufferBeginInfo bi{};
-    pscb.begin(bi);
-    pscb.end();
-  }
-
   /// Queue the static command buffer for the next image in the swap chain. Optionally call a function to create a dynamic command buffer
   /// for uploading textures, changing uniforms etc.
-  void draw(const vk::Device &device, const vk::Queue &graphicsQueue, const std::function<void (vk::CommandBuffer pscb, int imageIndex)> &dynamic = defaultdynamicFunc) {
+  void draw(const vk::Device &device, const vk::Queue &graphicsQueue, const std::function<void (vk::CommandBuffer cb, int imageIndex, vk::RenderPassBeginInfo &rpbi)> &dynamic = defaultRenderFunc) {
     static auto start = std::chrono::high_resolution_clock::now();
     auto time = std::chrono::high_resolution_clock::now();
     auto delta = time - start;
@@ -494,7 +498,16 @@ public:
     device.waitForFences(cbFence, 1, umax);
     device.resetFences(cbFence);
 
-    dynamic(pscb, imageIndex);
+    std::array<float, 4> clearColorValue{0.75f, 0.75f, 0.75f, 1};
+    vk::ClearDepthStencilValue clearDepthValue{ 1.0f, 0 };
+    std::array<vk::ClearValue, 2> clearColours{vk::ClearValue{clearColorValue}, clearDepthValue};
+    vk::RenderPassBeginInfo rpbi;
+    rpbi.renderPass = *renderPass_;
+    rpbi.framebuffer = *framebuffers_[imageIndex];
+    rpbi.renderArea = vk::Rect2D{{0, 0}, {width_, height_}};
+    rpbi.clearValueCount = (uint32_t)clearColours.size();
+    rpbi.pClearValues = clearColours.data();
+    dynamic(pscb, imageIndex, rpbi);
 
     vk::SubmitInfo submit;
     submit.waitSemaphoreCount = 1;

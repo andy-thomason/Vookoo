@@ -1,17 +1,9 @@
 #version 450
-#extension GL_ARB_separate_shader_objects : enable
-#extension GL_GOOGLE_include_directive : enable
 
-
-layout (binding = 0) uniform Uniform {
-  mat4 worldToPerspective;
-  mat4 modelToWorld;
-  mat4 normalToWorld;
-  mat4 cameraToWorld;
-  vec4 colour;
-  vec2 pointScale;
+layout (push_constant) uniform ComputeUniform {
   float timeStep;
   uint numAtoms;
+  uint pickIndex;
 } u;
 
 struct Atom {
@@ -25,13 +17,27 @@ struct Atom {
   int pad2;
 };
 
-layout(std430, binding=1) buffer Atoms {
+layout(std430, binding=0) buffer Atoms {
   Atom atoms[];
 } a;
+
+struct Pick {
+  vec3 rayStart;
+  uint atom;
+  vec3 rayDir;
+  uint found;
+};
+
+layout(std430, binding=2) buffer Picks {
+  Pick picks[];
+} pick;
 
 layout (local_size_x = 64) in;
 
 void main() {
-  uint id = 0; //gl_GlobalInvocationID.x;
-  a.atoms[id].pos += a.atoms[id].velocity * u.colour.x;
+  uint id = gl_GlobalInvocationID.x;
+  a.atoms[id].pos += a.atoms[id].velocity * u.timeStep;
+  if (id == 0) {
+    pick.picks[u.pickIndex].atom++;
+  }
 }

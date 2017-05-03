@@ -9,15 +9,12 @@ layout(location = 4) in vec3 inRayStart;
 
 layout(location = 0) out vec4 outColour;
 
-layout (binding = 0) uniform Uniform {
+layout (binding = 1) uniform Uniform {
   mat4 worldToPerspective;
   mat4 modelToWorld;
   mat4 normalToWorld;
   mat4 cameraToWorld;
   vec4 colour;
-  vec2 pointScale;
-  float timeStep;
-  uint numAtoms;
 } u;
 
 // Ray-sphere (c, r) in ray space (d)
