@@ -1,6 +1,10 @@
 #include <vku/vku_framework.hpp>
 #include <vku/vku.hpp>
+
 #include <glm/glm.hpp>
+
+//#define GLM_FORCE_DEPTH_ZERO_TO_ONE
+//#define GLM_FORCE_LEFT_HANDED
 #include <glm/ext.hpp>
 
 #include <gilgamesh/mesh.hpp>
@@ -29,6 +33,7 @@ public:
     dslm.buffer(0U, vk::DescriptorType::eStorageBuffer, vk::ShaderStageFlagBits::eAll, 1); // Atoms
     dslm.buffer(1U, vk::DescriptorType::eUniformBuffer, vk::ShaderStageFlagBits::eAll, 1); // Uniform
     dslm.buffer(2U, vk::DescriptorType::eStorageBuffer, vk::ShaderStageFlagBits::eCompute, 1); // Pick
+    dslm.buffer(3U, vk::DescriptorType::eStorageBuffer, vk::ShaderStageFlagBits::eCompute, 1); // Connections
     layout_ = dslm.createUnique(device);
 
     vku::PipelineLayoutMaker plm{};
@@ -79,16 +84,14 @@ public:
   struct Connection {
     uint from;
     uint to;
-    float length;
+    float naturalLength;
     float springConstant;
   };
   
   struct Pick {
     static constexpr uint fifoSize = 4;
-    vec3 rayStart;
     uint atom;
-    vec3 rayDir;
-    uint found;
+    uint distance;
   };
   
   struct RenderUniform {
@@ -101,9 +104,13 @@ public:
   };
 
   struct ComputeUniform {
+    vec3 rayStart;
     float timeStep;
+    vec3 rayDir;
     uint numAtoms;
+    uint numConnections;
     uint pickIndex;
+    uint pass;
   };
 
   vk::Pipeline pipeline() const { return *pipeline_; }
@@ -153,19 +160,55 @@ public:
       a.radius = 1.0f;
       a.colour = colour;
       a.velocity = glm::vec3(0, 0, 0);
+      a.mass = 1.0f;
       atoms.push_back(a);
     }
 
-    atoms[0].velocity = glm::vec3(1, 0, 0);
+    std::vector<std::pair<int, int>> pairs;
+    int prevC = -1;
+    char prevChainID = '?';
+    for (size_t bidx = 0; bidx != pdbAtoms.size(); ) {
+      // At the start of every Amino Acid, connect the atoms.
+      char chainID = pdbAtoms[bidx].chainID();
+      char iCode = pdbAtoms[bidx].iCode();
+      size_t eidx = pdb.nextResidue(pdbAtoms, bidx);
+      if (prevChainID != chainID) prevC = -1;
+
+      // iCode is 'A' etc. for alternates.
+      if (iCode == ' ') {
+        prevC = pdb.addImplicitConnections(pdbAtoms, pairs, bidx, eidx, prevC, false);
+        prevChainID = chainID;
+      }
+      bidx = eidx;
+    }
+
+    std::vector<Connection> conns;
+    for (auto &p : pairs) {
+      Connection c;
+      c.from = p.first;
+      c.to = p.second;
+      glm::vec3 p1 = atoms[c.from].pos;
+      glm::vec3 p2 = atoms[c.to].pos;
+      c.naturalLength = glm::length(p2 - p1);
+      c.springConstant = 10;
+      conns.push_back(c);
+    }
+
+    //atoms[0].velocity = glm::vec3(1, 0, 0);
+    //atoms[0].radius = 4;
+    //atoms[0].pos = glm::vec3(0, 0, 0);
 
     numAtoms_ = (uint32_t)atoms.size();
+    numConnections_ = (uint32_t)conns.size();
 
-    size_t sbsize = numAtoms_ * sizeof(Atom);
     using buf = vk::BufferUsageFlagBits;
-    atoms_ = vku::GenericBuffer(device, memprops, buf::eStorageBuffer|buf::eTransferDst, sbsize, vk::MemoryPropertyFlagBits::eDeviceLocal);
+    //atoms_ = vku::GenericBuffer(device, memprops, buf::eStorageBuffer|buf::eTransferDst, numAtoms_ * sizeof(Atom), vk::MemoryPropertyFlagBits::eDeviceLocal);
+    atoms_ = vku::GenericBuffer(device, memprops, buf::eStorageBuffer|buf::eTransferDst, numAtoms_ * sizeof(Atom), vk::MemoryPropertyFlagBits::eHostVisible);
     pick_ = vku::GenericBuffer(device, memprops, buf::eStorageBuffer, sizeof(Pick) * Pick::fifoSize, vk::MemoryPropertyFlagBits::eHostVisible);
+    conns_ = vku::GenericBuffer(device, memprops, buf::eStorageBuffer|buf::eTransferDst, sizeof(Connection) * numConnections_, vk::MemoryPropertyFlagBits::eHostVisible);
 
     atoms_.upload(device, memprops, commandPool, queue, atoms);
+    conns_.upload(device, memprops, commandPool, queue, conns);
   }
 
   void buildDescriptorSets(vk::Device device, vk::DescriptorSetLayout layout, vk::DescriptorPool descriptorPool, vk::Buffer ubo) {
@@ -184,29 +227,36 @@ public:
     update.buffer(ubo, 0, sizeof(RenderUniform));
     update.beginBuffers(2, 0, vk::DescriptorType::eStorageBuffer);
     update.buffer(pick_.buffer(), 0, sizeof(Pick) * Pick::fifoSize);
+    update.beginBuffers(3, 0, vk::DescriptorType::eStorageBuffer);
+    update.buffer(conns_.buffer(), 0, sizeof(Connection) * numConnections_);
 
     update.update(device);
   }
 
   vk::DescriptorSet descriptorSet() const { return descriptorSet_; }
   uint32_t numAtoms() const { return numAtoms_; }
+  uint32_t numConnections() const { return numConnections_; }
   const vku::GenericBuffer &atoms() const { return atoms_; }
   const vku::GenericBuffer &pick() const { return pick_; }
+  const vku::GenericBuffer &conns() const { return conns_; }
 private:
   using Atom = RaytracePipeline::Atom;
   using Pick = RaytracePipeline::Pick;
+  using Connection = RaytracePipeline::Connection;
   using RenderUniform = RaytracePipeline::RenderUniform;
 
   uint32_t numAtoms_;
+  uint32_t numConnections_;
   vku::GenericBuffer atoms_;
   vku::GenericBuffer pick_;
+  vku::GenericBuffer conns_;
   vk::DescriptorSet descriptorSet_;
 };
 
 class Molvoo {
 public:
   Molvoo(int argc, char **argv) {
-    init();
+    init(argc, argv);
   }
 
   bool poll() { return doPoll(); }
@@ -219,7 +269,29 @@ public:
 
 
 private:
-  void init() {
+  void usage() {
+    
+  }
+
+  void init(int argc, char **argv) {
+    const char *filename = nullptr;
+    for (int i = 1; i != argc; ++i) {
+      const char *arg = argv[i];
+      if (arg[0] == '-') {
+      } else {
+        if (filename) {
+          fprintf(stderr, "only one filename at a time please\n");
+          usage();
+          return;
+        }
+        filename = arg;
+      }
+    }
+
+    if (!filename) {
+      filename = SOURCE_DIR "molvoo/molvoo.pdb";
+    }
+
     glfwInit();
 
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
@@ -251,12 +323,13 @@ private:
       0.0f,  0.0f, 0.5f, 0.0f,
       0.0f,  0.0f, 0.5f, 1.0f
     );
+    //glm::mat4 leftHandCorrection;
 
     cameraState_.cameraToPerspective = leftHandCorrection * glm::perspective(glm::radians(45.0f), (float)window_.width()/window_.height(), 0.1f, 1000.0f);
     //moleculeState_.modelToWorld = glm::mat4{};
 
     raytracePipeline_ = RaytracePipeline(device_, window_.commandPool(), fw_.graphicsQueue(), fw_.descriptorPool(), fw_.pipelineCache(), fw_.memprops(), window_.renderPass(), window_.width(), window_.height(), window_.numImageIndices());
-    moleculeModel_ = MoleculeModel(SOURCE_DIR "molvoo/molvoo.pdb", device_, fw_.memprops(), window_.commandPool(), fw_.graphicsQueue());
+    moleculeModel_ = MoleculeModel(filename, device_, fw_.memprops(), window_.commandPool(), fw_.graphicsQueue());
     moleculeModel_.buildDescriptorSets(device_, raytracePipeline_.descriptorSetLayout(), fw_.descriptorPool(), raytracePipeline_.ubo().buffer());
 
     using Pick = RaytracePipeline::Pick;
@@ -286,9 +359,10 @@ private:
 
     glfwPollEvents();
 
+    double xpos, ypos;
+    glfwGetCursorPos(glfwwindow_, &xpos, &ypos);
+
     if (mouseState_.rotating) {
-      double xpos, ypos;
-      glfwGetCursorPos(glfwwindow_, &xpos, &ypos);
       float dx = float(xpos - mouseState_.prevXpos);
       float dy = float(ypos - mouseState_.prevYpos);
       float xspeed = 0.1f;
@@ -307,15 +381,47 @@ private:
 
     auto gfi = fw_.graphicsQueueFamilyIndex();
     using Pick = RaytracePipeline::Pick;
+    using Atom = RaytracePipeline::Atom;
+    using Connection = RaytracePipeline::Connection;
 
     vk::Event event = *pickEvents_[pickReadIndex_ & (Pick::fifoSize-1)];
     while (device.getEventStatus(event) == vk::Result::eEventSet) {
       Pick *pick = (Pick*)moleculeModel_.pick().map(device);
-      printf("%d %d %d %d %d %d\n", pickWriteIndex_, pickReadIndex_, pick[0].atom, pick[1].atom, pick[2].atom, pick[3].atom);
+      Pick &p = pick[pickReadIndex_ & (Pick::fifoSize-1)];
+      moleculeState_.mouseAtom = p.atom;
       moleculeModel_.pick().unmap(device);
+      p.distance = ~0;
+      p.atom = ~0;
       device.resetEvent(event);
       pickReadIndex_++;
     }
+
+    if (0) {
+      Atom *atoms = (Atom*)moleculeModel_.atoms().map(device);
+      Connection *conns = (Connection*)moleculeModel_.conns().map(device);
+      using vec3 = glm::vec3;
+
+      //for (int i = 0; i != moleculeModel_.numConnections(); ++i) {
+      for (int i = 0; i != 1; ++i) {
+        float timeStep = 1.0f/60;
+        Connection conn = conns[i];
+        vec3 p1 = atoms[conn.from].pos;
+        vec3 p2 = atoms[conn.to].pos;
+        vec3 v1 = atoms[conn.from].velocity;
+        vec3 v2 = atoms[conn.to].velocity;
+        float len = length(p2 - p1);
+        float dv = length(v2 - v1);
+        vec3 axis = normalize(p2 - p1);
+        float f = conn.springConstant * (len - conn.naturalLength);
+        //atoms[conn.from].velocity += axis * (f * timeStep / atoms[conn.from].mass);
+        //atoms[conn.to].velocity -= axis * (f * timeStep / atoms[conn.to].mass);
+        //printf("%d -> %d l=%f nl=%f f=%f\n", conn.from, conn.to, len, conn.naturalLength, f);
+      }
+
+      moleculeModel_.atoms().unmap(device);
+      moleculeModel_.conns().unmap(device);
+    }
+
 
     window_.draw(device, fw_.graphicsQueue(),
       [&](vk::CommandBuffer cb, int imageIndex, vk::RenderPassBeginInfo &rpbi) {
@@ -326,23 +432,52 @@ private:
         ComputeUniform cu;
         cu.timeStep = 1.0f/60;
         cu.numAtoms = moleculeModel_.numAtoms();
+        cu.numConnections = moleculeModel_.numConnections();
         cu.pickIndex = (pickWriteIndex_++) & (Pick::fifoSize-1);
+
+        glm::mat4 cameraToWorld = glm::translate(glm::mat4{}, glm::vec3(0, 0, cameraState_.cameraDistance));
+        glm::mat4 modelToWorld = moleculeState_.modelToWorld;
+
+        glm::mat4 worldToCamera = glm::inverse(cameraToWorld);
+        glm::mat4 worldToModel = glm::inverse(modelToWorld);
+
+        glm::vec3 worldCameraPos = cameraToWorld[3];
+        glm::vec3 modelCameraPos = worldToModel * glm::vec4(worldCameraPos, 1);
+        float xscreen = (float)xpos * 2.0f / window_.width() - 1.0f;
+        float yscreen = (float)ypos * 2.0f / window_.height() - 1.0f;
+        float tanfovX = 1.0f / cameraState_.cameraToPerspective[0][0];
+        float tanfovY = 1.0f / cameraState_.cameraToPerspective[1][1];
+        glm::vec4 cameraMouseDir = glm::vec4(xscreen * tanfovX, yscreen * tanfovY, -1, 0);
+        glm::vec3 modelMouseDir = worldToModel * (cameraToWorld * cameraMouseDir);
+        cu.rayStart = modelCameraPos;
+        cu.rayDir = glm::normalize(modelMouseDir);
 
         using psflags = vk::PipelineStageFlagBits;
         using aflags = vk::AccessFlagBits;
 
-        // Note that on my Windows PC, the Nvidia driver crashes if I use a uniform buffer here.
-        cb.pushConstants(raytracePipeline_.pipelineLayout(), vk::ShaderStageFlagBits::eCompute, 0, sizeof(ComputeUniform), &cu);
-        cb.bindDescriptorSets(vk::PipelineBindPoint::eCompute, raytracePipeline_.pipelineLayout(), 0, moleculeModel_.descriptorSet(), nullptr);
-        cb.bindPipeline(vk::PipelineBindPoint::eCompute, raytracePipeline_.computePipeline());
-    
         moleculeModel_.atoms().barrier(
           cb, psflags::eTopOfPipe, psflags::eComputeShader, {},
           aflags::eShaderRead, aflags::eShaderRead|aflags::eShaderWrite, gfi, gfi
         );
 
-        // Do the physics update on the GPU
-        cb.dispatch(moleculeModel_.numAtoms(), 1, 1);
+        // Note that on my Windows PC, the Nvidia driver crashes if I use a uniform buffer here.
+        cb.bindDescriptorSets(vk::PipelineBindPoint::eCompute, raytracePipeline_.pipelineLayout(), 0, moleculeModel_.descriptorSet(), nullptr);
+        cb.bindPipeline(vk::PipelineBindPoint::eCompute, raytracePipeline_.computePipeline());
+    
+        // Do the physics acceleration update on the GPU and find the nearest picked atom
+        cu.pass = 0;
+        cb.pushConstants(raytracePipeline_.pipelineLayout(), vk::ShaderStageFlagBits::eCompute, 0, sizeof(ComputeUniform), &cu);
+        cb.dispatch(std::max(cu.numAtoms, cu.numConnections), 1, 1);
+
+        moleculeModel_.atoms().barrier(
+          cb, psflags::eComputeShader, psflags::eComputeShader, {},
+          aflags::eShaderRead|aflags::eShaderWrite, aflags::eShaderRead|aflags::eShaderWrite, gfi, gfi
+        );
+
+        // Do the physics velocity update on the GPU and find select an atom
+        cu.pass = 1;
+        cb.pushConstants(raytracePipeline_.pipelineLayout(), vk::ShaderStageFlagBits::eCompute, 0, sizeof(ComputeUniform), &cu);
+        cb.dispatch(cu.numAtoms, 1, 1);
 
         cb.setEvent(*pickEvents_[cu.pickIndex], vk::PipelineStageFlagBits::eComputeShader);
         
@@ -355,10 +490,6 @@ private:
         using RenderUniform = RaytracePipeline::RenderUniform;
         RenderUniform uniform;
 
-        glm::mat4 cameraToWorld = glm::translate(glm::mat4{}, glm::vec3(0, 0, cameraState_.cameraDistance));
-        glm::mat4 modelToWorld = moleculeState_.modelToWorld;
-
-        glm::mat4 worldToCamera = glm::inverse(cameraToWorld);
 
         uniform.worldToPerspective = cameraState_.cameraToPerspective * worldToCamera;
         uniform.modelToWorld = modelToWorld;
@@ -389,6 +520,14 @@ private:
     auto &mouseState_ = app.mouseState_; 
     switch (button) {
       case GLFW_MOUSE_BUTTON_1: {
+        if (action == GLFW_PRESS) {
+          app.moleculeState_.selectedAtom = app.moleculeState_.mouseAtom;
+          app.moleculeState_.dragging = true;
+          app.moleculeState_.selectedDistance = app.moleculeState_.mouseDistance;
+        } else {
+          app.moleculeState_.selectedAtom = ~0;
+          app.moleculeState_.dragging = false;
+        }
       } break;
  
       case GLFW_MOUSE_BUTTON_2: {
@@ -446,6 +585,11 @@ private:
 
   struct MoleculeState {
     glm::mat4 modelToWorld;
+    uint32_t selectedAtom;
+    uint32_t mouseAtom;
+    float selectedDistance;
+    float mouseDistance;
+    bool dragging = false;
   };
   MoleculeState moleculeState_;
 

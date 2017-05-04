@@ -17,23 +17,34 @@ layout (binding = 1) uniform Uniform {
   vec4 colour;
 } u;
 
+struct rsResult {
+  vec3 pos;
+  bool collides;
+};
+
+rsResult raySphereCollide(vec3 rayDir, vec3 centre, float radius) {
+  const float a = 1.0;
+  float b = -2.0 * dot(centre, rayDir);
+  float c = dot(centre, centre) - radius * radius;
+  float q = b * b - (4.0 * a) * c;
+  float t = (-b - sqrt(q)) * 0.5;
+  rsResult res;
+  res.pos = rayDir * t;
+  res.collides = q >= 0 && t > 0;
+  return res;
+}
+
 // Ray-sphere (c, r) in ray space (d)
 // Intersection at td.
 // (c-td)^2 = r^2
 // c^2 - 2tc.d + t^2 = r^2 (as d^2 = 1)
 // t^2 - t(2c.d) + (c^2-r^2) = 0
 void main() {
-  vec3 rayDir = normalize(inRayDir);
-  const float a = 1.0;
-  float b = -2.0 * dot(inCentre, rayDir);
-  float c = dot(inCentre, inCentre) - inRadius * inRadius;
-  float q = b * b - (4.0 * a) * c;
-  if (q < 0) discard;
+  rsResult res = raySphereCollide(normalize(inRayDir), inCentre, inRadius);
 
-  float t = (-b - sqrt(q)) * 0.5;
-  if (t < 0) discard;
+  if (!res.collides) discard;
 
-  vec3 intersection = rayDir * t;
+  vec3 intersection  = res.pos;
   vec3 normal = normalize(intersection - inCentre);
   vec3 lightDir = normalize(vec3(1, 1, 1));
   vec3 ambient = inColour * 0.3;
