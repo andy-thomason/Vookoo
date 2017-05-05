@@ -15,9 +15,9 @@ struct Atom {
   float radius;
   vec3 colour;
   float mass;
-  vec3 velocity;
+  vec3 prevPos;
   int pad;
-  vec3 acceleration;
+  vec3 acc;
   int pad2;
 };
 
@@ -73,13 +73,11 @@ void main() {
     Connection conn = c.conns[id];
     vec3 p1 = a.atoms[conn.from].pos;
     vec3 p2 = a.atoms[conn.to].pos;
-    vec3 v1 = a.atoms[conn.from].velocity;
-    vec3 v2 = a.atoms[conn.to].velocity;
     float len = length(p2 - p1);
     vec3 axis = normalize(p2 - p1);
     float f = conn.springConstant * (len - conn.naturalLength);
-    a.atoms[conn.from].velocity += axis * (f * u.timeStep / a.atoms[conn.from].mass);
-    a.atoms[conn.to].velocity -= axis * (f * u.timeStep / a.atoms[conn.to].mass);
+    a.atoms[conn.from].acc += axis * (f / a.atoms[conn.from].mass);
+    a.atoms[conn.to].acc -= axis * (f / a.atoms[conn.to].mass);
   }
 
   if (id < u.numAtoms) {
@@ -94,10 +92,12 @@ void main() {
       if (distance == mind) pick.picks[u.pickIndex].atom = id;
     }
 
-    if (u.pass == 1) {
+    if (false && u.pass == 1) {
       // Position update step.
-      a.atoms[id].pos += atom.velocity * u.timeStep;
-      a.atoms[id].velocity *= 0.99f;
+      vec3 newPos = atom.pos * 2 - atom.prevPos + atom.acc * (u.timeStep * u.timeStep);
+      a.atoms[id].prevPos = atom.pos;
+      a.atoms[id].pos = newPos;
+      a.atoms[id].acc = vec3(0, 0, 0);
     }
   }
 }

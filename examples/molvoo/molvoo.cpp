@@ -75,9 +75,9 @@ public:
     float radius;
     vec3 colour;
     float mass;
-    vec3 velocity;
+    vec3 prevPos;
     int pad;
-    vec3 acceleration;
+    vec3 acc;
     int pad2;
   };
 
@@ -156,10 +156,10 @@ public:
       colour.g = colour.g * 0.75f + 0.25f;
       colour.b = colour.b * 0.75f + 0.25f;
       Atom a{};
-      a.pos = pos - mean;
+      a.pos = a.prevPos = pos - mean;
       a.radius = 1.0f;
       a.colour = colour;
-      a.velocity = glm::vec3(0, 0, 0);
+      a.acc = glm::vec3(0, 0, 0);
       a.mass = 1.0f;
       atoms.push_back(a);
     }
@@ -190,7 +190,7 @@ public:
       glm::vec3 p1 = atoms[c.from].pos;
       glm::vec3 p2 = atoms[c.to].pos;
       c.naturalLength = glm::length(p2 - p1);
-      c.springConstant = 10;
+      c.springConstant = 100;
       conns.push_back(c);
     }
 
@@ -267,7 +267,6 @@ public:
     glfwTerminate();
   }
 
-
 private:
   void usage() {
     
@@ -289,7 +288,7 @@ private:
     }
 
     if (!filename) {
-      filename = SOURCE_DIR "molvoo/molvoo.pdb";
+      filename = SOURCE_DIR "molvoo/1hnw.pdb";
     }
 
     glfwInit();
@@ -323,10 +322,9 @@ private:
       0.0f,  0.0f, 0.5f, 0.0f,
       0.0f,  0.0f, 0.5f, 1.0f
     );
-    //glm::mat4 leftHandCorrection;
 
-    cameraState_.cameraToPerspective = leftHandCorrection * glm::perspective(glm::radians(45.0f), (float)window_.width()/window_.height(), 0.1f, 1000.0f);
-    //moleculeState_.modelToWorld = glm::mat4{};
+    float fieldOfView = glm::radians(45.0f);
+    cameraState_.cameraToPerspective = leftHandCorrection * glm::perspective(fieldOfView, (float)window_.width()/window_.height(), 0.1f, 1000.0f);
 
     raytracePipeline_ = RaytracePipeline(device_, window_.commandPool(), fw_.graphicsQueue(), fw_.descriptorPool(), fw_.pipelineCache(), fw_.memprops(), window_.renderPass(), window_.width(), window_.height(), window_.numImageIndices());
     moleculeModel_ = MoleculeModel(filename, device_, fw_.memprops(), window_.commandPool(), fw_.graphicsQueue());
@@ -359,6 +357,8 @@ private:
 
     glfwPollEvents();
 
+    float timeStep = 1.0f / 60;
+
     double xpos, ypos;
     glfwGetCursorPos(glfwwindow_, &xpos, &ypos);
 
@@ -383,12 +383,14 @@ private:
     using Pick = RaytracePipeline::Pick;
     using Atom = RaytracePipeline::Atom;
     using Connection = RaytracePipeline::Connection;
+    using namespace glm;
 
     vk::Event event = *pickEvents_[pickReadIndex_ & (Pick::fifoSize-1)];
     while (device.getEventStatus(event) == vk::Result::eEventSet) {
       Pick *pick = (Pick*)moleculeModel_.pick().map(device);
       Pick &p = pick[pickReadIndex_ & (Pick::fifoSize-1)];
       moleculeState_.mouseAtom = p.atom;
+      moleculeState_.mouseDistance = p.distance / 10000.0;
       moleculeModel_.pick().unmap(device);
       p.distance = ~0;
       p.atom = ~0;
@@ -396,26 +398,34 @@ private:
       pickReadIndex_++;
     }
 
-    if (0) {
+    glm::mat4 cameraToWorld = glm::translate(glm::mat4{}, glm::vec3(0, 0, cameraState_.cameraDistance));
+    glm::mat4 modelToWorld = moleculeState_.modelToWorld;
+
+    glm::mat4 worldToCamera = glm::inverse(cameraToWorld);
+    glm::mat4 worldToModel = glm::inverse(modelToWorld);
+
+    glm::vec3 worldCameraPos = cameraToWorld[3];
+    glm::vec3 modelCameraPos = worldToModel * glm::vec4(worldCameraPos, 1);
+    float xscreen = (float)xpos * 2.0f / window_.width() - 1.0f;
+    float yscreen = (float)ypos * 2.0f / window_.height() - 1.0f;
+    float tanfovX = 1.0f / cameraState_.cameraToPerspective[0][0];
+    float tanfovY = 1.0f / cameraState_.cameraToPerspective[1][1];
+    glm::vec4 cameraMouseDir = glm::vec4(xscreen * tanfovX, yscreen * tanfovY, -1, 0);
+    glm::vec3 modelMouseDir = worldToModel * (cameraToWorld * cameraMouseDir);
+
+    {
       Atom *atoms = (Atom*)moleculeModel_.atoms().map(device);
       Connection *conns = (Connection*)moleculeModel_.conns().map(device);
-      using vec3 = glm::vec3;
 
-      //for (int i = 0; i != moleculeModel_.numConnections(); ++i) {
-      for (int i = 0; i != 1; ++i) {
-        float timeStep = 1.0f/60;
-        Connection conn = conns[i];
-        vec3 p1 = atoms[conn.from].pos;
-        vec3 p2 = atoms[conn.to].pos;
-        vec3 v1 = atoms[conn.from].velocity;
-        vec3 v2 = atoms[conn.to].velocity;
-        float len = length(p2 - p1);
-        float dv = length(v2 - v1);
-        vec3 axis = normalize(p2 - p1);
-        float f = conn.springConstant * (len - conn.naturalLength);
-        //atoms[conn.from].velocity += axis * (f * timeStep / atoms[conn.from].mass);
-        //atoms[conn.to].velocity -= axis * (f * timeStep / atoms[conn.to].mass);
-        //printf("%d -> %d l=%f nl=%f f=%f\n", conn.from, conn.to, len, conn.naturalLength, f);
+      if (moleculeState_.dragging) {
+        if (moleculeState_.selectedAtom < moleculeModel_.numAtoms()) {
+          vec3 mousePos = modelCameraPos + modelMouseDir * moleculeState_.selectedDistance;
+          vec3 atomPos = atoms[moleculeState_.selectedAtom].pos;
+          //printf("%s %s\n", to_string(mousePos).c_str(), to_string(atomPos).c_str());
+          vec3 axis = mousePos - atomPos;
+          float f = length(axis) * 10.0f;
+          atoms[moleculeState_.selectedAtom].acc += normalize(axis) * (f * timeStep);
+        }
       }
 
       moleculeModel_.atoms().unmap(device);
@@ -430,25 +440,12 @@ private:
 
         using ComputeUniform = RaytracePipeline::ComputeUniform;
         ComputeUniform cu;
-        cu.timeStep = 1.0f/60;
+        cu.timeStep = timeStep;
         cu.numAtoms = moleculeModel_.numAtoms();
         cu.numConnections = moleculeModel_.numConnections();
         cu.pickIndex = (pickWriteIndex_++) & (Pick::fifoSize-1);
+        //cu.forceAtom = moleculeState_.selectedAtom;
 
-        glm::mat4 cameraToWorld = glm::translate(glm::mat4{}, glm::vec3(0, 0, cameraState_.cameraDistance));
-        glm::mat4 modelToWorld = moleculeState_.modelToWorld;
-
-        glm::mat4 worldToCamera = glm::inverse(cameraToWorld);
-        glm::mat4 worldToModel = glm::inverse(modelToWorld);
-
-        glm::vec3 worldCameraPos = cameraToWorld[3];
-        glm::vec3 modelCameraPos = worldToModel * glm::vec4(worldCameraPos, 1);
-        float xscreen = (float)xpos * 2.0f / window_.width() - 1.0f;
-        float yscreen = (float)ypos * 2.0f / window_.height() - 1.0f;
-        float tanfovX = 1.0f / cameraState_.cameraToPerspective[0][0];
-        float tanfovY = 1.0f / cameraState_.cameraToPerspective[1][1];
-        glm::vec4 cameraMouseDir = glm::vec4(xscreen * tanfovX, yscreen * tanfovY, -1, 0);
-        glm::vec3 modelMouseDir = worldToModel * (cameraToWorld * cameraMouseDir);
         cu.rayStart = modelCameraPos;
         cu.rayDir = glm::normalize(modelMouseDir);
 
@@ -474,7 +471,7 @@ private:
           aflags::eShaderRead|aflags::eShaderWrite, aflags::eShaderRead|aflags::eShaderWrite, gfi, gfi
         );
 
-        // Do the physics velocity update on the GPU and find select an atom
+        // Do the physics velocity update on the GPU and select an atom
         cu.pass = 1;
         cb.pushConstants(raytracePipeline_.pipelineLayout(), vk::ShaderStageFlagBits::eCompute, 0, sizeof(ComputeUniform), &cu);
         cb.dispatch(cu.numAtoms, 1, 1);
@@ -488,15 +485,14 @@ private:
 
         // Final renderpass.
         using RenderUniform = RaytracePipeline::RenderUniform;
-        RenderUniform uniform;
+        RenderUniform ru;
 
+        ru.worldToPerspective = cameraState_.cameraToPerspective * worldToCamera;
+        ru.modelToWorld = modelToWorld;
+        ru.cameraToWorld = cameraToWorld;
+        ru.normalToWorld = modelToWorld;
 
-        uniform.worldToPerspective = cameraState_.cameraToPerspective * worldToCamera;
-        uniform.modelToWorld = modelToWorld;
-        uniform.cameraToWorld = cameraToWorld;
-        uniform.normalToWorld = modelToWorld;
-
-        cb.updateBuffer(raytracePipeline_.ubo().buffer(), 0, sizeof(RenderUniform), &uniform);
+        cb.updateBuffer(raytracePipeline_.ubo().buffer(), 0, sizeof(RenderUniform), &ru);
         cb.beginRenderPass(rpbi, vk::SubpassContents::eInline);
         cb.bindPipeline(vk::PipelineBindPoint::eGraphics, raytracePipeline_.pipeline());
         cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, raytracePipeline_.pipelineLayout(), 0, moleculeModel_.descriptorSet(), nullptr);
@@ -596,7 +592,7 @@ private:
   struct CameraState {
     glm::mat4 cameraRotation;
     glm::mat4 cameraToPerspective;
-    float cameraDistance = 50.0f;
+    float cameraDistance = 190.0f;
   };
   CameraState cameraState_;
 
