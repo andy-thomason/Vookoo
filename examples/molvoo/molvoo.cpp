@@ -547,6 +547,12 @@ private:
 
     // move the molecule along the camera x and y axis.
     switch (key) {
+      case GLFW_KEY_W: {
+        app.cameraState_.cameraDistance -= 4;
+      } break;
+      case GLFW_KEY_S: {
+        app.cameraState_.cameraDistance += 4;
+      } break;
       case GLFW_KEY_LEFT: {
         pos += cam[0] * 0.5f;
       } break;
