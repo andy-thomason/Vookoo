@@ -649,7 +649,7 @@ public:
   GenericBuffer() {
   }
 
-  GenericBuffer(const vk::Device &device, const vk::PhysicalDeviceMemoryProperties &memprops, vk::BufferUsageFlags usage, vk::DeviceSize size, vk::MemoryPropertyFlags memflags = vk::MemoryPropertyFlagBits::eDeviceLocal) {
+  GenericBuffer(vk::Device device, vk::PhysicalDeviceMemoryProperties memprops, vk::BufferUsageFlags usage, vk::DeviceSize size, vk::MemoryPropertyFlags memflags = vk::MemoryPropertyFlagBits::eDeviceLocal) {
     // Create the buffer object without memory.
     vk::BufferCreateInfo ci{};
     ci.size = size_ = size;
@@ -1622,6 +1622,25 @@ public:
   uint32_t width(uint32_t mipLevel) const { return mipScale(header.pixelWidth, mipLevel); }
   uint32_t height(uint32_t mipLevel) const { return mipScale(header.pixelHeight, mipLevel); }
   uint32_t depth(uint32_t mipLevel) const { return mipScale(header.pixelDepth, mipLevel); }
+
+  void upload(vk::Device device, vku::GenericImage &image, std::vector<uint8_t> &bytes, vk::CommandPool commandPool, vk::PhysicalDeviceMemoryProperties memprops, vk::Queue queue) {
+    vku::GenericBuffer stagingBuffer(device, memprops, (vk::BufferUsageFlags)vk::BufferUsageFlagBits::eTransferSrc, (vk::DeviceSize)bytes.size(), vk::MemoryPropertyFlagBits::eHostVisible);
+    stagingBuffer.updateLocal(device, (const void*)bytes.data(), bytes.size());
+
+    // Copy the staging buffer to the GPU texture and set the layout.
+    vku::executeImmediately(device, commandPool, queue, [&](vk::CommandBuffer cb) {
+      vk::Buffer buf = stagingBuffer.buffer();
+      for (uint32_t mipLevel = 0; mipLevel != mipLevels(); ++mipLevel) {
+        auto width = this->width(mipLevel); 
+        auto height = this->height(mipLevel); 
+        auto depth = this->depth(mipLevel); 
+        for (uint32_t face = 0; face != faces(); ++face) {
+          image.copy(cb, buf, mipLevel, face, width, height, depth, offset(mipLevel, 0, face));
+        }
+      }
+      image.setLayout(cb, vk::ImageLayout::eShaderReadOnlyOptimal);
+    });
+  }
   
 private:
   static void swap(uint32_t &value) {

@@ -25,6 +25,22 @@ public:
     frag_ = vku::ShaderModule{device, BINARY_DIR "molvoo.frag.spv"};
     comp_ = vku::ShaderModule{device, BINARY_DIR "molvoo.comp.spv"};
 
+    auto cubeBytes = vku::loadFile(SOURCE_DIR "okretnica.ktx");
+    vku::KTXFileLayout ktx(cubeBytes.data(), cubeBytes.data()+cubeBytes.size());
+    if (!ktx.ok()) {
+      std::cout << "Could not load KTX file" << std::endl;
+      exit(1);
+    }
+
+    cubeMap_ = vku::TextureImageCube{device, memprops, ktx.width(0), ktx.height(0), ktx.mipLevels(), vk::Format::eR8G8B8A8Unorm};
+    ktx.upload(device, cubeMap_, cubeBytes, commandPool, memprops, queue);
+
+    vku::SamplerMaker sm{};
+    sm.magFilter(vk::Filter::eLinear);
+    sm.minFilter(vk::Filter::eLinear);
+    sm.mipmapMode(vk::SamplerMipmapMode::eNearest);
+    cubeSampler_ = sm.createUnique(device);
+
     ////////////////////////////////////////
     //
     // Build the descriptor sets
@@ -34,6 +50,7 @@ public:
     dslm.buffer(1U, vk::DescriptorType::eUniformBuffer, vk::ShaderStageFlagBits::eAll, 1); // Uniform
     dslm.buffer(2U, vk::DescriptorType::eStorageBuffer, vk::ShaderStageFlagBits::eCompute, 1); // Pick
     dslm.buffer(3U, vk::DescriptorType::eStorageBuffer, vk::ShaderStageFlagBits::eCompute, 1); // Connections
+    dslm.buffer(4U, vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eAll, 1); // Cube map
     layout_ = dslm.createUnique(device);
 
     vku::PipelineLayoutMaker plm{};
@@ -118,6 +135,8 @@ public:
   vk::PipelineLayout pipelineLayout() const { return *pipelineLayout_; }
   vk::DescriptorSetLayout descriptorSetLayout() const { return *layout_; }
   const vku::UniformBuffer &ubo() const { return ubo_; }
+  const vku::TextureImageCube &cubeMap() const { return cubeMap_; }
+  const vk::Sampler &cubeSampler() const { return *cubeSampler_; }
 private:
   vk::UniquePipeline pipeline_;
   vk::UniquePipeline computePipeline_;
@@ -127,6 +146,8 @@ private:
   vku::ShaderModule frag_;
   vku::ShaderModule comp_;
   vku::UniformBuffer ubo_;
+  vku::TextureImageCube cubeMap_;
+  vk::UniqueSampler cubeSampler_;
 };
 
 class MoleculeModel {
@@ -194,9 +215,33 @@ public:
       conns.push_back(c);
     }
 
-    //atoms[0].velocity = glm::vec3(1, 0, 0);
-    //atoms[0].radius = 4;
-    //atoms[0].pos = glm::vec3(0, 0, 0);
+    if (0) {
+      atoms.resize(0);
+      conns.resize(0);
+
+      Atom a{};
+      a.acceleration = glm::vec3(0);
+      a.colour = glm::vec3(1);
+      a.mass = 1;
+      a.pos = glm::vec3(-2, 0, 0);
+      a.radius = 1;
+      a.velocity = glm::vec3(0);
+      atoms.push_back(a);
+      a.pos = glm::vec3( 0, 0, 0);
+      atoms.push_back(a);
+      a.pos = glm::vec3( 2, 0, 0);
+      atoms.push_back(a);
+
+      Connection c{};
+      c.from = 0;
+      c.to = 1;
+      c.naturalLength = 2;
+      c.springConstant = 10;
+      conns.push_back(c);
+      c.from = 1;
+      c.to = 2;
+      conns.push_back(c);
+    }
 
     numAtoms_ = (uint32_t)atoms.size();
     numConnections_ = (uint32_t)conns.size();
@@ -211,7 +256,7 @@ public:
     conns_.upload(device, memprops, commandPool, queue, conns);
   }
 
-  void buildDescriptorSets(vk::Device device, vk::DescriptorSetLayout layout, vk::DescriptorPool descriptorPool, vk::Buffer ubo) {
+  void buildDescriptorSets(vk::Device device, vk::DescriptorSetLayout layout, vk::DescriptorPool descriptorPool, vk::Buffer ubo, vk::Sampler cubeSampler, vk::ImageView cubeImageView) {
     vku::DescriptorSetMaker dsm{};
     dsm.layout(layout);
     auto descriptorSets = dsm.create(device, descriptorPool);
@@ -229,6 +274,8 @@ public:
     update.buffer(pick_.buffer(), 0, sizeof(Pick) * Pick::fifoSize);
     update.beginBuffers(3, 0, vk::DescriptorType::eStorageBuffer);
     update.buffer(conns_.buffer(), 0, sizeof(Connection) * numConnections_);
+    update.beginImages(4, 0, vk::DescriptorType::eCombinedImageSampler);
+    update.image(cubeSampler, cubeImageView, vk::ImageLayout::eShaderReadOnlyOptimal);
 
     update.update(device);
   }
@@ -251,6 +298,7 @@ private:
   vku::GenericBuffer pick_;
   vku::GenericBuffer conns_;
   vk::DescriptorSet descriptorSet_;
+  vk::UniqueSampler cubeSampler_;
 };
 
 class Molvoo {
@@ -314,6 +362,7 @@ private:
       exit(1);
     }
 
+
     //modelToWorld = glm::rotate(modelToWorld, glm::radians(90.0f), glm::vec3(1, 0, 0));
     // This matrix converts between OpenGL perspective and Vulkan perspective.
     // It flips the Y axis and shrinks the Z value to [0,1]
@@ -330,7 +379,7 @@ private:
 
     raytracePipeline_ = RaytracePipeline(device_, window_.commandPool(), fw_.graphicsQueue(), fw_.descriptorPool(), fw_.pipelineCache(), fw_.memprops(), window_.renderPass(), window_.width(), window_.height(), window_.numImageIndices());
     moleculeModel_ = MoleculeModel(filename, device_, fw_.memprops(), window_.commandPool(), fw_.graphicsQueue());
-    moleculeModel_.buildDescriptorSets(device_, raytracePipeline_.descriptorSetLayout(), fw_.descriptorPool(), raytracePipeline_.ubo().buffer());
+    moleculeModel_.buildDescriptorSets(device_, raytracePipeline_.descriptorSetLayout(), fw_.descriptorPool(), raytracePipeline_.ubo().buffer(), raytracePipeline_.cubeSampler(), raytracePipeline_.cubeMap().imageView());
 
     using Pick = RaytracePipeline::Pick;
     for (int i = 0; i != Pick::fifoSize; ++i) {

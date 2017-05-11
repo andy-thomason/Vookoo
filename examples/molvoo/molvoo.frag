@@ -17,6 +17,8 @@ layout (binding = 1) uniform Uniform {
   vec4 colour;
 } u;
 
+layout (binding = 4) uniform samplerCube cubeMap;
+
 struct rsResult {
   vec3 pos;
   bool collides;
@@ -40,18 +42,31 @@ rsResult raySphereCollide(vec3 rayDir, vec3 centre, float radius) {
 // c^2 - 2tc.d + t^2 = r^2 (as d^2 = 1)
 // t^2 - t(2c.d) + (c^2-r^2) = 0
 void main() {
-  rsResult res = raySphereCollide(normalize(inRayDir), inCentre, inRadius);
+  vec3 rayDir = normalize(inRayDir);
+  rsResult res = raySphereCollide(rayDir, inCentre, inRadius);
 
   if (!res.collides) discard;
 
   vec3 intersection  = res.pos;
   vec3 normal = normalize(intersection - inCentre);
   vec3 lightDir = normalize(vec3(1, 1, 1));
-  vec3 ambient = inColour * 0.3;
-  float dfactor = max(0.0, dot(lightDir, normal));
-  outColour = vec4(ambient + inColour * dfactor, 1);
 
   vec4 persp = u.worldToPerspective * vec4(inRayStart + intersection, 1);
+
+  vec3 reflectDir = normalize(reflect(rayDir, normal));
+  vec3 reflect = texture(cubeMap, reflectDir).xyz;
+  outColour.xyz = reflect;
+
+  vec3 ambient = inColour * 0.1;
+  vec3 diffuse = inColour * 0.9;
+  vec3 specular = vec3(0.3, 0.3, 0.3);
+
+  float diffuseFactor = max(0.0, dot(normal, lightDir));
+  //float shadowDepth = textureProj(shadowMap, inLightSpacePos).x;
+  //float expectedDepth = inLightSpacePos.z / inLightSpacePos.w;
+  //float shadowFactor = expectedDepth < shadowDepth ? 1.0 : 0.0;
+  float shadowFactor = 1.0f;
+  outColour = vec4(ambient + diffuse * diffuseFactor * shadowFactor + specular * reflect, 1);
 
   gl_FragDepth = persp.z / persp.w;
 }
