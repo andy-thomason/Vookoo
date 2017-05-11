@@ -220,12 +220,10 @@ public:
       conns.resize(0);
 
       Atom a{};
-      a.acceleration = glm::vec3(0);
       a.colour = glm::vec3(1);
       a.mass = 1;
       a.pos = glm::vec3(-2, 0, 0);
       a.radius = 1;
-      a.velocity = glm::vec3(0);
       atoms.push_back(a);
       a.pos = glm::vec3( 0, 0, 0);
       atoms.push_back(a);
@@ -439,7 +437,7 @@ private:
       Pick *pick = (Pick*)moleculeModel_.pick().map(device);
       Pick &p = pick[pickReadIndex_ & (Pick::fifoSize-1)];
       moleculeState_.mouseAtom = p.atom;
-      moleculeState_.mouseDistance = p.distance / 10000.0;
+      moleculeState_.mouseDistance = p.distance / 10000.0f;
       moleculeModel_.pick().unmap(device);
       p.distance = ~0;
       p.atom = ~0;
