@@ -150,6 +150,54 @@ private:
   vk::UniqueSampler cubeSampler_;
 };
 
+class SkyboxPipeline {
+public:
+  SkyboxPipeline() {
+  }
+
+  SkyboxPipeline(vk::Device device, vk::CommandPool commandPool, vk::Queue queue, vk::DescriptorPool descriptorPool, vk::PipelineCache cache, vk::PhysicalDeviceMemoryProperties memprops, vk::RenderPass renderPass, uint32_t width, uint32_t height, int numImageIndices) {
+    vert_ = vku::ShaderModule{device, BINARY_DIR "skybox.vert.spv"};
+    frag_ = vku::ShaderModule{device, BINARY_DIR "skybox.frag.spv"};
+
+    vku::DescriptorSetLayoutMaker dslm{};
+    layout_ = dslm.createUnique(device);
+
+    vku::PipelineLayoutMaker plm{};
+    plm.descriptorSetLayout(*layout_);
+    plm.pushConstantRange(vk::ShaderStageFlagBits::eAll, 0, sizeof(SkyboxUniform));
+    pipelineLayout_ = plm.createUnique(device);
+
+    vku::PipelineMaker pm{width, height};
+    pm.shader(vk::ShaderStageFlagBits::eVertex, vert_);
+    pm.shader(vk::ShaderStageFlagBits::eFragment, frag_);
+
+    pipeline_ = pm.createUnique(device, cache, *pipelineLayout_, renderPass);
+  }
+
+  using mat4 = glm::mat4;
+  using vec2 = glm::vec2;
+  using vec3 = glm::vec3;
+  using vec4 = glm::vec4;
+  using uint = uint32_t;
+
+  struct SkyboxUniform {
+    mat4 worldToPerspective;
+    mat4 modelToWorld;
+    mat4 normalToWorld;
+    mat4 cameraToWorld;
+  };
+
+  vk::Pipeline pipeline() const { return *pipeline_; }
+  vk::PipelineLayout pipelineLayout() const { return *pipelineLayout_; }
+  vk::DescriptorSetLayout descriptorSetLayout() const { return *layout_; }
+private:
+  vk::UniquePipeline pipeline_;
+  vk::UniqueDescriptorSetLayout layout_;
+  vk::UniquePipelineLayout pipelineLayout_;
+  vku::ShaderModule vert_;
+  vku::ShaderModule frag_;
+};
+
 class MoleculeModel {
 public:
   MoleculeModel() {
@@ -245,7 +293,6 @@ public:
     numConnections_ = (uint32_t)conns.size();
 
     using buf = vk::BufferUsageFlagBits;
-    //atoms_ = vku::GenericBuffer(device, memprops, buf::eStorageBuffer|buf::eTransferDst, numAtoms_ * sizeof(Atom), vk::MemoryPropertyFlagBits::eDeviceLocal);
     atoms_ = vku::GenericBuffer(device, memprops, buf::eStorageBuffer|buf::eTransferDst, numAtoms_ * sizeof(Atom), vk::MemoryPropertyFlagBits::eHostVisible);
     pick_ = vku::GenericBuffer(device, memprops, buf::eStorageBuffer, sizeof(Pick) * Pick::fifoSize, vk::MemoryPropertyFlagBits::eHostVisible);
     conns_ = vku::GenericBuffer(device, memprops, buf::eStorageBuffer|buf::eTransferDst, sizeof(Connection) * numConnections_, vk::MemoryPropertyFlagBits::eHostVisible);
