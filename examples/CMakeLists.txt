@@ -48,6 +48,6 @@ endfunction(example)
 
 example(helloTriangle helloTriangle.vert helloTriangle.frag)
 example(texture texture.vert texture.frag)
-example(molvoo molvoo.vert molvoo.frag molvoo.comp)
+example(molvoo molvoo.vert molvoo.frag molvoo.comp skybox.vert skybox.frag)
 example(teapot teapot.vert teapot.frag teapot.shadow.vert teapot.shadow.frag)
 
