@@ -27,8 +27,9 @@ namespace gilgamesh {
     class atom {
       const uint8_t *p_;
       const uint8_t *eol_;
+      bool is_hetatom_;
     public:
-      atom(const uint8_t *p, const uint8_t *eol) : p_(p), eol_(eol) {
+      atom(const uint8_t *p, const uint8_t *eol, bool is_hetatom) : p_(p), eol_(eol), is_hetatom_(is_hetatom) {
       }
 
       // http://www.wwpdb.org/documentation/file-format-content/format33/sect9.html#ATOM
@@ -67,6 +68,8 @@ namespace gilgamesh {
       bool isHydrogen() const { return p_[12] == 'H' || p_[13] == 'H'; }
       bool elementIs(const char *name) const { return p_[76] == name[0] && p_[77] == name[1]; }
       bool chargeIs(const char *name) const { return p_[78] == name[0] && p_[79] == name[1]; }
+
+      bool is_hetatom() const { return is_hetatom_; }
 
       glm::vec4 colorByFunction() const {
         std::string atom = atomName();
@@ -145,10 +148,6 @@ namespace gilgamesh {
       }
     };
 
-    pdb_decoder(const std::string &filename) {
-      
-    }
-
     pdb_decoder(const uint8_t *begin, const uint8_t *end) {
       for (const uint8_t *p = begin; p != end; ) {
         const uint8_t *eol = p;
@@ -159,12 +158,12 @@ namespace gilgamesh {
           switch (*p) {
             case 'A': {
               if (p + 5 < eol && !memcmp(p, "ATOM  ", 6)) {
-                atoms_.emplace_back(p, eol);
+                atoms_.emplace_back(p, eol, false);
               }
             } break;
             case 'H': {
               if (p + 5 < eol && !memcmp(p, "HETATM", 6)) {
-                hetAtoms_.emplace_back(p, eol);
+                atoms_.emplace_back(p, eol, true);
               }
             } break;
             case 'C': {
@@ -194,27 +193,40 @@ namespace gilgamesh {
       }
     }
 
-    // get atoms in a set of chains.
-    std::vector<atom> atoms(const std::string &chains) const {
+    /// Get the atoms in a set of chains.
+    /// If use_hetatoms is true, include HETATM atoms.
+    /// HETATM atoms are auxiliary atoms to proteins such as water or ions.
+    /// If invert is true, skip HETATMs and return atoms *not* in the chains.
+    std::vector<atom> atoms(const std::string &chains, bool invert=false, bool use_hetatoms = false) const {
       std::vector<atom> result;
       for (int idx = 0; idx != atoms_.size(); ++idx) {
         auto &p = atoms_[idx];
         char chainID = p.chainID();
-        // if the chain is in the set specified on the command line (eg. ACBD)
-        if (chains.find(chainID) != std::string::npos) {
-          result.push_back(p);
+        if (!invert) {
+          if (!p.is_hetatom() || use_hetatoms) {
+            // if the chain is in the set specified on the command line (eg. ACBD)
+            if (chains.find(chainID) != std::string::npos) {
+              result.push_back(p);
+            }
+          }
+        } else {
+          // if the chain is not in the set specified on the command line (eg. ACBD)
+          if (!p.is_hetatom() && chains.find(chainID) == std::string::npos) {
+            result.push_back(p);
+          }
         }
       }
       return std::move(result);
     }
 
-    const std::vector<atom> &hetAtoms() const { return hetAtoms_; }
-
-    // return the set of chains used in this PDB file (ie. "ABCD")
-    std::string chains() const {
+    /// Return the set of chains used in this PDB file (ie. "ABCD").
+    /// If use_hetatoms is true, include HETATM "chains".
+    std::string chains(bool use_hetatoms=false) const {
       bool used[256] = {};
       for (auto &p : atoms_) {
-        used[p.chainID()] = true;
+        if (!p.is_hetatom() || use_hetatoms) {
+          used[p.chainID()] = true;
+        }
       }
       std::string result;
       for (size_t i = 32; i != 127; ++i) {
@@ -223,20 +235,25 @@ namespace gilgamesh {
       return std::move(result);
     }
 
+    /// Use knowledge of the chemistry to add connections to a list.
     int addImplicitConnections(const std::vector<atom> &atoms, std::vector<std::pair<int, int> > &out, size_t bidx, size_t eidx, int prevC, bool is_ca) const {
       static const char table[][5] = {
         "ASP",
           " CB ", " CG ",
           " CG ", " OD1",
           " CG ", " OD2",
+          "!",
         "ALA",
+          "!",
         "CYS",
           " CB ", " SG ",
+          "!",
         "GLU",
           " CB ", " CG ",
           " CG ", " CD ",
           " CD ", " OE1",
           " CD ", " OE2",
+          "!",
         "PHE",
           " CB ", " CG ",
           " CG ", " CD1",
@@ -245,7 +262,9 @@ namespace gilgamesh {
           " CD2", " CE2",
           " CE1", " CZ ",
           " CE2", " CZ ",
+          "!",
         "GLY",
+          "!",
         "HIS",
           " CB ", " CG ",
           " CG ", " ND1",
@@ -253,35 +272,43 @@ namespace gilgamesh {
           " ND1", " CE1",
           " CD2", " NE2",
           " CE1", " NE2",
+          "!",
         "ILE",
           " CB ", " CG1",
           " CB ", " CG2",
           " CG1", " CD1",
+          "!",
         "LYS",
           " CB ", " CG ",
           " CG ", " CD ",
           " CD ", " CE ",
           " CE ", " NZ ",
+          "!",
         "LEU",
           " CB ", " CG ",
           " CG ", " CD1",
           " CG ", " CD2",
+          "!",
         "MET",
           " CB ", " CG ",
           " CG ", " SD ",
           " SD ", " CE ",
+          "!",
         "ASN",
           " CB ", " CG ",
           " CG ", " OD1",
           " CG ", " ND2",
+          "!",
         "PRO",
           " CB ", " CG ",
           " CG ", " CD ",
+          "!",
         "GLN",
           " CB ", " CG ",
           " CG ", " CD ",
           " CD ", " OE1",
           " CD ", " NE2",
+          "!",
         "ARG",
           " CB ", " CG ",
           " CG ", " CD ",
@@ -289,14 +316,18 @@ namespace gilgamesh {
           " NE ", " CZ ",
           " CZ ", " NH1",
           " CZ ", " NH2",
+          "!",
         "SER",
           " CB ", " OG ",
+          "!",
         "THR",
           " CB ", " OG1",
           " CB ", " CG2",
+          "!",
         "VAL",
           " CB ", " CG1",
           " CB ", " CG2",
+          "!",
         "TRP",
           " CB ", " CG ",
           " CG ", " CD1",
@@ -308,6 +339,7 @@ namespace gilgamesh {
           " CE3", " CZ3",
           " CZ2", " CH2",
           " CZ3", " CH2",
+          "!",
         "TYR",
           " CB ", " CG ",
           " CG ", " CD1",
@@ -317,54 +349,154 @@ namespace gilgamesh {
           " CE1", " CZ ",
           " CE2", " CZ ",
           " CZ ", " OH ",
+          "!",
+        "  A",
+          " C1d", "  N9",
+/*
+          "  N9",
+          "  C8",
+          "  N7",
+          "  C5",
+          "  C6",
+          "  N6",
+          "  N1",
+          "  C2",
+          "  N3",
+          "  C4",
+*/
+          "!",
+        "  C",
+          " C1d", "  N1",
+/*
+          "  N1",
+          "  C2",
+          "  O2",
+          "  N3",
+          "  C4",
+          "  N4",
+          "  C5",
+          "  C6",
+*/
+          "!",
+        "  G",
+          " C1d", "  N9",
+/*
+          "  N9",
+          "  C8",
+          "  N7",
+          "  C5",
+          "  C6",
+          "  O6",
+          "  N1",
+          "  C2",
+          "  N2",
+          "  N3",
+          "  C4",
+*/
+          "!",
+        "  U",
+          " C1d", "  N1",
+/*
+          "  N1",
+          "  C2",
+          "  O2",
+          "  N3",
+          "  C4",
+          "  O4",
+          "  C5",
+          "  C6",
+*/
+          "!",
         ""
       };
 
-      int N_idx = findAtom(atoms, bidx, eidx, " N  ");
-      int C_idx = findAtom(atoms, bidx, eidx, " C  ");
-      int O_idx = findAtom(atoms, bidx, eidx, " O  ");
-      int CA_idx = findAtom(atoms, bidx, eidx, " CA ");
-      int CB_idx = findAtom(atoms, bidx, eidx, " CB ");
+      if (atoms[bidx].resNameIs("  A") || atoms[bidx].resNameIs("  C") || atoms[bidx].resNameIs("  G") || atoms[bidx].resNameIs("  U")) {
+        int P_idx = findAtom(atoms, bidx, eidx, " P  ");
+        int OP1_idx = findAtom(atoms, bidx, eidx, " OP1");
+        int OP2_idx = findAtom(atoms, bidx, eidx, " OP2");
+        int O5d_idx = findAtom(atoms, bidx, eidx, " O5'");
+        int C5d_idx = findAtom(atoms, bidx, eidx, " C5'");
+        int C4d_idx = findAtom(atoms, bidx, eidx, " C4'");
+        int O4d_idx = findAtom(atoms, bidx, eidx, " O4'");
+        int C3d_idx = findAtom(atoms, bidx, eidx, " C3'");
+        int O3d_idx = findAtom(atoms, bidx, eidx, " O3'");
+        int C2d_idx = findAtom(atoms, bidx, eidx, " C2'");
+        int O2d_idx = findAtom(atoms, bidx, eidx, " O2'");
+        int C1d_idx = findAtom(atoms, bidx, eidx, " C1'");
 
-      //printf("find %s N%d C%d O%d CA%d CB%d\n", atoms[bidx].resName().c_str(), N_idx, C_idx, O_idx, CA_idx, CB_idx);
+        if (O5d_idx != -1 && C5d_idx != -1 && C4d_idx != -1 && O4d_idx != -1 && C3d_idx != -1 && O3d_idx != -1 && C2d_idx != -1 && O2d_idx != -1 && C1d_idx != -1) {
+          if (P_idx != -1) {
+            if (prevC != -1) out.emplace_back(prevC, P_idx);
+            if (OP1_idx != -1) out.emplace_back(P_idx, OP1_idx);
+            if (OP2_idx != -1) out.emplace_back(P_idx, OP2_idx);
+            out.emplace_back(P_idx, O5d_idx);
+          }
 
-      if (N_idx == -1 || C_idx == -1 || CA_idx == -1) {
-        printf("addImplicitConnections: bad %s N%d C%d O%d CA%d CB%d\n", atoms[bidx].resName().c_str(), N_idx, C_idx, O_idx, CA_idx, CB_idx);
+          out.emplace_back(C5d_idx, C4d_idx);
+          out.emplace_back(C4d_idx, C3d_idx);
+          out.emplace_back(C3d_idx, C2d_idx);
+          out.emplace_back(C2d_idx, C1d_idx);
+
+          out.emplace_back(C5d_idx, O5d_idx);
+          out.emplace_back(C4d_idx, O4d_idx);
+          out.emplace_back(C3d_idx, O3d_idx);
+          out.emplace_back(C2d_idx, O2d_idx);
+          out.emplace_back(C1d_idx, O4d_idx);
+          prevC = O3d_idx;
+        } else {
+          printf("bad base %d %d %d %d %d %d %d %d %d %d %d\n", OP1_idx, OP2_idx, O5d_idx, C5d_idx, C4d_idx, O4d_idx, C3d_idx, O3d_idx, C2d_idx, O2d_idx, C1d_idx);
+        }
+        
         return -1;
-      }
-
-      if (is_ca) {
-        if (prevC != -1) {
-          out.emplace_back(prevC, CA_idx);
-        }
-        prevC = CA_idx;
       } else {
-        if (prevC != -1) {
-          out.emplace_back(prevC, N_idx);
+        int N_idx = findAtom(atoms, bidx, eidx, " N  ");
+        int C_idx = findAtom(atoms, bidx, eidx, " C  ");
+        int O_idx = findAtom(atoms, bidx, eidx, " O  ");
+        int CA_idx = findAtom(atoms, bidx, eidx, " CA ");
+        int CB_idx = findAtom(atoms, bidx, eidx, " CB ");
+
+        //printf("find %s N%d C%d O%d CA%d CB%d\n", atoms[bidx].resName().c_str(), N_idx, C_idx, O_idx, CA_idx, CB_idx);
+
+        if (N_idx == -1 || C_idx == -1 || CA_idx == -1) {
+          printf("addImplicitConnections: bad %s N%d C%d O%d CA%d CB%d\n", atoms[bidx].resName().c_str(), N_idx, C_idx, O_idx, CA_idx, CB_idx);
+          return -1;
         }
 
-        out.emplace_back(N_idx, CA_idx);
+        if (is_ca) {
+          if (prevC != -1) {
+            out.emplace_back(prevC, CA_idx);
+          }
+          prevC = CA_idx;
+        } else {
+          if (prevC != -1) {
+            out.emplace_back(prevC, N_idx);
+          }
 
-        out.emplace_back(CA_idx, C_idx);
+          out.emplace_back(N_idx, CA_idx);
 
-        if (O_idx != -1) out.emplace_back(C_idx, O_idx);
+          out.emplace_back(CA_idx, C_idx);
 
-        prevC = C_idx;
+          if (O_idx != -1) out.emplace_back(C_idx, O_idx);
+
+          prevC = C_idx;
+        }
+
+        //return C_idx;
+
+        // All except GLY
+        if (CB_idx != -1) {
+          out.emplace_back(CA_idx, CB_idx);
+        }
       }
 
-      //return C_idx;
-
-      // All except GLY
-      if (CB_idx != -1) {
-        out.emplace_back(CA_idx, CB_idx);
-      }
-
-      for (size_t i = 0; table[i][0]; ++i) {
-        if (table[i][0] >= 'A' && atoms[bidx].resNameIs(table[i])) {
-          //printf("%s\n", table[i]);
+      //printf("!%s\n", atoms[bidx].resName().c_str());
+      bool found = false;
+      for (size_t i = 0; table[i][0];) {
+        //printf("%d -%s\n", (int)i, table[i]);
+        if (atoms[bidx].resNameIs(table[i])) {
           const char *res_name = table[i];
           ++i;
-          while (table[i][0] == ' ') {
+          while (table[i][0] != '!') {
             //printf("  %s %s\n", table[i], table[i+1]);
             int from = findAtom(atoms, bidx, eidx, table[i]);
             int to = findAtom(atoms, bidx, eidx, table[i+1]);
@@ -377,13 +509,23 @@ namespace gilgamesh {
               printf("Unexpected chemistry in %s/%d: %s %d   %s %d\n", res_name, resSeq, table[i-2], from, table[i-1], to);
             }
           }
+          found = true;
           break;
+        } else {
+          ++i;
+          while (table[i][0] != '!') {
+            //printf("skip  %s %s\n", table[i], table[i+1]);
+            i += 2;
+          }
+          i++;
         }
+      }
+      if (!found) {
+        printf("not found\n");
       }
 
       return prevC;
     }
-
     // return the index of the next resiude
     size_t nextResidue(const std::vector<atom> &atoms, size_t bidx) const {
       int resSeq = atoms[bidx].resSeq();
@@ -409,7 +551,6 @@ namespace gilgamesh {
 
   private:
     std::vector<atom> atoms_;
-    std::vector<atom> hetAtoms_;
     std::vector<std::pair<int, int> > connections_;
 
     static int atoi(const uint8_t *b, const uint8_t *e) {

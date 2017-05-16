@@ -41,6 +41,58 @@ public:
   virtual std::vector<glm::vec2> uv(int index) const = 0;
   virtual std::vector<glm::vec4> color() const = 0;
   virtual std::vector<uint32_t> indices32() const = 0;
+
+  virtual size_t addVertexTransformed(const glm::mat4 &transform, const glm::vec3 &pos, const glm::vec3 &normal, const glm::vec2 &uv, const glm::vec4 &color) = 0;
+  virtual size_t addIndex(size_t index) = 0;
+};
+
+// A mesh class that stores attributes in a single array of vec4.
+class arrayMesh : public mesh {
+public:
+  arrayMesh() {
+    numAttributes_ = 4;
+  }
+
+  size_t addVertexTransformed(const glm::mat4 &transform, const glm::vec3 &pos, const glm::vec3 &normal, const glm::vec2 &uv, const glm::vec4 &color) override {
+    glm::vec3 tpos = (glm::vec3)(transform * glm::vec4(pos.x, pos.y, pos.z, 1.0f));
+    glm::vec3 tnormal = glm::normalize((glm::vec3)(transform * glm::vec4(normal.x, normal.y, normal.z, 0.0f)));
+    size_t old_size = attributes_.size();
+    attributes_.resize(old_size + numAttributes_);
+    attributes_[old_size+0] = glm::vec4(pos.x, pos.y, pos.z, 1);
+    attributes_[old_size+1] = glm::vec4(normal.x, normal.y, normal.z, 0);
+    attributes_[old_size+2] = glm::vec4(uv.x, uv.y, 0, 1);
+    attributes_[old_size+3] = color;
+    numVertices_++;
+  }
+
+  size_t addIndex(size_t index) override {
+    size_t result = indices_.size();
+    indices_.push_back((uint32_t)index);
+    return result;
+  }
+
+  std::vector<glm::vec3> pos() const override { return fetch<glm::vec3>(0); }
+  std::vector<glm::vec3> normal() const override { return fetch<glm::vec3>(1); }
+  std::vector<glm::vec2> uv(int index) const override { return fetch<glm::vec2>(2); }
+  std::vector<glm::vec4> color() const override { return fetch<glm::vec4>(3); }
+  std::vector<uint32_t> indices32() const override { return indices_; }
+
+private:
+  template <class Type>
+  std::vector<Type> fetch(size_t attr) const {
+    std::vector<Type> r{};
+    r.reserve(numVertices_);
+    for (size_t i = attr; i != attributes_.size(); i += numAttributes_) {
+      Type v = Type(attributes_[i]);
+      r.push_back(v);
+    }
+    return std::move(r);
+  }
+
+  size_t numAttributes_ = 4;
+  size_t numVertices_ = 0;
+  std::vector<glm::vec4> attributes_;
+  std::vector<uint32_t> indices_;
 };
 
 // Specialised mesh based on a template vertex type
@@ -125,7 +177,7 @@ public:
     return result;
   }
 
-  index_t addVertexTransformed(const glm::mat4 &transform, const glm::vec3 &pos, const glm::vec3 &normal, const glm::vec2 &uv, const glm::vec4 &color) {
+  size_t addVertexTransformed(const glm::mat4 &transform, const glm::vec3 &pos, const glm::vec3 &normal, const glm::vec2 &uv, const glm::vec4 &color) override {
     glm::vec3 tpos = (glm::vec3)(transform * glm::vec4(pos.x, pos.y, pos.z, 1.0f));
     glm::vec3 tnormal = glm::normalize((glm::vec3)(transform * glm::vec4(normal.x, normal.y, normal.z, 0.0f)));
     vertex_t vtx(tpos, tnormal, uv, color);
@@ -134,7 +186,7 @@ public:
     return result;
   }
 
-  size_t addIndex(size_t index) {
+  size_t addIndex(size_t index) override {
     size_t result = indices_.size();
     indices_.push_back((index_t)index);
     return result;

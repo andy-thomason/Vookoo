@@ -14,6 +14,7 @@
 #include <vector>
 #include <exception>
 #include <cstring>
+#include <iostream>
 
 #include <glm/glm.hpp>
 #include <gilgamesh/mesh.hpp>
@@ -63,7 +64,12 @@ namespace gilgamesh {
 
     void saveMesh(gilgamesh::mesh &mesh, const std::string &filename) {
       auto bytes = saveMesh(mesh);
-      std::ofstream(filename, std::ios_base::binary).write((char*)bytes.data(), bytes.size());
+      if (filename == "-") {
+        std::cout.write((char*)bytes.data(), bytes.size());
+      } else {
+        auto &fout = std::ofstream(filename, std::ios_base::binary);
+        fout.write((char*)bytes.data(), bytes.size());
+      }
     }
 
     void saveScene(const gilgamesh::scene &scene, const std::string &filename) {

@@ -75,7 +75,7 @@ public:
           float v2 = (1-v) * v * (v * 3);
           float v3 = v * v * v;
           glm::vec3 p = p0 * v0 + p1 * v1 + p2 * v2 + p3 * v3;
-          vertex(p, glm::vec3(), glm::vec2(u, v));
+          vertex(p, glm::vec3(), glm::vec2());
         }
       }
      

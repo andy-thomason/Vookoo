@@ -17,7 +17,7 @@ namespace gilgamesh {
 // A cylinder centred on the origin with 'y' axis
 class cylinder {
 public:
-  enum feature {
+  enum Feature {
     top = 1,
     bottom = 2,
     body = 4,
@@ -29,7 +29,7 @@ public:
   // call this function to make a mesh
   // This works with the gilgamesh mesh, but is still generic.
   template <class Mesh>
-  size_t build(Mesh &mesh, const glm::mat4 &transform = glm::mat4(), const glm::vec4 &color=glm::vec4(1), int num_y_segments=1, int num_radial_segments=16, feature features=(feature)(top|body|bottom)) {
+  size_t build(Mesh &mesh, const glm::mat4 &transform = glm::mat4(), const glm::vec4 &color=glm::vec4(1), int num_y_segments=1, int num_radial_segments=16, Feature features=(Feature)(top|body|bottom)) {
     auto vertex = [&mesh, &transform, &color](const glm::vec3 &pos, const glm::vec3 &normal, const glm::vec2 &uv) {
       mesh.addVertexTransformed(transform, pos, normal, uv, color);
     };
@@ -48,7 +48,7 @@ public:
 
   // call this function to generate vertices and indices.
   template <class Vertex, class Index>
-  void buildMesh(Vertex vertex, Index index, size_t first_index=0, int num_y_segments=1, int num_radial_segments=16, feature features=(feature)(top|body|bottom)) {
+  void buildMesh(Vertex vertex, Index index, size_t first_index=0, int num_y_segments=1, int num_radial_segments=16, Feature features=(Feature)(top|body|bottom)) {
     if (features & (int)bottom) {
       size_t centre_idx = first_index++;
       float y = height_ * (-0.5f);

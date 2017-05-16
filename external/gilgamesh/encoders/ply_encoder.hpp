@@ -19,8 +19,12 @@ public:
 
   template <class MeshTraits>
   void saveMesh(const basic_mesh<MeshTraits> &mesh, const std::string &filename, bool ascii=true, const char *features="pnuc") {
-    std::ofstream fout(filename, ascii ? std::ios_base::openmode() : std::ios_base::binary);
-    encode(mesh, fout, ascii, features);
+    if (filename == "-") {
+      encode(mesh, std::cout, ascii, features);
+    } else {
+      std::ofstream fout(filename, ascii ? std::ios_base::openmode() : std::ios_base::binary);
+      encode(mesh, fout, ascii, features);
+    }
   }
 
   template <class MeshTraits, class Writer>
