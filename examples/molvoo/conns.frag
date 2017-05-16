@@ -39,7 +39,7 @@ rsResult raySphereCollide(vec3 rayDir, vec3 centre, float radius) {
 }
 
 void main() {
-  vec3 rayDir = normalize(inRayDir);
+  /*vec3 rayDir = normalize(inRayDir);
   rsResult res = raySphereCollide(rayDir, inCentre, inRadius);
 
   if (!res.collides) discard;
@@ -65,7 +65,8 @@ void main() {
   float shadowFactor = 1.0f;
   outColour = vec4(ambient + diffuse * diffuseFactor * shadowFactor + specular * reflect, 1);
 
-  gl_FragDepth = persp.z / persp.w;
+  gl_FragDepth = persp.z / persp.w;*/
+  outColour = vec4(1, 0, 0, 1);
 }
 
 

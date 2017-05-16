@@ -65,7 +65,7 @@ public:
     dslm.buffer(0U, vk::DescriptorType::eStorageBuffer, vk::ShaderStageFlagBits::eAll, 1); // Atoms
     dslm.buffer(1U, vk::DescriptorType::eUniformBuffer, vk::ShaderStageFlagBits::eAll, 1); // Uniform
     dslm.buffer(2U, vk::DescriptorType::eStorageBuffer, vk::ShaderStageFlagBits::eCompute, 1); // Pick
-    dslm.buffer(3U, vk::DescriptorType::eStorageBuffer, vk::ShaderStageFlagBits::eCompute, 1); // Connections
+    dslm.buffer(3U, vk::DescriptorType::eStorageBuffer, vk::ShaderStageFlagBits::eAll, 1); // Connections
     dslm.buffer(4U, vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eAll, 1); // Cube map
     layout_ = dslm.createUnique(device);
 
@@ -87,9 +87,14 @@ public:
   MoleculePipeline() {
   }
 
-  MoleculePipeline(vk::Device device, vk::PipelineCache cache, vk::RenderPass renderPass, uint32_t width, uint32_t height, vk::PipelineLayout pipelineLayout) {
-    vert_ = vku::ShaderModule{device, BINARY_DIR "atoms.vert.spv"};
-    frag_ = vku::ShaderModule{device, BINARY_DIR "atoms.frag.spv"};
+  MoleculePipeline(vk::Device device, vk::PipelineCache cache, vk::RenderPass renderPass, uint32_t width, uint32_t height, vk::PipelineLayout pipelineLayout, bool isAtoms) {
+    if (isAtoms) {
+      vert_ = vku::ShaderModule{device, BINARY_DIR "atoms.vert.spv"};
+      frag_ = vku::ShaderModule{device, BINARY_DIR "atoms.frag.spv"};
+    } else {
+      vert_ = vku::ShaderModule{device, BINARY_DIR "conns.vert.spv"};
+      frag_ = vku::ShaderModule{device, BINARY_DIR "conns.frag.spv"};
+    }
 
     vku::PipelineMaker pm{width, height};
     pm.shader(vk::ShaderStageFlagBits::eVertex, vert_);
@@ -407,7 +412,8 @@ private:
 
     skyboxPipeline_ = SkyboxPipeline(device_, fw_.pipelineCache(), window_.renderPass(), window_.width(), window_.height(), standardLayout_.pipelineLayout());
     dynamicsPipeline_ = DynamicsPipeline(device_, fw_.pipelineCache(), window_.renderPass(), window_.width(), window_.height(), standardLayout_.pipelineLayout());
-    atomPipeline_ = MoleculePipeline(device_, fw_.pipelineCache(), window_.renderPass(), window_.width(), window_.height(), standardLayout_.pipelineLayout());
+    atomPipeline_ = MoleculePipeline(device_, fw_.pipelineCache(), window_.renderPass(), window_.width(), window_.height(), standardLayout_.pipelineLayout(), true);
+    connPipeline_ = MoleculePipeline(device_, fw_.pipelineCache(), window_.renderPass(), window_.width(), window_.height(), standardLayout_.pipelineLayout(), false);
 
     moleculeModel_ = MoleculeModel(filename, device_, fw_.memprops(), window_.commandPool(), fw_.graphicsQueue());
     moleculeModel_.updateDescriptorSet(device_, standardLayout_.descriptorSetLayout(), fw_.descriptorPool(), *cubeSampler_, cubeMap_.imageView());
@@ -537,7 +543,6 @@ private:
           aflags::eShaderRead, aflags::eShaderRead|aflags::eShaderWrite, gfi, gfi
         );
 
-        // Note that on my Windows PC, the Nvidia driver crashes if I use a uniform buffer here.
         cb.bindDescriptorSets(vk::PipelineBindPoint::eCompute, standardLayout_.pipelineLayout(), 0, moleculeModel_.descriptorSet(), nullptr);
         cb.bindPipeline(vk::PipelineBindPoint::eCompute, dynamicsPipeline_.pipeline());
     
@@ -566,13 +571,17 @@ private:
         cb.beginRenderPass(rpbi, vk::SubpassContents::eInline);
 
         cb.pushConstants(standardLayout_.pipelineLayout(), vk::ShaderStageFlagBits::eAll, 0, sizeof(PushConstants), &cu);
-        cb.bindPipeline(vk::PipelineBindPoint::eGraphics, skyboxPipeline_.pipeline());
         cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, standardLayout_.pipelineLayout(), 0, moleculeModel_.descriptorSet(), nullptr);
+
+        cb.bindPipeline(vk::PipelineBindPoint::eGraphics, skyboxPipeline_.pipeline());
         cb.draw(6 * 6, 1, 0, 0);
 
         cb.bindPipeline(vk::PipelineBindPoint::eGraphics, atomPipeline_.pipeline());
-        cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, standardLayout_.pipelineLayout(), 0, moleculeModel_.descriptorSet(), nullptr);
         cb.draw(moleculeModel_.numAtoms() * 6, 1, 0, 0);
+
+        cb.bindPipeline(vk::PipelineBindPoint::eGraphics, connPipeline_.pipeline());
+        cb.draw(moleculeModel_.numConnections() * 6, 1, 0, 0);
+
         cb.endRenderPass();
         cb.end();
       }
@@ -652,6 +661,7 @@ private:
 
   DynamicsPipeline dynamicsPipeline_;
   MoleculePipeline atomPipeline_;
+  MoleculePipeline connPipeline_;
   MoleculeModel moleculeModel_;
 
   vku::TextureImageCube cubeMap_;
