@@ -1,5 +1,4 @@
 #version 450
-#extension GL_ARB_separate_shader_objects : enable
 
 layout(location = 0) in vec3 inColour;
 layout(location = 1) in vec3 inCentre;
@@ -9,12 +8,10 @@ layout(location = 4) in vec3 inRayStart;
 
 layout(location = 0) out vec4 outColour;
 
-layout (binding = 1) uniform Uniform {
+layout (push_constant) uniform Uniform {
   mat4 worldToPerspective;
   mat4 modelToWorld;
-  mat4 normalToWorld;
   mat4 cameraToWorld;
-  vec4 colour;
 } u;
 
 layout (binding = 4) uniform samplerCube cubeMap;
@@ -24,6 +21,11 @@ struct rsResult {
   bool collides;
 };
 
+// Ray-sphere (c, r) in ray space (d)
+// Intersection at td.
+// (c-td)^2 = r^2
+// c^2 - 2tc.d + t^2 = r^2 (as d^2 = 1)
+// t^2 - t(2c.d) + (c^2-r^2) = 0
 rsResult raySphereCollide(vec3 rayDir, vec3 centre, float radius) {
   const float a = 1.0;
   float b = -2.0 * dot(centre, rayDir);
@@ -36,11 +38,6 @@ rsResult raySphereCollide(vec3 rayDir, vec3 centre, float radius) {
   return res;
 }
 
-// Ray-sphere (c, r) in ray space (d)
-// Intersection at td.
-// (c-td)^2 = r^2
-// c^2 - 2tc.d + t^2 = r^2 (as d^2 = 1)
-// t^2 - t(2c.d) + (c^2-r^2) = 0
 void main() {
   vec3 rayDir = normalize(inRayDir);
   rsResult res = raySphereCollide(rayDir, inCentre, inRadius);
@@ -70,4 +67,5 @@ void main() {
 
   gl_FragDepth = persp.z / persp.w;
 }
+
 

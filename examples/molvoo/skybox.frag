@@ -1,17 +1,26 @@
 #version 450
 
-layout (binding = 1) uniform Uniform {
+layout (push_constant) uniform Uniform {
   mat4 worldToPerspective;
   mat4 modelToWorld;
-  mat4 normalToWorld;
   mat4 cameraToWorld;
-  vec4 colour;
+
+  vec3 rayStart;
+  float timeStep;
+  vec3 rayDir;
+  uint numAtoms;
+  uint numConnections;
+  uint pickIndex;
+  uint pass;
 } u;
 
 layout(location = 0) in vec3 inPos;
 
 layout(location = 0) out vec4 outColour;
 
+layout (binding = 4) uniform samplerCube cubeMap;
+
 void main() {
-  outColour = vec4(inPos * 0.5 + 0.5, 1);
+  vec3 dir = normalize(inPos);
+  outColour = texture(cubeMap, dir);
 }

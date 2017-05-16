@@ -381,21 +381,21 @@ private:
 class PipelineMaker {
 public:
   PipelineMaker(uint32_t width, uint32_t height) {
-    s.inputAssemblyState_.topology = vk::PrimitiveTopology::eTriangleList;
-    s.viewport_ = vk::Viewport{0.0f, 0.0f, (float)width, (float)height, 0.0f, 1.0f};
-    s.scissor_ = vk::Rect2D{{0, 0}, {width, height}};
-    s.rasterizationState_.lineWidth = 1.0f;
+    inputAssemblyState_.topology = vk::PrimitiveTopology::eTriangleList;
+    viewport_ = vk::Viewport{0.0f, 0.0f, (float)width, (float)height, 0.0f, 1.0f};
+    scissor_ = vk::Rect2D{{0, 0}, {width, height}};
+    rasterizationState_.lineWidth = 1.0f;
 
     // Set up depth test, but do not enable it.
-    s.depthStencilState_.depthTestEnable = VK_FALSE;
-    s.depthStencilState_.depthWriteEnable = VK_TRUE;
-    s.depthStencilState_.depthCompareOp = vk::CompareOp::eLessOrEqual;
-    s.depthStencilState_.depthBoundsTestEnable = VK_FALSE;
-    s.depthStencilState_.back.failOp = vk::StencilOp::eKeep;
-    s.depthStencilState_.back.passOp = vk::StencilOp::eKeep;
-    s.depthStencilState_.back.compareOp = vk::CompareOp::eAlways;
-    s.depthStencilState_.stencilTestEnable = VK_FALSE;
-    s.depthStencilState_.front = s.depthStencilState_.back;
+    depthStencilState_.depthTestEnable = VK_FALSE;
+    depthStencilState_.depthWriteEnable = VK_TRUE;
+    depthStencilState_.depthCompareOp = vk::CompareOp::eLessOrEqual;
+    depthStencilState_.depthBoundsTestEnable = VK_FALSE;
+    depthStencilState_.back.failOp = vk::StencilOp::eKeep;
+    depthStencilState_.back.passOp = vk::StencilOp::eKeep;
+    depthStencilState_.back.compareOp = vk::CompareOp::eAlways;
+    depthStencilState_.stencilTestEnable = VK_FALSE;
+    depthStencilState_.front = depthStencilState_.back;
   }
 
   vk::UniquePipeline createUnique(const vk::Device &device,
@@ -404,7 +404,7 @@ public:
                             const vk::RenderPass &renderPass, bool defaultBlend=true) {
 
     // Add default colour blend attachment if necessary.
-    if (s.colorBlendAttachments_.empty() && defaultBlend) {
+    if (colorBlendAttachments_.empty() && defaultBlend) {
       vk::PipelineColorBlendAttachmentState blend{};
       blend.blendEnable = 0;
       blend.srcColorBlendFactor = vk::BlendFactor::eOne;
@@ -415,33 +415,38 @@ public:
       blend.alphaBlendOp = vk::BlendOp::eAdd;
       typedef vk::ColorComponentFlagBits ccbf;
       blend.colorWriteMask = ccbf::eR|ccbf::eG|ccbf::eB|ccbf::eA;
-      s.colorBlendAttachments_.push_back(blend);
+      colorBlendAttachments_.push_back(blend);
     }
-    auto count = (uint32_t)s.colorBlendAttachments_.size();
-    s.colorBlendState_.attachmentCount = count;
-    s.colorBlendState_.pAttachments = count ? s.colorBlendAttachments_.data() : nullptr;
+
+    auto count = (uint32_t)colorBlendAttachments_.size();
+    colorBlendState_.attachmentCount = count;
+    colorBlendState_.pAttachments = count ? colorBlendAttachments_.data() : nullptr;
 
     vk::PipelineViewportStateCreateInfo viewportState{
-        {}, 1, &s.viewport_, 1, &s.scissor_};
+        {}, 1, &viewport_, 1, &scissor_};
 
     vk::PipelineVertexInputStateCreateInfo vertexInputState;
-    vertexInputState.vertexAttributeDescriptionCount = (uint32_t)s.vertexAttributeDescriptions_.size();
-    vertexInputState.pVertexAttributeDescriptions = s.vertexAttributeDescriptions_.data();
-    vertexInputState.vertexBindingDescriptionCount = (uint32_t)s.vertexBindingDescriptions_.size();
-    vertexInputState.pVertexBindingDescriptions = s.vertexBindingDescriptions_.data();
+    vertexInputState.vertexAttributeDescriptionCount = (uint32_t)vertexAttributeDescriptions_.size();
+    vertexInputState.pVertexAttributeDescriptions = vertexAttributeDescriptions_.data();
+    vertexInputState.vertexBindingDescriptionCount = (uint32_t)vertexBindingDescriptions_.size();
+    vertexInputState.pVertexBindingDescriptions = vertexBindingDescriptions_.data();
+
+    vk::PipelineDynamicStateCreateInfo dynState{{}, (uint32_t)dynamicState_.size(), dynamicState_.data()};
 
     vk::GraphicsPipelineCreateInfo pipelineInfo{};
     pipelineInfo.pVertexInputState = &vertexInputState;
-    pipelineInfo.stageCount = (uint32_t)s.modules_.size();
-    pipelineInfo.pStages = s.modules_.data();
-    pipelineInfo.pInputAssemblyState = &s.inputAssemblyState_;
+    pipelineInfo.stageCount = (uint32_t)modules_.size();
+    pipelineInfo.pStages = modules_.data();
+    pipelineInfo.pInputAssemblyState = &inputAssemblyState_;
     pipelineInfo.pViewportState = &viewportState;
-    pipelineInfo.pRasterizationState = &s.rasterizationState_;
-    pipelineInfo.pMultisampleState = &s.multisampleState_;
-    pipelineInfo.pColorBlendState = &s.colorBlendState_;
-    pipelineInfo.pDepthStencilState = &s.depthStencilState_;
+    pipelineInfo.pRasterizationState = &rasterizationState_;
+    pipelineInfo.pMultisampleState = &multisampleState_;
+    pipelineInfo.pColorBlendState = &colorBlendState_;
+    pipelineInfo.pDepthStencilState = &depthStencilState_;
     pipelineInfo.layout = pipelineLayout;
     pipelineInfo.renderPass = renderPass;
+    pipelineInfo.pDynamicState = dynamicState_.empty() ? nullptr : &dynState;
+    pipelineInfo.subpass = subpass_;
 
     return device.createGraphicsPipelineUnique(pipelineCache, pipelineInfo);
   }
@@ -453,22 +458,26 @@ public:
     info.module = shader.module();
     info.pName = entryPoint;
     info.stage = stage;
-    s.modules_.emplace_back(info);
+    modules_.emplace_back(info);
   }
 
   /// Add a blend state to the pipeline for one colour attachment.
   /// If you don't do this, a default is used.
   void colorBlend(const vk::PipelineColorBlendAttachmentState &state) {
-    s.colorBlendAttachments_.push_back(state);
+    colorBlendAttachments_.push_back(state);
   }
 
-  /// Begin setting colour blend values.
+  void subPass(uint32_t subpass) {
+    subpass_ = subpass;
+  }
+
+  /// Begin setting colour blend value
   /// If you don't do this, a default is used.
   /// Follow this with blendEnable() blendSrcColorBlendFactor() etc.
   /// Default is a regular alpha blend.
   void blendBegin(vk::Bool32 enable) {
-    s.colorBlendAttachments_.emplace_back();
-    auto &blend = s.colorBlendAttachments_.back();
+    colorBlendAttachments_.emplace_back();
+    auto &blend = colorBlendAttachments_.back();
     blend.blendEnable = enable;
     blend.srcColorBlendFactor = vk::BlendFactor::eSrcAlpha;
     blend.dstColorBlendFactor = vk::BlendFactor::eOneMinusSrcAlpha;
@@ -481,133 +490,133 @@ public:
   }
 
   /// Enable or disable blending (called after blendBegin())
-  void blendEnable(vk::Bool32 value) { s.colorBlendAttachments_.back().blendEnable = value; }
+  void blendEnable(vk::Bool32 value) { colorBlendAttachments_.back().blendEnable = value; }
 
   /// Source colour blend factor (called after blendBegin())
-  void blendSrcColorBlendFactor(vk::BlendFactor value) { s.colorBlendAttachments_.back().srcColorBlendFactor = value; }
+  void blendSrcColorBlendFactor(vk::BlendFactor value) { colorBlendAttachments_.back().srcColorBlendFactor = value; }
 
   /// Destination colour blend factor (called after blendBegin())
-  void blendDstColorBlendFactor(vk::BlendFactor value) { s.colorBlendAttachments_.back().dstColorBlendFactor = value; }
+  void blendDstColorBlendFactor(vk::BlendFactor value) { colorBlendAttachments_.back().dstColorBlendFactor = value; }
 
   /// Blend operation (called after blendBegin())
-  void blendColorBlendOp(vk::BlendOp value) { s.colorBlendAttachments_.back().colorBlendOp = value; }
+  void blendColorBlendOp(vk::BlendOp value) { colorBlendAttachments_.back().colorBlendOp = value; }
 
   /// Source alpha blend factor (called after blendBegin())
-  void blendSrcAlphaBlendFactor(vk::BlendFactor value) { s.colorBlendAttachments_.back().srcAlphaBlendFactor = value; }
+  void blendSrcAlphaBlendFactor(vk::BlendFactor value) { colorBlendAttachments_.back().srcAlphaBlendFactor = value; }
 
   /// Destination alpha blend factor (called after blendBegin())
-  void blendDstAlphaBlendFactor(vk::BlendFactor value) { s.colorBlendAttachments_.back().dstAlphaBlendFactor = value; }
+  void blendDstAlphaBlendFactor(vk::BlendFactor value) { colorBlendAttachments_.back().dstAlphaBlendFactor = value; }
 
   /// Alpha operation (called after blendBegin())
-  void blendAlphaBlendOp(vk::BlendOp value) { s.colorBlendAttachments_.back().alphaBlendOp = value; }
+  void blendAlphaBlendOp(vk::BlendOp value) { colorBlendAttachments_.back().alphaBlendOp = value; }
 
   /// Colour write mask (called after blendBegin())
-  void blendColorWriteMask(vk::ColorComponentFlags value) { s.colorBlendAttachments_.back().colorWriteMask = value; }
+  void blendColorWriteMask(vk::ColorComponentFlags value) { colorBlendAttachments_.back().colorWriteMask = value; }
 
   /// Add a vertex attribute to the pipeline.
   void vertexAttribute(uint32_t location_, uint32_t binding_, vk::Format format_, uint32_t offset_) {
-    s.vertexAttributeDescriptions_.push_back({location_, binding_, format_, offset_});
+    vertexAttributeDescriptions_.push_back({location_, binding_, format_, offset_});
   }
 
   /// Add a vertex attribute to the pipeline.
   void vertexAttribute(const vk::VertexInputAttributeDescription &desc) {
-    s.vertexAttributeDescriptions_.push_back(desc);
+    vertexAttributeDescriptions_.push_back(desc);
   }
 
   /// Add a vertex binding to the pipeline.
   /// Usually only one of these is needed to specify the stride.
   /// Vertices can also be delivered one per instance.
   void vertexBinding(uint32_t binding_, uint32_t stride_, vk::VertexInputRate inputRate_ = vk::VertexInputRate::eVertex) {
-    s.vertexBindingDescriptions_.push_back({binding_, stride_, inputRate_});
+    vertexBindingDescriptions_.push_back({binding_, stride_, inputRate_});
   }
 
   /// Add a vertex binding to the pipeline.
   /// Usually only one of these is needed to specify the stride.
   /// Vertices can also be delivered one per instance.
   void vertexBinding(const vk::VertexInputBindingDescription &desc) {
-    s.vertexBindingDescriptions_.push_back(desc);
+    vertexBindingDescriptions_.push_back(desc);
   }
 
   /// Specify the topology of the pipeline.
   /// Usually this is a triangle list, but points and lines are possible too.
-  PipelineMaker &topology( vk::PrimitiveTopology topology ) { s.inputAssemblyState_.topology = topology; return *this; }
+  PipelineMaker &topology( vk::PrimitiveTopology topology ) { inputAssemblyState_.topology = topology; return *this; }
 
   /// Enable or disable primitive restart.
   /// If using triangle strips, for example, this allows a special index value (0xffff or 0xffffffff) to start a new strip.
-  PipelineMaker &primitiveRestartEnable( vk::Bool32 primitiveRestartEnable ) { s.inputAssemblyState_.primitiveRestartEnable = primitiveRestartEnable; return *this; }
+  PipelineMaker &primitiveRestartEnable( vk::Bool32 primitiveRestartEnable ) { inputAssemblyState_.primitiveRestartEnable = primitiveRestartEnable; return *this; }
 
   /// Set a whole new input assembly state.
-  /// Note you can set individual values with their own calls.
-  PipelineMaker &inputAssemblyState(const vk::PipelineInputAssemblyStateCreateInfo &value) { s.inputAssemblyState_ = value; return *this; }
+  /// Note you can set individual values with their own call
+  PipelineMaker &inputAssemblyState(const vk::PipelineInputAssemblyStateCreateInfo &value) { inputAssemblyState_ = value; return *this; }
 
   /// Set the viewport value.
-  /// Usually there is only one viewport, but you can have multiple viewports active for rendering cubemaps or VR stereo pairs.
-  PipelineMaker &viewport(const vk::Viewport &value) { s.viewport_ = value; return *this; }
+  /// Usually there is only one viewport, but you can have multiple viewports active for rendering cubemaps or VR stereo pair
+  PipelineMaker &viewport(const vk::Viewport &value) { viewport_ = value; return *this; }
 
   /// Set the scissor value.
   /// This defines the area that the fragment shaders can write to. For example, if you are rendering a portal or a mirror.
-  PipelineMaker &scissor(const vk::Rect2D &value) { s.scissor_ = value; return *this; }
+  PipelineMaker &scissor(const vk::Rect2D &value) { scissor_ = value; return *this; }
 
   /// Set a whole rasterization state.
-  /// Note you can set individual values with their own calls.
-  PipelineMaker &rasterizationState(const vk::PipelineRasterizationStateCreateInfo &value) { s.rasterizationState_ = value; return *this; }
-  PipelineMaker &depthClampEnable(vk::Bool32 value) { s.rasterizationState_.depthClampEnable = value; return *this; }
-  PipelineMaker &rasterizerDiscardEnable(vk::Bool32 value) { s.rasterizationState_.rasterizerDiscardEnable = value; return *this; }
-  PipelineMaker &polygonMode(vk::PolygonMode value) { s.rasterizationState_.polygonMode = value; return *this; }
-  PipelineMaker &cullMode(vk::CullModeFlags value) { s.rasterizationState_.cullMode = value; return *this; }
-  PipelineMaker &frontFace(vk::FrontFace value) { s.rasterizationState_.frontFace = value; return *this; }
-  PipelineMaker &depthBiasEnable(vk::Bool32 value) { s.rasterizationState_.depthBiasEnable = value; return *this; }
-  PipelineMaker &depthBiasConstantFactor(float value) { s.rasterizationState_.depthBiasConstantFactor = value; return *this; }
-  PipelineMaker &depthBiasClamp(float value) { s.rasterizationState_.depthBiasClamp = value; return *this; }
-  PipelineMaker &depthBiasSlopeFactor(float value) { s.rasterizationState_.depthBiasSlopeFactor = value; return *this; }
-  PipelineMaker &lineWidth(float value) { s.rasterizationState_.lineWidth = value; return *this; }
+  /// Note you can set individual values with their own call
+  PipelineMaker &rasterizationState(const vk::PipelineRasterizationStateCreateInfo &value) { rasterizationState_ = value; return *this; }
+  PipelineMaker &depthClampEnable(vk::Bool32 value) { rasterizationState_.depthClampEnable = value; return *this; }
+  PipelineMaker &rasterizerDiscardEnable(vk::Bool32 value) { rasterizationState_.rasterizerDiscardEnable = value; return *this; }
+  PipelineMaker &polygonMode(vk::PolygonMode value) { rasterizationState_.polygonMode = value; return *this; }
+  PipelineMaker &cullMode(vk::CullModeFlags value) { rasterizationState_.cullMode = value; return *this; }
+  PipelineMaker &frontFace(vk::FrontFace value) { rasterizationState_.frontFace = value; return *this; }
+  PipelineMaker &depthBiasEnable(vk::Bool32 value) { rasterizationState_.depthBiasEnable = value; return *this; }
+  PipelineMaker &depthBiasConstantFactor(float value) { rasterizationState_.depthBiasConstantFactor = value; return *this; }
+  PipelineMaker &depthBiasClamp(float value) { rasterizationState_.depthBiasClamp = value; return *this; }
+  PipelineMaker &depthBiasSlopeFactor(float value) { rasterizationState_.depthBiasSlopeFactor = value; return *this; }
+  PipelineMaker &lineWidth(float value) { rasterizationState_.lineWidth = value; return *this; }
 
 
   /// Set a whole multi sample state.
-  /// Note you can set individual values with their own calls.
-  PipelineMaker &multisampleState(const vk::PipelineMultisampleStateCreateInfo &value) { s.multisampleState_ = value; return *this; }
-  PipelineMaker &rasterizationSamples(vk::SampleCountFlagBits value) { s.multisampleState_.rasterizationSamples = value; return *this; }
-  PipelineMaker &sampleShadingEnable(vk::Bool32 value) { s.multisampleState_.sampleShadingEnable = value; return *this; }
-  PipelineMaker &minSampleShading(float value) { s.multisampleState_.minSampleShading = value; return *this; }
-  PipelineMaker &pSampleMask(const vk::SampleMask* value) { s.multisampleState_.pSampleMask = value; return *this; }
-  PipelineMaker &alphaToCoverageEnable(vk::Bool32 value) { s.multisampleState_.alphaToCoverageEnable = value; return *this; }
-  PipelineMaker &alphaToOneEnable(vk::Bool32 value) { s.multisampleState_.alphaToOneEnable = value; return *this; }
+  /// Note you can set individual values with their own call
+  PipelineMaker &multisampleState(const vk::PipelineMultisampleStateCreateInfo &value) { multisampleState_ = value; return *this; }
+  PipelineMaker &rasterizationSamples(vk::SampleCountFlagBits value) { multisampleState_.rasterizationSamples = value; return *this; }
+  PipelineMaker &sampleShadingEnable(vk::Bool32 value) { multisampleState_.sampleShadingEnable = value; return *this; }
+  PipelineMaker &minSampleShading(float value) { multisampleState_.minSampleShading = value; return *this; }
+  PipelineMaker &pSampleMask(const vk::SampleMask* value) { multisampleState_.pSampleMask = value; return *this; }
+  PipelineMaker &alphaToCoverageEnable(vk::Bool32 value) { multisampleState_.alphaToCoverageEnable = value; return *this; }
+  PipelineMaker &alphaToOneEnable(vk::Bool32 value) { multisampleState_.alphaToOneEnable = value; return *this; }
 
   /// Set a whole depth stencil state.
-  /// Note you can set individual values with their own calls.
-  PipelineMaker &depthStencilState(const vk::PipelineDepthStencilStateCreateInfo &value) { s.depthStencilState_ = value; return *this; }
-  PipelineMaker &depthTestEnable(vk::Bool32 value) { s.depthStencilState_.depthTestEnable = value; return *this; }
-  PipelineMaker &depthWriteEnable(vk::Bool32 value) { s.depthStencilState_.depthWriteEnable = value; return *this; }
-  PipelineMaker &depthCompareOp(vk::CompareOp value) { s.depthStencilState_.depthCompareOp = value; return *this; }
-  PipelineMaker &depthBoundsTestEnable(vk::Bool32 value) { s.depthStencilState_.depthBoundsTestEnable = value; return *this; }
-  PipelineMaker &stencilTestEnable(vk::Bool32 value) { s.depthStencilState_.stencilTestEnable = value; return *this; }
-  PipelineMaker &front(vk::StencilOpState value) { s.depthStencilState_.front = value; return *this; }
-  PipelineMaker &back(vk::StencilOpState value) { s.depthStencilState_.back = value; return *this; }
-  PipelineMaker &minDepthBounds(float value) { s.depthStencilState_.minDepthBounds = value; return *this; }
-  PipelineMaker &maxDepthBounds(float value) { s.depthStencilState_.maxDepthBounds = value; return *this; }
+  /// Note you can set individual values with their own call
+  PipelineMaker &depthStencilState(const vk::PipelineDepthStencilStateCreateInfo &value) { depthStencilState_ = value; return *this; }
+  PipelineMaker &depthTestEnable(vk::Bool32 value) { depthStencilState_.depthTestEnable = value; return *this; }
+  PipelineMaker &depthWriteEnable(vk::Bool32 value) { depthStencilState_.depthWriteEnable = value; return *this; }
+  PipelineMaker &depthCompareOp(vk::CompareOp value) { depthStencilState_.depthCompareOp = value; return *this; }
+  PipelineMaker &depthBoundsTestEnable(vk::Bool32 value) { depthStencilState_.depthBoundsTestEnable = value; return *this; }
+  PipelineMaker &stencilTestEnable(vk::Bool32 value) { depthStencilState_.stencilTestEnable = value; return *this; }
+  PipelineMaker &front(vk::StencilOpState value) { depthStencilState_.front = value; return *this; }
+  PipelineMaker &back(vk::StencilOpState value) { depthStencilState_.back = value; return *this; }
+  PipelineMaker &minDepthBounds(float value) { depthStencilState_.minDepthBounds = value; return *this; }
+  PipelineMaker &maxDepthBounds(float value) { depthStencilState_.maxDepthBounds = value; return *this; }
 
   /// Set a whole colour blend state.
-  /// Note you can set individual values with their own calls.
-  PipelineMaker &colorBlendState(const vk::PipelineColorBlendStateCreateInfo &value) { s.colorBlendState_ = value; return *this; }
-  PipelineMaker &logicOpEnable(vk::Bool32 value) { s.colorBlendState_.logicOpEnable = value; return *this; }
-  PipelineMaker &logicOp(vk::LogicOp value) { s.colorBlendState_.logicOp = value; return *this; }
-  PipelineMaker &blendConstants(float r, float g, float b, float a) { float *bc = s.colorBlendState_.blendConstants; bc[0] = r; bc[1] = g; bc[2] = b; bc[3] = a; return *this; }
-private:
-  struct State {
-    vk::PipelineInputAssemblyStateCreateInfo inputAssemblyState_;
-    vk::Viewport viewport_;
-    vk::Rect2D scissor_;
-    vk::PipelineRasterizationStateCreateInfo rasterizationState_;
-    vk::PipelineMultisampleStateCreateInfo multisampleState_;
-    vk::PipelineDepthStencilStateCreateInfo depthStencilState_;
-    vk::PipelineColorBlendStateCreateInfo colorBlendState_;
-    std::vector<vk::PipelineColorBlendAttachmentState> colorBlendAttachments_;
-    std::vector<vk::PipelineShaderStageCreateInfo> modules_;
-    std::vector<vk::VertexInputAttributeDescription> vertexAttributeDescriptions_;
-    std::vector<vk::VertexInputBindingDescription> vertexBindingDescriptions_;
-  };
+  /// Note you can set individual values with their own call
+  PipelineMaker &colorBlendState(const vk::PipelineColorBlendStateCreateInfo &value) { colorBlendState_ = value; return *this; }
+  PipelineMaker &logicOpEnable(vk::Bool32 value) { colorBlendState_.logicOpEnable = value; return *this; }
+  PipelineMaker &logicOp(vk::LogicOp value) { colorBlendState_.logicOp = value; return *this; }
+  PipelineMaker &blendConstants(float r, float g, float b, float a) { float *bc = colorBlendState_.blendConstants; bc[0] = r; bc[1] = g; bc[2] = b; bc[3] = a; return *this; }
 
-  State s;
+  PipelineMaker &dynamicState(vk::DynamicState value) { dynamicState_.push_back(value); }
+private:
+  vk::PipelineInputAssemblyStateCreateInfo inputAssemblyState_;
+  vk::Viewport viewport_;
+  vk::Rect2D scissor_;
+  vk::PipelineRasterizationStateCreateInfo rasterizationState_;
+  vk::PipelineMultisampleStateCreateInfo multisampleState_;
+  vk::PipelineDepthStencilStateCreateInfo depthStencilState_;
+  vk::PipelineColorBlendStateCreateInfo colorBlendState_;
+  std::vector<vk::PipelineColorBlendAttachmentState> colorBlendAttachments_;
+  std::vector<vk::PipelineShaderStageCreateInfo> modules_;
+  std::vector<vk::VertexInputAttributeDescription> vertexAttributeDescriptions_;
+  std::vector<vk::VertexInputBindingDescription> vertexBindingDescriptions_;
+  std::vector<vk::DynamicState> dynamicState_;
+  uint32_t subpass_ = 0;
 };
 
 /// A class for building compute pipelines.

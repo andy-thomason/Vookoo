@@ -4,8 +4,15 @@
 layout (push_constant) uniform Uniform {
   mat4 worldToPerspective;
   mat4 modelToWorld;
-  mat4 normalToWorld;
   mat4 cameraToWorld;
+
+  vec3 rayStart;
+  float timeStep;
+  vec3 rayDir;
+  uint numAtoms;
+  uint numConnections;
+  uint pickIndex;
+  uint pass;
 } u;
 
 const vec3 cpos[8] = {
@@ -43,6 +50,9 @@ const uint cube[] = {
 layout(location = 0) out vec3 outPos;
 
 void main() {
-  outPos = cpos[gl_VertexIndex];
-  gl_Position = vec4(outPos, 1);
+  outPos = cpos[cube[gl_VertexIndex]];
+  gl_Position = u.worldToPerspective * vec4(u.cameraToWorld[3].xyz + outPos * 30, 1);
+
+  // Z depth is w / w = 1
+  gl_Position.z = gl_Position.w;
 }

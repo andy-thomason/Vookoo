@@ -1,5 +1,4 @@
 #version 450
-#extension GL_ARB_separate_shader_objects : enable
 
 layout(location = 0) out vec3 outColour;
 layout(location = 1) out vec3 outCentre;
@@ -7,12 +6,10 @@ layout(location = 2) out float outRadius;
 layout(location = 3) out vec3 outRayDir;
 layout(location = 4) out vec3 outRayStart;
 
-layout (binding = 1) uniform Uniform {
+layout (push_constant) uniform Uniform {
   mat4 worldToPerspective;
   mat4 modelToWorld;
-  mat4 normalToWorld;
   mat4 cameraToWorld;
-  vec4 colour;
 } u;
 
 out gl_PerVertex {
@@ -25,10 +22,10 @@ struct Atom {
   float radius;
   vec3 colour;
   float mass;
-  vec3 velocity;
+  vec3 prevPos;
   int pad;
-  vec3 acceleration;
-  int pad2;
+  vec3 acc;
+  int connections[5];
 };
 
 layout(std430, binding=0) buffer Atoms {
