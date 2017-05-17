@@ -67,7 +67,7 @@ namespace gilgamesh {
       if (filename == "-") {
         std::cout.write((char*)bytes.data(), bytes.size());
       } else {
-        auto &fout = std::ofstream(filename, std::ios_base::binary);
+        auto fout = std::ofstream(filename, std::ios_base::binary);
         fout.write((char*)bytes.data(), bytes.size());
       }
     }

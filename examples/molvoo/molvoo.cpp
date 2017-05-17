@@ -11,6 +11,8 @@
 #include <gilgamesh/decoders/pdb_decoder.hpp>
 #include <vector>
 
+namespace molvoo {
+
 using mat4 = glm::mat4;
 using vec2 = glm::vec2;
 using vec3 = glm::vec3;
@@ -183,7 +185,7 @@ public:
       Atom a{};
       a.pos = a.prevPos = pos - mean;
       float scale = 0.1f;
-      if (atom.atomNameIs(" N  ") || atom.atomNameIs(" C  ") || atom.atomNameIs(" P  ")) scale = 0.4f;
+      if (atom.atomNameIs(" N  ") || atom.atomNameIs(" CA ") || atom.atomNameIs(" C  ") || atom.atomNameIs(" P  ")) scale = 0.4f;
       //if (atom.atomNameIs(" O5'") || atom.atomNameIs(" O3'")) scale = 0.25f;
       //if (atom.atomNameIs(" C5'") || atom.atomNameIs(" C4'") || atom.atomNameIs(" C3'")) scale = 0.25f;
       a.radius = atom.vanDerVaalsRadius() * scale;
@@ -701,8 +703,10 @@ private:
   std::vector<vk::UniqueEvent> pickEvents_;
 };
 
+}
+
 int main(int argc, char **argv) {
-  Molvoo viewer(argc, argv);
+  molvoo::Molvoo viewer(argc, argv);
   while (viewer.poll()) {
   }
   return 0;
