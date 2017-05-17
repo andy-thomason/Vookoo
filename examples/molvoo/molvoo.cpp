@@ -235,6 +235,7 @@ class TextModel {
 public:
   TextModel() {
   }
+
   TextModel(const std::string &filename, vk::Device device, vk::PhysicalDeviceMemoryProperties memprops, vk::CommandPool commandPool, vk::Queue queue) {
     using buf = vk::BufferUsageFlagBits;
     maxGlyphs_ = 8192;
@@ -247,7 +248,7 @@ public:
     auto fountData = vku::loadFile(filename);
 
     int charCount = '~'-' '+1;
-    std::vector<stbtt_packedchar> charInfo(charCount);
+    charInfo_ = std::vector<stbtt_packedchar>(charCount);
 
     stbtt_pack_context context;
     int oversampleX = 4;
@@ -255,36 +256,39 @@ public:
     float fountSize = 20;
     stbtt_PackBegin(&context, fountBytes.data(), fountWidth, fountHeight, 0, 1, nullptr);
     stbtt_PackSetOversampling(&context, oversampleX, oversampleY);
-    stbtt_PackFontRange(&context, fountData.data(), 0, fountSize, ' ', charCount, charInfo.data());
+    stbtt_PackFontRange(&context, fountData.data(), 0, fountSize, ' ', charCount, charInfo_.data());
     stbtt_PackEnd(&context);
 
     fountMap_.upload(device, fountBytes, commandPool, memprops, queue);
-    Glyph *glyphs = (Glyph *)glyphs_.map(device);
-    stbtt_aligned_quad quad{};
-    auto str = "arg189";
-    numGlyphs_ = 0;
-    vec2 pos(0);
-    vec2 scale(0.1f);
-    for (const char *p = str; *p; ++p) {
-      auto &g = glyphs[numGlyphs_++];
-      vec2 offset;
-      stbtt_GetPackedQuad(charInfo.data(), fountWidth, fountHeight, *p - ' ', &offset.x, &offset.y, &quad, 1);
-      printf("%f %f %f %f %f %f\n", offset.x, offset.y, quad.x0, quad.y0, quad.x1, quad.y1);
-      g.colour = vec3(1, 1, 1);
-      g.pos0 = pos + vec2(quad.x0, -quad.y0) * scale;
-      g.pos1 = pos + vec2(quad.x1, -quad.y1) * scale;
-      g.uv0 = vec2(quad.s0, quad.t0);
-      g.uv1 = vec2(quad.s1, quad.t1);
-      g.origin = vec3(10, 0, 0);
-      pos += offset * scale;
-    }
-    glyphs_.unmap(device);
 
     vku::SamplerMaker fsm{};
     fsm.magFilter(vk::Filter::eNearest);
     fsm.minFilter(vk::Filter::eNearest);
     fsm.mipmapMode(vk::SamplerMipmapMode::eNearest);
     fountSampler_ = fsm.createUnique(device);
+
+    pGlyphs_ = (Glyph *)glyphs_.map(device);
+  }
+
+  glm::vec2 draw(glm::vec3 origin, glm::vec2 pos, glm::vec3 colour, glm::vec2 scale, const std::string &text) {
+    stbtt_aligned_quad quad{};
+    numGlyphs_ = 0;
+    for (auto c : text) {
+      if (c < ' ' || c > '~') continue;
+      if (numGlyphs_ == maxGlyphs_) break;
+      auto &g = pGlyphs_[numGlyphs_++];
+      vec2 offset;
+      stbtt_GetPackedQuad(charInfo_.data(), fountMap_.extent().width, fountMap_.extent().height, c - ' ', &offset.x, &offset.y, &quad, 1);
+      //printf("%f %f %f %f %f %f\n", offset.x, offset.y, quad.x0, quad.y0, quad.x1, quad.y1);
+      g.colour = colour;
+      g.pos0 = pos + vec2(quad.x0, -quad.y0) * scale;
+      g.pos1 = pos + vec2(quad.x1, -quad.y1) * scale;
+      g.uv0 = vec2(quad.s0, quad.t0);
+      g.uv1 = vec2(quad.s1, quad.t1);
+      g.origin = origin;
+      pos += offset * scale;
+    }
+    return pos;
   }
 
   vk::Buffer glyphs() const { return glyphs_.buffer(); }
@@ -296,8 +300,10 @@ private:
   vku::GenericBuffer glyphs_;
   vku::TextureImage2D fountMap_;
   vk::UniqueSampler fountSampler_;
+  Glyph *pGlyphs_;
   int maxGlyphs_;
   int numGlyphs_;
+  std::vector<stbtt_packedchar> charInfo_;
 };
 
 class MoleculeModel {
@@ -566,6 +572,9 @@ private:
     connPipeline_ = MoleculePipeline(device_, fw_.pipelineCache(), window_.renderPass(), window_.width(), window_.height(), standardLayout_.pipelineLayout(), false);
 
     textModel_ = TextModel(FOUNT_NAME, device_, fw_.memprops(), window_.commandPool(), fw_.graphicsQueue());
+    textModel_.draw(vec3(0), vec2(0), vec3(0, 0, 1), vec2(0.1f), "hello world");
+
+
     moleculeModel_ = MoleculeModel(filename, device_, fw_.memprops(), window_.commandPool(), fw_.graphicsQueue());
     moleculeModel_.updateDescriptorSet(device_, standardLayout_.descriptorSetLayout(), fw_.descriptorPool(), *cubeSampler_, cubeMap_.imageView(), textModel_.sampler(), textModel_.imageView(), textModel_.glyphs(), textModel_.maxGlyphs());
 
@@ -734,7 +743,7 @@ private:
         cb.draw(moleculeModel_.numConnections() * 6, 1, 0, 0);
 
         cb.bindPipeline(vk::PipelineBindPoint::eGraphics, fountPipeline_.pipeline());
-        cb.draw(6 * 6, 1, 0, 0);
+        cb.draw(textModel_.numGlyphs() * 6, 1, 0, 0);
 
         cb.endRenderPass();
         cb.end();
