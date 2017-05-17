@@ -61,7 +61,8 @@ void main() {
   float lerpx = vpos.x * 0.5 + 0.5;
   vec3 pos = mix(a1pos, a2pos, lerpx);
   vec3 perp = normalize(cross(u.cameraToWorld[2].xyz, a1pos - a2pos));
-  vec3 worldPos = pos + perp * (vpos.y * minr);
+  vec3 towards = normalize(cross(perp, a1pos - a2pos)) * minr;
+  vec3 worldPos = pos - towards + perp * (vpos.y * minr);
   vec3 cameraPos = u.cameraToWorld[3].xyz;
   gl_Position = u.worldToPerspective * vec4(worldPos, 1.0);
   outColour = a1.colour;
