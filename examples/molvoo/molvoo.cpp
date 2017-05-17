@@ -16,6 +16,8 @@
 
 #ifdef WIN32
 #define FOUNT_NAME "C:/windows/fonts/arial.ttf"
+#else
+#define FOUNT_NAME "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
 #endif
 
 namespace molvoo {
@@ -67,12 +69,12 @@ struct PushConstants {
 struct Glyph {
   vec2 uv0;
   vec2 uv1;
-  vec3 pos;
-  int pad;
+  vec2 pos0;
+  vec2 pos1;
   vec3 colour;
   int pad2;
-  vec2 size;
-  int pad3[2];
+  vec3 origin;
+  int pad;
 };
 
 class StandardLayout {
@@ -194,7 +196,10 @@ public:
     vku::PipelineMaker pm{width, height};
     pm.shader(vk::ShaderStageFlagBits::eVertex, vert_);
     pm.shader(vk::ShaderStageFlagBits::eFragment, frag_);
+
+    // blend with premultiplied alpha
     pm.blendBegin(1);
+    pm.blendSrcColorBlendFactor(vk::BlendFactor::eOne);
 
     pipeline_ = pm.createUnique(device, cache, pipelineLayout, renderPass);
   }
@@ -224,6 +229,75 @@ public:
 private:
   vk::UniquePipeline pipeline_;
   vku::ShaderModule comp_;
+};
+
+class TextModel {
+public:
+  TextModel() {
+  }
+  TextModel(const std::string &filename, vk::Device device, vk::PhysicalDeviceMemoryProperties memprops, vk::CommandPool commandPool, vk::Queue queue) {
+    using buf = vk::BufferUsageFlagBits;
+    maxGlyphs_ = 8192;
+    glyphs_ = vku::GenericBuffer(device, memprops, buf::eStorageBuffer|buf::eTransferDst, maxGlyphs_ * sizeof(Glyph), vk::MemoryPropertyFlagBits::eHostVisible);
+
+    uint32_t fountWidth = 512;
+    uint32_t fountHeight = 512;
+    fountMap_ = vku::TextureImage2D{device, memprops, fountWidth, fountHeight, 1, vk::Format::eR8Unorm};
+    std::vector<uint8_t> fountBytes(fountWidth * fountHeight);
+    auto fountData = vku::loadFile(filename);
+
+    int charCount = '~'-' '+1;
+    std::vector<stbtt_packedchar> charInfo(charCount);
+
+    stbtt_pack_context context;
+    int oversampleX = 4;
+    int oversampleY = 4;
+    float fountSize = 20;
+    stbtt_PackBegin(&context, fountBytes.data(), fountWidth, fountHeight, 0, 1, nullptr);
+    stbtt_PackSetOversampling(&context, oversampleX, oversampleY);
+    stbtt_PackFontRange(&context, fountData.data(), 0, fountSize, ' ', charCount, charInfo.data());
+    stbtt_PackEnd(&context);
+
+    fountMap_.upload(device, fountBytes, commandPool, memprops, queue);
+    Glyph *glyphs = (Glyph *)glyphs_.map(device);
+    stbtt_aligned_quad quad{};
+    auto str = "arg189";
+    numGlyphs_ = 0;
+    vec2 pos(0);
+    vec2 scale(0.1f);
+    for (const char *p = str; *p; ++p) {
+      auto &g = glyphs[numGlyphs_++];
+      vec2 offset;
+      stbtt_GetPackedQuad(charInfo.data(), fountWidth, fountHeight, *p - ' ', &offset.x, &offset.y, &quad, 1);
+      printf("%f %f %f %f %f %f\n", offset.x, offset.y, quad.x0, quad.y0, quad.x1, quad.y1);
+      g.colour = vec3(1, 1, 1);
+      g.pos0 = pos + vec2(quad.x0, -quad.y0) * scale;
+      g.pos1 = pos + vec2(quad.x1, -quad.y1) * scale;
+      g.uv0 = vec2(quad.s0, quad.t0);
+      g.uv1 = vec2(quad.s1, quad.t1);
+      g.origin = vec3(10, 0, 0);
+      pos += offset * scale;
+    }
+    glyphs_.unmap(device);
+
+    vku::SamplerMaker fsm{};
+    fsm.magFilter(vk::Filter::eNearest);
+    fsm.minFilter(vk::Filter::eNearest);
+    fsm.mipmapMode(vk::SamplerMipmapMode::eNearest);
+    fountSampler_ = fsm.createUnique(device);
+  }
+
+  vk::Buffer glyphs() const { return glyphs_.buffer(); }
+  vk::ImageView imageView() const { return fountMap_.imageView(); }
+  vk::Sampler sampler() const { return *fountSampler_; }
+  int maxGlyphs() const { return maxGlyphs_; }
+  int numGlyphs() const { return numGlyphs_; }
+private:
+  vku::GenericBuffer glyphs_;
+  vku::TextureImage2D fountMap_;
+  vk::UniqueSampler fountSampler_;
+  int maxGlyphs_;
+  int numGlyphs_;
 };
 
 class MoleculeModel {
@@ -482,43 +556,6 @@ private:
     sm.mipmapMode(vk::SamplerMipmapMode::eNearest);
     cubeSampler_ = sm.createUnique(device_);
 
-    using buf = vk::BufferUsageFlagBits;
-    glyphs_ = vku::GenericBuffer(device_, fw_.memprops(), buf::eStorageBuffer|buf::eTransferDst, 1 * sizeof(Glyph), vk::MemoryPropertyFlagBits::eHostVisible);
-
-    uint32_t fountWidth = 512;
-    uint32_t fountHeight = 512;
-    fountMap_ = vku::TextureImage2D{device_, fw_.memprops(), fountWidth, fountHeight, 1, vk::Format::eR8Unorm};
-    std::vector<uint8_t> fountBytes(fountWidth * fountHeight);
-
-    auto fontData = vku::loadFile(FOUNT_NAME);
-    std::vector<uint8_t> atlasData(fountWidth * fountHeight);
-
-    int charCount = '~'-' '+1;
-    std::vector<stbtt_packedchar> charInfo(charCount);
-
-    stbtt_pack_context context;
-    int oversampleX = 2;
-    int oversampleY = 2;
-    float fountSize = 20;
-    stbtt_PackBegin(&context, fountBytes.data(), fountWidth, fountHeight, 0, 1, nullptr);
-    stbtt_PackSetOversampling(&context, oversampleX, oversampleY);
-    stbtt_PackFontRange(&context, fontData.data(), 0, fountSize, ' ', charCount, charInfo.data());
-    stbtt_PackEnd(&context);
-
-    fountMap_.upload(device_, fountBytes, window_.commandPool(), fw_.memprops(), fw_.graphicsQueue());
-    Glyph *glpyhs = (Glyph *)glyphs_.map(device_);
-    glpyhs[0].colour = vec3(1, 1, 1);
-    glpyhs[0].pos = vec3(0, 0, 0);
-    glpyhs[0].size = vec3(10, 10, 10);
-    glpyhs[0].uv0 = vec2(0, 0);
-    glpyhs[0].uv1 = vec2(1, 1);
-    glyphs_.unmap(device_);
-
-    vku::SamplerMaker fsm{};
-    fsm.magFilter(vk::Filter::eNearest);
-    fsm.minFilter(vk::Filter::eNearest);
-    fsm.mipmapMode(vk::SamplerMipmapMode::eNearest);
-    fountSampler_ = fsm.createUnique(device_);
 
     standardLayout_ = StandardLayout(device_);
 
@@ -528,8 +565,9 @@ private:
     atomPipeline_ = MoleculePipeline(device_, fw_.pipelineCache(), window_.renderPass(), window_.width(), window_.height(), standardLayout_.pipelineLayout(), true);
     connPipeline_ = MoleculePipeline(device_, fw_.pipelineCache(), window_.renderPass(), window_.width(), window_.height(), standardLayout_.pipelineLayout(), false);
 
+    textModel_ = TextModel(FOUNT_NAME, device_, fw_.memprops(), window_.commandPool(), fw_.graphicsQueue());
     moleculeModel_ = MoleculeModel(filename, device_, fw_.memprops(), window_.commandPool(), fw_.graphicsQueue());
-    moleculeModel_.updateDescriptorSet(device_, standardLayout_.descriptorSetLayout(), fw_.descriptorPool(), *cubeSampler_, cubeMap_.imageView(), *fountSampler_, fountMap_.imageView(), glyphs_.buffer(), 1);
+    moleculeModel_.updateDescriptorSet(device_, standardLayout_.descriptorSetLayout(), fw_.descriptorPool(), *cubeSampler_, cubeMap_.imageView(), textModel_.sampler(), textModel_.imageView(), textModel_.glyphs(), textModel_.maxGlyphs());
 
     for (int i = 0; i != Pick::fifoSize; ++i) {
       vk::EventCreateInfo eci{};
@@ -696,7 +734,7 @@ private:
         cb.draw(moleculeModel_.numConnections() * 6, 1, 0, 0);
 
         cb.bindPipeline(vk::PipelineBindPoint::eGraphics, fountPipeline_.pipeline());
-        cb.draw(1 * 6, 1, 0, 0);
+        cb.draw(6 * 6, 1, 0, 0);
 
         cb.endRenderPass();
         cb.end();
@@ -779,15 +817,12 @@ private:
   DynamicsPipeline dynamicsPipeline_;
   MoleculePipeline atomPipeline_;
   MoleculePipeline connPipeline_;
+
+  TextModel textModel_;
   MoleculeModel moleculeModel_;
 
   vku::TextureImageCube cubeMap_;
   vk::UniqueSampler cubeSampler_;
-
-  vku::TextureImage2D fountMap_;
-  vk::UniqueSampler fountSampler_;
-
-  vku::GenericBuffer glyphs_;
 
   struct MouseState {
     double prevXpos = 0;
