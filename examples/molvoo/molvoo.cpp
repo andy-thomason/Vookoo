@@ -14,6 +14,10 @@
 #define STB_TRUETYPE_IMPLEMENTATION
 #include <stb/stb_truetype.h>
 
+#ifdef WIN32
+#define FOUNT_NAME "C:/windows/fonts/arial.ttf"
+#endif
+
 using mat4 = glm::mat4;
 using vec2 = glm::vec2;
 using vec3 = glm::vec3;
@@ -484,7 +488,7 @@ private:
     fountMap_ = vku::TextureImage2D{device_, fw_.memprops(), fountWidth, fountHeight, 1, vk::Format::eR8Unorm};
     std::vector<uint8_t> fountBytes(fountWidth * fountHeight);
 
-    auto fontData = vku::loadFile("C:/windows/fonts/arial.ttf");
+    auto fontData = vku::loadFile(FOUNT_NAME);
     std::vector<uint8_t> atlasData(fountWidth * fountHeight);
 
     int charCount = '~'-' '+1;
