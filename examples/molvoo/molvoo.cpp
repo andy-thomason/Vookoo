@@ -11,6 +11,9 @@
 #include <gilgamesh/decoders/pdb_decoder.hpp>
 #include <vector>
 
+#define STB_TRUETYPE_IMPLEMENTATION
+#include <stb/stb_truetype.h>
+
 using mat4 = glm::mat4;
 using vec2 = glm::vec2;
 using vec3 = glm::vec3;
@@ -55,6 +58,17 @@ struct PushConstants {
   uint pass;
 };
 
+struct Glyph {
+  vec2 uv0;
+  vec2 uv1;
+  vec3 pos;
+  int pad;
+  vec3 colour;
+  int pad2;
+  vec2 size;
+  int pad3[2];
+};
+
 class StandardLayout {
 public:
   StandardLayout() {
@@ -63,10 +77,11 @@ public:
   StandardLayout(vk::Device device) {
     vku::DescriptorSetLayoutMaker dslm{};
     dslm.buffer(0U, vk::DescriptorType::eStorageBuffer, vk::ShaderStageFlagBits::eAll, 1); // Atoms
-    dslm.buffer(1U, vk::DescriptorType::eUniformBuffer, vk::ShaderStageFlagBits::eAll, 1); // Uniform
+    dslm.buffer(1U, vk::DescriptorType::eStorageBuffer, vk::ShaderStageFlagBits::eAll, 1); // Fount glyphs
     dslm.buffer(2U, vk::DescriptorType::eStorageBuffer, vk::ShaderStageFlagBits::eCompute, 1); // Pick
     dslm.buffer(3U, vk::DescriptorType::eStorageBuffer, vk::ShaderStageFlagBits::eAll, 1); // Connections
     dslm.buffer(4U, vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eAll, 1); // Cube map
+    dslm.buffer(5U, vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eAll, 1); // Fount map
     layout_ = dslm.createUnique(device);
 
     vku::PipelineLayoutMaker plm{};
@@ -74,6 +89,33 @@ public:
     plm.pushConstantRange(vk::ShaderStageFlagBits::eAll, 0, sizeof(PushConstants));
     pipelineLayout_ = plm.createUnique(device);
   }
+
+  /*vk::DescriptorSet createDescriptorSet(vk::Device device, vk::DescriptorSetLayout layout, vk::DescriptorPool descriptorPool, vk::Sampler cubeSampler, vk::ImageView cubeImageView, vk::Sampler fountSampler, vk::ImageView fountImageView) {
+    vku::DescriptorSetMaker dsm{};
+    dsm.layout(layout);
+    auto standardLayout = dsm.create(device, descriptorPool);
+    vk::DescriptorSet set = standardLayout[0];
+
+    vku::DescriptorSetUpdater update;
+    update.beginDescriptorSet(set);
+
+    // Point the descriptor set at the storage buffer.
+    update.beginBuffers(0, 0, vk::DescriptorType::eStorageBuffer);
+    update.buffer(atoms_.buffer(), 0, numAtoms_ * sizeof(Atom));
+    //update.beginBuffers(1, 0, vk::DescriptorType::eStorageBuffer);
+    //update.buffer(ubo, 0, sizeof(PushConstants));
+    update.beginBuffers(2, 0, vk::DescriptorType::eStorageBuffer);
+    update.buffer(pick_.buffer(), 0, sizeof(Pick) * Pick::fifoSize);
+    update.beginBuffers(3, 0, vk::DescriptorType::eStorageBuffer);
+    update.buffer(conns_.buffer(), 0, sizeof(Connection) * numConnections_);
+    update.beginImages(4, 0, vk::DescriptorType::eCombinedImageSampler);
+    update.image(cubeSampler, cubeImageView, vk::ImageLayout::eShaderReadOnlyOptimal);
+    update.beginImages(5, 0, vk::DescriptorType::eCombinedImageSampler);
+    update.image(fountSampler, fountImageView, vk::ImageLayout::eShaderReadOnlyOptimal);
+
+    update.update(device);
+    return set;
+  }*/
 
   vk::PipelineLayout pipelineLayout() const { return *pipelineLayout_; }
   vk::DescriptorSetLayout descriptorSetLayout() const { return *layout_; }
@@ -123,6 +165,30 @@ public:
     vku::PipelineMaker pm{width, height};
     pm.shader(vk::ShaderStageFlagBits::eVertex, vert_);
     pm.shader(vk::ShaderStageFlagBits::eFragment, frag_);
+
+    pipeline_ = pm.createUnique(device, cache, pipelineLayout, renderPass);
+  }
+
+  vk::Pipeline pipeline() const { return *pipeline_; }
+private:
+  vk::UniquePipeline pipeline_;
+  vku::ShaderModule vert_;
+  vku::ShaderModule frag_;
+};
+
+class FountPipeline {
+public:
+  FountPipeline() {
+  }
+
+  FountPipeline(vk::Device device, vk::PipelineCache cache, vk::RenderPass renderPass, uint32_t width, uint32_t height, vk::PipelineLayout pipelineLayout) {
+    vert_ = vku::ShaderModule{device, BINARY_DIR "fount.vert.spv"};
+    frag_ = vku::ShaderModule{device, BINARY_DIR "fount.frag.spv"};
+
+    vku::PipelineMaker pm{width, height};
+    pm.shader(vk::ShaderStageFlagBits::eVertex, vert_);
+    pm.shader(vk::ShaderStageFlagBits::eFragment, frag_);
+    pm.blendBegin(1);
 
     pipeline_ = pm.createUnique(device, cache, pipelineLayout, renderPass);
   }
@@ -279,7 +345,7 @@ public:
     conns_.upload(device, memprops, commandPool, queue, conns);
   }
 
-  void updateDescriptorSet(vk::Device device, vk::DescriptorSetLayout layout, vk::DescriptorPool descriptorPool, vk::Sampler cubeSampler, vk::ImageView cubeImageView) {
+  void updateDescriptorSet(vk::Device device, vk::DescriptorSetLayout layout, vk::DescriptorPool descriptorPool, vk::Sampler cubeSampler, vk::ImageView cubeImageView, vk::Sampler fountSampler, vk::ImageView fountImageView, vk::Buffer glyphs, int maxGlyphs) {
     vku::DescriptorSetMaker dsm{};
     dsm.layout(layout);
     auto StandardLayout = dsm.create(device, descriptorPool);
@@ -291,14 +357,16 @@ public:
     // Point the descriptor set at the storage buffer.
     update.beginBuffers(0, 0, vk::DescriptorType::eStorageBuffer);
     update.buffer(atoms_.buffer(), 0, numAtoms_ * sizeof(Atom));
-    //update.beginBuffers(1, 0, vk::DescriptorType::eUniformBuffer);
-    //update.buffer(ubo, 0, sizeof(PushConstants));
+    update.beginBuffers(1, 0, vk::DescriptorType::eStorageBuffer);
+    update.buffer(glyphs, 0, maxGlyphs * sizeof(Glyph));
     update.beginBuffers(2, 0, vk::DescriptorType::eStorageBuffer);
     update.buffer(pick_.buffer(), 0, sizeof(Pick) * Pick::fifoSize);
     update.beginBuffers(3, 0, vk::DescriptorType::eStorageBuffer);
     update.buffer(conns_.buffer(), 0, sizeof(Connection) * numConnections_);
     update.beginImages(4, 0, vk::DescriptorType::eCombinedImageSampler);
     update.image(cubeSampler, cubeImageView, vk::ImageLayout::eShaderReadOnlyOptimal);
+    update.beginImages(5, 0, vk::DescriptorType::eCombinedImageSampler);
+    update.image(fountSampler, fountImageView, vk::ImageLayout::eShaderReadOnlyOptimal);
 
     update.update(device);
   }
@@ -408,15 +476,54 @@ private:
     sm.mipmapMode(vk::SamplerMipmapMode::eNearest);
     cubeSampler_ = sm.createUnique(device_);
 
+    using buf = vk::BufferUsageFlagBits;
+    glyphs_ = vku::GenericBuffer(device_, fw_.memprops(), buf::eStorageBuffer|buf::eTransferDst, 1 * sizeof(Glyph), vk::MemoryPropertyFlagBits::eHostVisible);
+
+    uint32_t fountWidth = 512;
+    uint32_t fountHeight = 512;
+    fountMap_ = vku::TextureImage2D{device_, fw_.memprops(), fountWidth, fountHeight, 1, vk::Format::eR8Unorm};
+    std::vector<uint8_t> fountBytes(fountWidth * fountHeight);
+
+    auto fontData = vku::loadFile("C:/windows/fonts/arial.ttf");
+    std::vector<uint8_t> atlasData(fountWidth * fountHeight);
+
+    int charCount = '~'-' '+1;
+    std::vector<stbtt_packedchar> charInfo(charCount);
+
+    stbtt_pack_context context;
+    int oversampleX = 2;
+    int oversampleY = 2;
+    float fountSize = 20;
+    stbtt_PackBegin(&context, fountBytes.data(), fountWidth, fountHeight, 0, 1, nullptr);
+    stbtt_PackSetOversampling(&context, oversampleX, oversampleY);
+    stbtt_PackFontRange(&context, fontData.data(), 0, fountSize, ' ', charCount, charInfo.data());
+    stbtt_PackEnd(&context);
+
+    fountMap_.upload(device_, fountBytes, window_.commandPool(), fw_.memprops(), fw_.graphicsQueue());
+    Glyph *glpyhs = (Glyph *)glyphs_.map(device_);
+    glpyhs[0].colour = vec3(1, 1, 1);
+    glpyhs[0].pos = vec3(0, 0, 0);
+    glpyhs[0].size = vec3(10, 10, 10);
+    glpyhs[0].uv0 = vec2(0, 0);
+    glpyhs[0].uv1 = vec2(1, 1);
+    glyphs_.unmap(device_);
+
+    vku::SamplerMaker fsm{};
+    fsm.magFilter(vk::Filter::eNearest);
+    fsm.minFilter(vk::Filter::eNearest);
+    fsm.mipmapMode(vk::SamplerMipmapMode::eNearest);
+    fountSampler_ = fsm.createUnique(device_);
+
     standardLayout_ = StandardLayout(device_);
 
+    fountPipeline_ = FountPipeline(device_, fw_.pipelineCache(), window_.renderPass(), window_.width(), window_.height(), standardLayout_.pipelineLayout());
     skyboxPipeline_ = SkyboxPipeline(device_, fw_.pipelineCache(), window_.renderPass(), window_.width(), window_.height(), standardLayout_.pipelineLayout());
     dynamicsPipeline_ = DynamicsPipeline(device_, fw_.pipelineCache(), window_.renderPass(), window_.width(), window_.height(), standardLayout_.pipelineLayout());
     atomPipeline_ = MoleculePipeline(device_, fw_.pipelineCache(), window_.renderPass(), window_.width(), window_.height(), standardLayout_.pipelineLayout(), true);
     connPipeline_ = MoleculePipeline(device_, fw_.pipelineCache(), window_.renderPass(), window_.width(), window_.height(), standardLayout_.pipelineLayout(), false);
 
     moleculeModel_ = MoleculeModel(filename, device_, fw_.memprops(), window_.commandPool(), fw_.graphicsQueue());
-    moleculeModel_.updateDescriptorSet(device_, standardLayout_.descriptorSetLayout(), fw_.descriptorPool(), *cubeSampler_, cubeMap_.imageView());
+    moleculeModel_.updateDescriptorSet(device_, standardLayout_.descriptorSetLayout(), fw_.descriptorPool(), *cubeSampler_, cubeMap_.imageView(), *fountSampler_, fountMap_.imageView(), glyphs_.buffer(), 1);
 
     for (int i = 0; i != Pick::fifoSize; ++i) {
       vk::EventCreateInfo eci{};
@@ -582,6 +689,9 @@ private:
         cb.bindPipeline(vk::PipelineBindPoint::eGraphics, connPipeline_.pipeline());
         cb.draw(moleculeModel_.numConnections() * 6, 1, 0, 0);
 
+        cb.bindPipeline(vk::PipelineBindPoint::eGraphics, fountPipeline_.pipeline());
+        cb.draw(1 * 6, 1, 0, 0);
+
         cb.endRenderPass();
         cb.end();
       }
@@ -658,6 +768,7 @@ private:
 
   StandardLayout standardLayout_;
   SkyboxPipeline skyboxPipeline_;
+  FountPipeline fountPipeline_;
 
   DynamicsPipeline dynamicsPipeline_;
   MoleculePipeline atomPipeline_;
@@ -666,6 +777,11 @@ private:
 
   vku::TextureImageCube cubeMap_;
   vk::UniqueSampler cubeSampler_;
+
+  vku::TextureImage2D fountMap_;
+  vk::UniqueSampler fountSampler_;
+
+  vku::GenericBuffer glyphs_;
 
   struct MouseState {
     double prevXpos = 0;

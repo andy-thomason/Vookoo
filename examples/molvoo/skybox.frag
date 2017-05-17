@@ -1,17 +1,11 @@
 #version 450
 
-layout (push_constant) uniform Uniform {
+layout (binding = 1) uniform Uniform {
   mat4 worldToPerspective;
   mat4 modelToWorld;
+  mat4 normalToWorld;
   mat4 cameraToWorld;
-
-  vec3 rayStart;
-  float timeStep;
-  vec3 rayDir;
-  uint numAtoms;
-  uint numConnections;
-  uint pickIndex;
-  uint pass;
+  vec4 colour;
 } u;
 
 layout(location = 0) in vec3 inPos;
