@@ -280,26 +280,6 @@ int main() {
   const float depthBiasConstantFactor = 1.25f;
   const float depthBiasSlopeFactor = 1.75f;
 
-  // Set the static render commands for the main renderpass.
-  // Static commands are drawn after the dynamic commands.
-  window.setStaticCommands(
-    [&](vk::CommandBuffer cb, int imageIndex, vk::RenderPassBeginInfo &rpbi) {
-      vk::CommandBufferBeginInfo bi{};
-      cb.begin(bi);
-
-      // Second renderpass. Draw the final image.
-      cb.beginRenderPass(rpbi, vk::SubpassContents::eInline);
-      cb.bindPipeline(vk::PipelineBindPoint::eGraphics, *finalPipeline);
-      cb.bindVertexBuffers(0, vbo.buffer(), vk::DeviceSize(0));
-      cb.bindIndexBuffer(ibo.buffer(), vk::DeviceSize(0), vk::IndexType::eUint32);
-      cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *pipelineLayout, 0, descriptorSets, nullptr);
-      cb.drawIndexed(indexCount, 1, 0, 0, 0);
-      cb.endRenderPass();
-
-      cb.end();
-    }
-  );
-
   if (!window.ok()) {
     std::cout << "Window creation failed" << std::endl;
     exit(1);
@@ -334,6 +314,15 @@ int main() {
         cb.bindIndexBuffer(ibo.buffer(), vk::DeviceSize(0), vk::IndexType::eUint32);
         cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *pipelineLayout, 0, descriptorSets, nullptr);
         cb.setDepthBias(depthBiasConstantFactor, 0.0f, depthBiasSlopeFactor);
+        cb.drawIndexed(indexCount, 1, 0, 0, 0);
+        cb.endRenderPass();
+
+        // Second renderpass. Draw the final image.
+        cb.beginRenderPass(rpbi, vk::SubpassContents::eInline);
+        cb.bindPipeline(vk::PipelineBindPoint::eGraphics, *finalPipeline);
+        cb.bindVertexBuffers(0, vbo.buffer(), vk::DeviceSize(0));
+        cb.bindIndexBuffer(ibo.buffer(), vk::DeviceSize(0), vk::IndexType::eUint32);
+        cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *pipelineLayout, 0, descriptorSets, nullptr);
         cb.drawIndexed(indexCount, 1, 0, 0, 0);
         cb.endRenderPass();
 

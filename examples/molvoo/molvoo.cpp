@@ -675,7 +675,6 @@ private:
       moleculeModel_.conns().unmap(device);
     }
 
-
     window_.draw(device, fw_.graphicsQueue(),
       [&](vk::CommandBuffer cb, int imageIndex, vk::RenderPassBeginInfo &rpbi) {
         vk::CommandBufferBeginInfo bi{};
@@ -745,7 +744,7 @@ private:
         //cb.draw(1 * 6, 1, 0, 0);
 
         cb.bindPipeline(vk::PipelineBindPoint::eGraphics, fountPipeline_.pipeline());
-        //cb.draw(textModel_.numGlyphs() * 6, 1, 0, 0);
+        cb.draw(textModel_.numGlyphs() * 6, 1, 0, 0);
 
         cb.endRenderPass();
         cb.end();
