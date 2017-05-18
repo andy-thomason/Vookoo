@@ -738,12 +738,14 @@ private:
 
         cb.bindPipeline(vk::PipelineBindPoint::eGraphics, atomPipeline_.pipeline());
         cb.draw(moleculeModel_.numAtoms() * 6, 1, 0, 0);
+        //cb.draw(10 * 6, 1, 0, 0);
 
         cb.bindPipeline(vk::PipelineBindPoint::eGraphics, connPipeline_.pipeline());
         cb.draw(moleculeModel_.numConnections() * 6, 1, 0, 0);
+        //cb.draw(1 * 6, 1, 0, 0);
 
         cb.bindPipeline(vk::PipelineBindPoint::eGraphics, fountPipeline_.pipeline());
-        cb.draw(textModel_.numGlyphs() * 6, 1, 0, 0);
+        //cb.draw(textModel_.numGlyphs() * 6, 1, 0, 0);
 
         cb.endRenderPass();
         cb.end();

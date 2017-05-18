@@ -1,10 +1,11 @@
 #version 450
 
-layout(location = 0) out vec3 outColour;
-layout(location = 1) out vec3 outCentre;
-layout(location = 2) out float outRadius;
+layout(location = 0) out flat vec3 outColour;
+layout(location = 1) out flat vec3 outCentre;
+layout(location = 2) out flat float outRadius;
 layout(location = 3) out vec3 outRayDir;
-layout(location = 4) out vec3 outRayStart;
+layout(location = 4) out flat vec3 outRayStart;
+layout(location = 5) out flat vec3 outAxis;
 
 layout (push_constant) uniform Uniform {
   mat4 worldToPerspective;
@@ -66,8 +67,9 @@ void main() {
   vec3 cameraPos = u.cameraToWorld[3].xyz;
   gl_Position = u.worldToPerspective * vec4(worldPos, 1.0);
   outColour = a1.colour;
-  //outCentre = worldCentre - cameraPos;
-  //outRadius = a1.radius;
-  //outRayDir = normalize(worldPos - cameraPos);
-  //outRayStart = cameraPos;
+  outCentre = a1pos - cameraPos;
+  outRadius = minr * 0.5;
+  outRayDir = normalize(worldPos - cameraPos);
+  outRayStart = cameraPos;
+  outAxis = a2pos - a1pos;
 }
