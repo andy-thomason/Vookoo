@@ -51,6 +51,10 @@ struct Pick {
   uint atom;
   uint distance;
 };
+
+struct Instance {
+  mat4 modelToWorld;
+};
   
 struct PushConstants {
   mat4 worldToPerspective;
@@ -90,6 +94,7 @@ public:
     dslm.buffer(3U, vk::DescriptorType::eStorageBuffer, vk::ShaderStageFlagBits::eAll, 1); // Connections
     dslm.buffer(4U, vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eAll, 1); // Cube map
     dslm.buffer(5U, vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eAll, 1); // Fount map
+    dslm.buffer(6U, vk::DescriptorType::eStorageBuffer, vk::ShaderStageFlagBits::eAll, 1); // Instances
     layout_ = dslm.createUnique(device);
 
     vku::PipelineLayoutMaker plm{};
@@ -97,33 +102,6 @@ public:
     plm.pushConstantRange(vk::ShaderStageFlagBits::eAll, 0, sizeof(PushConstants));
     pipelineLayout_ = plm.createUnique(device);
   }
-
-  /*vk::DescriptorSet createDescriptorSet(vk::Device device, vk::DescriptorSetLayout layout, vk::DescriptorPool descriptorPool, vk::Sampler cubeSampler, vk::ImageView cubeImageView, vk::Sampler fountSampler, vk::ImageView fountImageView) {
-    vku::DescriptorSetMaker dsm{};
-    dsm.layout(layout);
-    auto standardLayout = dsm.create(device, descriptorPool);
-    vk::DescriptorSet set = standardLayout[0];
-
-    vku::DescriptorSetUpdater update;
-    update.beginDescriptorSet(set);
-
-    // Point the descriptor set at the storage buffer.
-    update.beginBuffers(0, 0, vk::DescriptorType::eStorageBuffer);
-    update.buffer(atoms_.buffer(), 0, numAtoms_ * sizeof(Atom));
-    //update.beginBuffers(1, 0, vk::DescriptorType::eStorageBuffer);
-    //update.buffer(ubo, 0, sizeof(PushConstants));
-    update.beginBuffers(2, 0, vk::DescriptorType::eStorageBuffer);
-    update.buffer(pick_.buffer(), 0, sizeof(Pick) * Pick::fifoSize);
-    update.beginBuffers(3, 0, vk::DescriptorType::eStorageBuffer);
-    update.buffer(conns_.buffer(), 0, sizeof(Connection) * numConnections_);
-    update.beginImages(4, 0, vk::DescriptorType::eCombinedImageSampler);
-    update.image(cubeSampler, cubeImageView, vk::ImageLayout::eShaderReadOnlyOptimal);
-    update.beginImages(5, 0, vk::DescriptorType::eCombinedImageSampler);
-    update.image(fountSampler, fountImageView, vk::ImageLayout::eShaderReadOnlyOptimal);
-
-    update.update(device);
-    return set;
-  }*/
 
   vk::PipelineLayout pipelineLayout() const { return *pipelineLayout_; }
   vk::DescriptorSetLayout descriptorSetLayout() const { return *layout_; }
@@ -326,6 +304,7 @@ public:
     mean /= (float)pdbAtoms.size();
 
     std::vector<Atom> atoms;
+    //std::vector<float> vdv;
     for (auto &atom : pdbAtoms) {
       glm::vec3 pos(atom.x(), atom.y(), atom.z());
       glm::vec3 colour = atom.colorByElement();
@@ -338,7 +317,9 @@ public:
       if (atom.atomNameIs(" N  ") || atom.atomNameIs(" CA ") || atom.atomNameIs(" C  ") || atom.atomNameIs(" P  ")) scale = 0.4f;
       //if (atom.atomNameIs(" O5'") || atom.atomNameIs(" O3'")) scale = 0.25f;
       //if (atom.atomNameIs(" C5'") || atom.atomNameIs(" C4'") || atom.atomNameIs(" C3'")) scale = 0.25f;
-      a.radius = atom.vanDerVaalsRadius() * scale;
+      float radius = atom.vanDerVaalsRadius();
+      //vdv.push_back(radius);
+      a.radius = radius * scale;
       a.colour = colour;
       a.acc = glm::vec3(0, 0, 0);
       a.mass = 1.0f;
@@ -358,6 +339,13 @@ public:
 
       // iCode is 'A' etc. for alternates.
       if (iCode == ' ') {
+        /*for (size_t i = bidx; i != eidx; ++i) {
+          for (size_t j = i+1; j <= eidx; ++j) {
+            if (length(atoms[i].pos - atoms[j].pos) < vdv[i] + vdv[j]) {
+              pairs.emplace_back((int)i, (int)j);
+            }
+          }
+        }*/
         prevC = pdb.addImplicitConnections(pdbAtoms, pairs, bidx, eidx, prevC, false);
         prevChainID = chainID;
       }
@@ -419,16 +407,33 @@ public:
       conns.push_back(c);
     }
 
+    std::vector<Instance> instances;
+    for (auto &mat : pdb.instanceMatrices()) {
+      Instance ins{};
+      ins.modelToWorld = mat;
+      instances.push_back(ins);
+    }
+
+    if (instances.empty()) {
+      Instance ins{};
+      instances.push_back(ins);
+    }
+
     numAtoms_ = (uint32_t)atoms.size();
     numConnections_ = (uint32_t)conns.size();
+    numInstances_ = (uint32_t)instances.size();
 
     using buf = vk::BufferUsageFlagBits;
     atoms_ = vku::GenericBuffer(device, memprops, buf::eStorageBuffer|buf::eTransferDst, numAtoms_ * sizeof(Atom), vk::MemoryPropertyFlagBits::eHostVisible);
     pick_ = vku::GenericBuffer(device, memprops, buf::eStorageBuffer, sizeof(Pick) * Pick::fifoSize, vk::MemoryPropertyFlagBits::eHostVisible);
     conns_ = vku::GenericBuffer(device, memprops, buf::eStorageBuffer|buf::eTransferDst, sizeof(Connection) * numConnections_, vk::MemoryPropertyFlagBits::eHostVisible);
+    instances_ = vku::GenericBuffer(device, memprops, buf::eStorageBuffer|buf::eTransferDst, sizeof(Instance) * numInstances_, vk::MemoryPropertyFlagBits::eHostVisible);
 
     atoms_.upload(device, memprops, commandPool, queue, atoms);
     conns_.upload(device, memprops, commandPool, queue, conns);
+    instances_.upload(device, memprops, commandPool, queue, instances);
+
+    //Instance *i = (Instance*)instances_.map(device);
   }
 
   void updateDescriptorSet(vk::Device device, vk::DescriptorSetLayout layout, vk::DescriptorPool descriptorPool, vk::Sampler cubeSampler, vk::ImageView cubeImageView, vk::Sampler fountSampler, vk::ImageView fountImageView, vk::Buffer glyphs, int maxGlyphs) {
@@ -453,6 +458,8 @@ public:
     update.image(cubeSampler, cubeImageView, vk::ImageLayout::eShaderReadOnlyOptimal);
     update.beginImages(5, 0, vk::DescriptorType::eCombinedImageSampler);
     update.image(fountSampler, fountImageView, vk::ImageLayout::eShaderReadOnlyOptimal);
+    update.beginBuffers(6, 0, vk::DescriptorType::eStorageBuffer);
+    update.buffer(instances_.buffer(), 0, numInstances_ * sizeof(Instance));
 
     update.update(device);
   }
@@ -460,15 +467,18 @@ public:
   vk::DescriptorSet descriptorSet() const { return descriptorSet_; }
   uint32_t numAtoms() const { return numAtoms_; }
   uint32_t numConnections() const { return numConnections_; }
+  uint32_t numInstances() const { return numInstances_; }
   const vku::GenericBuffer &atoms() const { return atoms_; }
   const vku::GenericBuffer &pick() const { return pick_; }
   const vku::GenericBuffer &conns() const { return conns_; }
 private:
   uint32_t numAtoms_;
   uint32_t numConnections_;
+  uint32_t numInstances_;
   vku::GenericBuffer atoms_;
   vku::GenericBuffer pick_;
   vku::GenericBuffer conns_;
+  vku::GenericBuffer instances_;
   vk::DescriptorSet descriptorSet_;
 };
 
@@ -544,7 +554,7 @@ private:
     );
 
     float fieldOfView = glm::radians(45.0f);
-    cameraState_.cameraToPerspective = leftHandCorrection * glm::perspective(fieldOfView, (float)window_.width()/window_.height(), 0.1f, 1000.0f);
+    cameraState_.cameraToPerspective = leftHandCorrection * glm::perspective(fieldOfView, (float)window_.width()/window_.height(), 0.1f, 10000.0f);
 
     auto cubeBytes = vku::loadFile(SOURCE_DIR "okretnica.ktx");
     vku::KTXFileLayout ktx(cubeBytes.data(), cubeBytes.data()+cubeBytes.size());
@@ -572,7 +582,7 @@ private:
     connPipeline_ = MoleculePipeline(device_, fw_.pipelineCache(), window_.renderPass(), window_.width(), window_.height(), standardLayout_.pipelineLayout(), false);
 
     textModel_ = TextModel(FOUNT_NAME, device_, fw_.memprops(), window_.commandPool(), fw_.graphicsQueue());
-    textModel_.draw(vec3(0), vec2(0), vec3(0, 0, 1), vec2(0.1f), "hello world");
+    //textModel_.draw(vec3(0), vec2(0), vec3(0, 0, 1), vec2(0.1f), "hello world");
 
 
     moleculeModel_ = MoleculeModel(filename, device_, fw_.memprops(), window_.commandPool(), fw_.graphicsQueue());
@@ -736,15 +746,14 @@ private:
         cb.draw(6 * 6, 1, 0, 0);
 
         cb.bindPipeline(vk::PipelineBindPoint::eGraphics, atomPipeline_.pipeline());
-        cb.draw(moleculeModel_.numAtoms() * 6, 1, 0, 0);
-        //cb.draw(10 * 6, 1, 0, 0);
+        cb.draw(moleculeModel_.numAtoms() * 6, moleculeModel_.numInstances(), 0, 0);
 
         cb.bindPipeline(vk::PipelineBindPoint::eGraphics, connPipeline_.pipeline());
-        cb.draw(moleculeModel_.numConnections() * 6, 1, 0, 0);
+        cb.draw(moleculeModel_.numConnections() * 6, moleculeModel_.numInstances(), 0, 0);
         //cb.draw(1 * 6, 1, 0, 0);
 
         cb.bindPipeline(vk::PipelineBindPoint::eGraphics, fountPipeline_.pipeline());
-        cb.draw(textModel_.numGlyphs() * 6, 1, 0, 0);
+        if (textModel_.numGlyphs()) cb.draw(textModel_.numGlyphs() * 6, 1, 0, 0);
 
         cb.endRenderPass();
         cb.end();

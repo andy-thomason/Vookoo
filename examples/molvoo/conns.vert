@@ -36,6 +36,10 @@ struct Connection {
   float springConstant;
 };
 
+struct Instance {
+  mat4 modelToWorld;
+};
+
 layout(std430, binding=0) buffer Atoms {
   Atom atoms[];
 } a;
@@ -43,6 +47,10 @@ layout(std430, binding=0) buffer Atoms {
 layout(std430, binding=3) buffer Connections {
   Connection conns[];
 } c;
+
+layout(std430, binding=6) buffer Instances {
+  Instance instances[];
+} i;
 
 // 1   4 5
 // 0 2   3
@@ -55,8 +63,10 @@ void main() {
   Connection conn = c.conns[gl_VertexIndex / 6];
   Atom a1 = a.atoms[conn.from];
   Atom a2 = a.atoms[conn.to];
-  vec3 a1pos = (u.modelToWorld * vec4(a1.pos, 1)).xyz;
-  vec3 a2pos = (u.modelToWorld * vec4(a2.pos, 1)).xyz;
+  mat4 imat = i.instances[gl_InstanceIndex].modelToWorld;
+  mat4 modelToWorld = u.modelToWorld * imat;
+  vec3 a1pos = (modelToWorld * vec4(a1.pos, 1)).xyz;
+  vec3 a2pos = (modelToWorld * vec4(a2.pos, 1)).xyz;
   float minr = min(a1.radius, a2.radius);
   vec2 vpos = verts[gl_VertexIndex % 6];
   float lerpx = vpos.x * 0.5 + 0.5;

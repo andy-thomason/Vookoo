@@ -148,7 +148,9 @@ namespace gilgamesh {
       }
     };
 
+
     pdb_decoder(const uint8_t *begin, const uint8_t *end) {
+      glm::mat4 biomt;
       for (const uint8_t *p = begin; p != end; ) {
         const uint8_t *eol = p;
         while (eol != end && *eol != '\n') ++eol;
@@ -185,6 +187,24 @@ namespace gilgamesh {
                 if (a0 && a2) connections_.emplace_back(a0, a2);
                 if (a0 && a3) connections_.emplace_back(a0, a3);
                 if (a0 && a4) connections_.emplace_back(a0, a4);
+              }
+            } break;
+            case 'R': {
+              if (p + 18 < eol && !memcmp(p, "REMARK 350   BIOMT", 18)) {
+                int row, inst;
+                float x, y, z, w;
+                sscanf((char*)p + 18, "%d %d %f %f %f %f", &row, &inst, &x, &y, &z, &w);
+                //printf("%d %d %f %f %f %f\n", row, inst, x, y, z, w);
+                if (row >= 1 && row <= 3) {
+                  biomt[0][row-1] = x;
+                  biomt[1][row-1] = y;
+                  biomt[2][row-1] = z;
+                  biomt[3][row-1] = w;
+                }
+                if (row == 3) {
+                  //printf("%s\n", glm::to_string(biomt).c_str());
+                  instanceMatrices_.push_back(biomt);
+                }
               }
             } break;
           }
@@ -351,61 +371,55 @@ namespace gilgamesh {
           " CZ ", " OH ",
           "!",
         "  A",
-          " C1d", "  N9",
-/*
-          "  N9",
-          "  C8",
-          "  N7",
-          "  C5",
-          "  C6",
-          "  N6",
-          "  N1",
-          "  C2",
-          "  N3",
-          "  C4",
-*/
+          " C1'", " N9 ",
+          " N9 ", " C8 ",
+          " C8 ", " N7 ",
+          " N7 ", " C5 ",
+          " C5 ", " C6 ",
+          " C6 ", " N6 ",
+          " C6 ", " N1 ",
+          " N1 ", " C2 ",
+          " C2 ", " N3 ",
+          " N3 ", " C4 ",
+          " C4 ", " N9 ",
+          " C4 ", " C5 ",
           "!",
         "  C",
-          " C1d", "  N1",
-/*
-          "  N1",
-          "  C2",
-          "  O2",
-          "  N3",
-          "  C4",
-          "  N4",
-          "  C5",
-          "  C6",
-*/
+          " C1'", " N1 ",
+          " N1 ", " C2 ",
+          " C2 ", " O2 ",
+          " C2 ", " N3 ",
+          " N3 ", " C4 ",
+          " C4 ", " N4 ",
+          " C4 ", " C5 ",
+          " C5 ", " C6 ",
+          " C6 ", " N1 ",
           "!",
         "  G",
-          " C1d", "  N9",
-/*
-          "  N9",
-          "  C8",
-          "  N7",
-          "  C5",
-          "  C6",
-          "  O6",
-          "  N1",
-          "  C2",
-          "  N2",
-          "  N3",
-          "  C4",
-*/
+          " C1'", " N9 ",
+          " C1'", " N9 ",
+          " N9 ", " C8 ",
+          " C8 ", " N7 ",
+          " N7 ", " C5 ",
+          " C5 ", " C6 ",
+          " C6 ", " O6 ",
+          " C6 ", " N1 ",
+          " N1 ", " C2 ",
+          " C2 ", " N3 ",
+          " N3 ", " C4 ",
+          " C4 ", " N9 ",
+          " C4 ", " C5 ",
           "!",
         "  U",
-          " C1d", "  N1",
-/*
-          "  N1",
-          "  C2",
-          "  O2",
-          "  N3",
-          "  C4",
-          "  O4",
-          "  C5",
-          "  C6",
-*/
+          " C1'", " N1 ",
+          " N1 ", " C2 ",
+          " C2 ", " O2 ",
+          " C2 ", " N3 ",
+          " N3 ", " C4 ",
+          " C4 ", " O4 ",
+          " C4 ", " C5 ",
+          " C5 ", " C6 ",
+          " C6 ", " N1 ",
           "!",
         ""
       };
@@ -445,9 +459,8 @@ namespace gilgamesh {
           prevC = O3d_idx;
         } else {
           printf("bad base %d %d %d %d %d %d %d %d %d %d %d\n", OP1_idx, OP2_idx, O5d_idx, C5d_idx, C4d_idx, O4d_idx, C3d_idx, O3d_idx, C2d_idx, O2d_idx, C1d_idx);
+          return -1;
         }
-        
-        return -1;
       } else {
         int N_idx = findAtom(atoms, bidx, eidx, " N  ");
         int C_idx = findAtom(atoms, bidx, eidx, " C  ");
@@ -549,8 +562,12 @@ namespace gilgamesh {
       return -1;
     }
 
+    // Some PDB files contain instance information for the molecules. 
+    const std::vector<glm::mat4> &instanceMatrices() const { return instanceMatrices_; }
+
   private:
     std::vector<atom> atoms_;
+    std::vector<glm::mat4> instanceMatrices_;
     std::vector<std::pair<int, int> > connections_;
 
     static int atoi(const uint8_t *b, const uint8_t *e) {

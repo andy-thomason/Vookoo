@@ -28,9 +28,17 @@ struct Atom {
   int connections[5];
 };
 
+struct Instance {
+  mat4 modelToWorld;
+};
+
 layout(std430, binding=0) buffer Atoms {
   Atom atoms[];
 } a;
+
+layout(std430, binding=6) buffer Instances {
+  Instance instances[];
+} i;
 
 // 1   4 5
 // 0 2   3
@@ -43,10 +51,9 @@ void main() {
   Atom atom = a.atoms[gl_VertexIndex / 6];
   vec2 vpos = verts[gl_VertexIndex % 6] * (atom.radius * 1.1);
   vec3 pos = atom.pos;
-  //pos.x += (gl_InstanceIndex % 20 - 10) * 100.0;
-  //pos.y += (gl_InstanceIndex / 20 % 20 - 10) * 100.0;
-  //pos.z += (gl_InstanceIndex / 400 % 20 - 10) * 100.0;
-  vec3 worldCentre = vec3(u.modelToWorld * vec4(pos, 1));
+  mat4 imat = i.instances[gl_InstanceIndex].modelToWorld;
+  mat4 modelToWorld = u.modelToWorld * imat;
+  vec3 worldCentre = vec3(modelToWorld * vec4(pos, 1));
   vec3 worldPos = worldCentre + u.cameraToWorld[0].xyz * vpos.x + u.cameraToWorld[1].xyz * vpos.y;
   vec3 cameraPos = u.cameraToWorld[3].xyz;
   gl_Position = u.worldToPerspective * vec4(worldPos, 1.0);
@@ -56,3 +63,5 @@ void main() {
   outRayDir = normalize(worldPos - cameraPos);
   outRayStart = cameraPos;
 }
+
+
