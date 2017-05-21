@@ -1,3 +1,11 @@
+////////////////////////////////////////////////////////////////////////////////
+//
+// (C) Andy Thomason 2017
+//
+// Molvoo: a Vulkan molecule explorer
+//
+
+
 #include <vku/vku_framework.hpp>
 #include <vku/vku.hpp>
 
@@ -219,8 +227,8 @@ public:
     maxGlyphs_ = 8192;
     glyphs_ = vku::GenericBuffer(device, memprops, buf::eStorageBuffer|buf::eTransferDst, maxGlyphs_ * sizeof(Glyph), vk::MemoryPropertyFlagBits::eHostVisible);
 
-    uint32_t fountWidth = 512;
-    uint32_t fountHeight = 512;
+    uint32_t fountWidth = 1024;
+    uint32_t fountHeight = 1024;
     fountMap_ = vku::TextureImage2D{device, memprops, fountWidth, fountHeight, 1, vk::Format::eR8Unorm};
     std::vector<uint8_t> fountBytes(fountWidth * fountHeight);
     auto fountData = vku::loadFile(filename);
@@ -231,7 +239,7 @@ public:
     stbtt_pack_context context;
     int oversampleX = 4;
     int oversampleY = 4;
-    float fountSize = 20;
+    float fountSize = 40;
     stbtt_PackBegin(&context, fountBytes.data(), fountWidth, fountHeight, 0, 1, nullptr);
     stbtt_PackSetOversampling(&context, oversampleX, oversampleY);
     stbtt_PackFontRange(&context, fountData.data(), 0, fountSize, ' ', charCount, charInfo_.data());
@@ -246,6 +254,10 @@ public:
     fountSampler_ = fsm.createUnique(device);
 
     pGlyphs_ = (Glyph *)glyphs_.map(device);
+  }
+
+  void reset() {
+    numGlyphs_ = 0;
   }
 
   glm::vec2 draw(glm::vec3 origin, glm::vec2 pos, glm::vec3 colour, glm::vec2 scale, const std::string &text) {
@@ -290,22 +302,21 @@ public:
   }
 
   MoleculeModel(const std::string &filename, vk::Device device, vk::PhysicalDeviceMemoryProperties memprops, vk::CommandPool commandPool, vk::Queue queue) {
-    auto pdb_text = vku::loadFile(filename);
-    gilgamesh::pdb_decoder pdb(pdb_text.data(), pdb_text.data() + pdb_text.size());
+    pdb_text_ = vku::loadFile(filename);
+    pdb_ = gilgamesh::pdb_decoder(pdb_text_.data(), pdb_text_.data() + pdb_text_.size());
 
-    std::string chains = pdb.chains();
-    auto pdbAtoms = pdb.atoms(chains);
+    std::string chains = pdb_.chains();
+    pdbAtoms_ = pdb_.atoms(chains);
 
     glm::vec3 mean(0);
-    for (auto &atom : pdbAtoms) {
+    for (auto &atom : pdbAtoms_) {
       glm::vec3 pos(atom.x(), atom.y(), atom.z());
       mean += pos;
     }
-    mean /= (float)pdbAtoms.size();
+    mean /= (float)pdbAtoms_.size();
 
     std::vector<Atom> atoms;
-    //std::vector<float> vdv;
-    for (auto &atom : pdbAtoms) {
+    for (auto &atom : pdbAtoms_) {
       glm::vec3 pos(atom.x(), atom.y(), atom.z());
       glm::vec3 colour = atom.colorByElement();
       colour.r = colour.r * 0.75f + 0.25f;
@@ -315,10 +326,7 @@ public:
       a.pos = a.prevPos = pos - mean;
       float scale = 0.1f;
       if (atom.atomNameIs(" N  ") || atom.atomNameIs(" CA ") || atom.atomNameIs(" C  ") || atom.atomNameIs(" P  ")) scale = 0.4f;
-      //if (atom.atomNameIs(" O5'") || atom.atomNameIs(" O3'")) scale = 0.25f;
-      //if (atom.atomNameIs(" C5'") || atom.atomNameIs(" C4'") || atom.atomNameIs(" C3'")) scale = 0.25f;
       float radius = atom.vanDerVaalsRadius();
-      //vdv.push_back(radius);
       a.radius = radius * scale;
       a.colour = colour;
       a.acc = glm::vec3(0, 0, 0);
@@ -330,11 +338,11 @@ public:
     std::vector<std::pair<int, int>> pairs;
     int prevC = -1;
     char prevChainID = '?';
-    for (size_t bidx = 0; bidx != pdbAtoms.size(); ) {
+    for (size_t bidx = 0; bidx != pdbAtoms_.size(); ) {
       // At the start of every Amino Acid, connect the atoms.
-      char chainID = pdbAtoms[bidx].chainID();
-      char iCode = pdbAtoms[bidx].iCode();
-      size_t eidx = pdb.nextResidue(pdbAtoms, bidx);
+      char chainID = pdbAtoms_[bidx].chainID();
+      char iCode = pdbAtoms_[bidx].iCode();
+      size_t eidx = pdb_.nextResidue(pdbAtoms_, bidx);
       if (prevChainID != chainID) prevC = -1;
 
       // iCode is 'A' etc. for alternates.
@@ -346,7 +354,7 @@ public:
             }
           }
         }*/
-        prevC = pdb.addImplicitConnections(pdbAtoms, pairs, bidx, eidx, prevC, false);
+        prevC = pdb_.addImplicitConnections(pdbAtoms_, pairs, bidx, eidx, prevC, false);
         prevChainID = chainID;
       }
       bidx = eidx;
@@ -408,7 +416,7 @@ public:
     }
 
     std::vector<Instance> instances;
-    for (auto &mat : pdb.instanceMatrices()) {
+    for (auto &mat : pdb_.instanceMatrices()) {
       Instance ins{};
       ins.modelToWorld = mat;
       instances.push_back(ins);
@@ -432,8 +440,7 @@ public:
     atoms_.upload(device, memprops, commandPool, queue, atoms);
     conns_.upload(device, memprops, commandPool, queue, conns);
     instances_.upload(device, memprops, commandPool, queue, instances);
-
-    //Instance *i = (Instance*)instances_.map(device);
+    pAtoms_ = (Atom*)atoms_.map(device);
   }
 
   void updateDescriptorSet(vk::Device device, vk::DescriptorSetLayout layout, vk::DescriptorPool descriptorPool, vk::Sampler cubeSampler, vk::ImageView cubeImageView, vk::Sampler fountSampler, vk::ImageView fountImageView, vk::Buffer glyphs, int maxGlyphs) {
@@ -469,8 +476,10 @@ public:
   uint32_t numConnections() const { return numConnections_; }
   uint32_t numInstances() const { return numInstances_; }
   const vku::GenericBuffer &atoms() const { return atoms_; }
+  Atom *pAtoms() const { return pAtoms_; }
   const vku::GenericBuffer &pick() const { return pick_; }
   const vku::GenericBuffer &conns() const { return conns_; }
+  const std::vector<gilgamesh::pdb_decoder::atom> &pdbAtoms() { return pdbAtoms_; }
 private:
   uint32_t numAtoms_;
   uint32_t numConnections_;
@@ -480,6 +489,10 @@ private:
   vku::GenericBuffer conns_;
   vku::GenericBuffer instances_;
   vk::DescriptorSet descriptorSet_;
+  gilgamesh::pdb_decoder pdb_;
+  std::vector<uint8_t> pdb_text_;
+  std::vector<gilgamesh::pdb_decoder::atom> pdbAtoms_;
+  Atom *pAtoms_;
 };
 
 class Molvoo {
@@ -604,7 +617,7 @@ private:
 
     glfwSetWindowUserPointer(glfwwindow_, (void*)this);
     glfwSetScrollCallback(glfwwindow_, scrollHandler);
-    glfwSetMouseButtonCallback(glfwwindow_, mouseButtonHandler);
+    glfwSetMouseButtonCallback(glfwwindow_, mouseButtonHandlerHook);
     glfwSetKeyCallback(glfwwindow_, keyHandler);
   }
 
@@ -644,6 +657,7 @@ private:
       Pick &p = pick[pickReadIndex_ & (Pick::fifoSize-1)];
       moleculeState_.mouseAtom = p.atom;
       moleculeState_.mouseDistance = p.distance / 10000.0f;
+      //printf("pick %d %d\n", p.atom, p.distance);
       moleculeModel_.pick().unmap(device);
       p.distance = ~0;
       p.atom = ~0;
@@ -737,6 +751,21 @@ private:
           aflags::eShaderRead|aflags::eShaderWrite, aflags::eShaderRead, gfi, gfi
         );*/
 
+        // Do the physics velocity update on the GPU and the first pick pass
+        cu.pass = 0;
+        cb.pushConstants(standardLayout_.pipelineLayout(), vk::ShaderStageFlagBits::eAll, 0, sizeof(PushConstants), &cu);
+        cb.bindDescriptorSets(vk::PipelineBindPoint::eCompute, standardLayout_.pipelineLayout(), 0, moleculeModel_.descriptorSet(), nullptr);
+        cb.bindPipeline(vk::PipelineBindPoint::eCompute, dynamicsPipeline_.pipeline());
+        cb.dispatch(cu.numAtoms, moleculeModel_.numInstances(), 1);
+
+        // Do the physics position update on the GPU and the second pick pass
+        cu.pass = 1;
+        cb.pushConstants(standardLayout_.pipelineLayout(), vk::ShaderStageFlagBits::eAll, 0, sizeof(PushConstants), &cu);
+        cb.dispatch(cu.numAtoms, moleculeModel_.numInstances(), 1);
+
+        // Signal the CPU that a pick event has occurred
+        cb.setEvent(*pickEvents_[cu.pickIndex], vk::PipelineStageFlagBits::eComputeShader);
+
         cb.beginRenderPass(rpbi, vk::SubpassContents::eInline);
 
         cb.pushConstants(standardLayout_.pipelineLayout(), vk::ShaderStageFlagBits::eAll, 0, sizeof(PushConstants), &cu);
@@ -769,18 +798,31 @@ private:
     app.cameraState_.cameraDistance -= (float)dy * 4.0f;
   }
 
-  static void mouseButtonHandler(GLFWwindow *window, int button, int action, int mods) {
+  static void mouseButtonHandlerHook(GLFWwindow *window, int button, int action, int mods) {
     Molvoo &app = *(Molvoo*)glfwGetWindowUserPointer(window);
-    auto &mouseState_ = app.mouseState_; 
+    app.mouseButtonHandler(window, button, action, mods);
+  }
+
+  void mouseButtonHandler(GLFWwindow *window, int button, int action, int mods) {
     switch (button) {
       case GLFW_MOUSE_BUTTON_1: {
         if (action == GLFW_PRESS) {
-          app.moleculeState_.selectedAtom = app.moleculeState_.mouseAtom;
-          app.moleculeState_.dragging = true;
-          app.moleculeState_.selectedDistance = app.moleculeState_.mouseDistance;
+          moleculeState_.selectedAtom = moleculeState_.mouseAtom;
+          moleculeState_.dragging = true;
+          moleculeState_.selectedDistance = moleculeState_.mouseDistance;
+          int a = moleculeState_.mouseAtom;
+          if (a != -1) {
+            auto atom = moleculeModel_.pdbAtoms()[a];
+            char buf[256];
+            snprintf(buf, sizeof(buf), "%s %s %d\n", atom.atomName().c_str(), atom.resName().c_str(), atom.resSeq());
+            Atom *atoms = moleculeModel_.pAtoms();
+            vec3 pos = atoms[a].pos;
+            textModel_.reset();
+            textModel_.draw(pos, vec2(0), vec3(1, 1, 1), vec2(0.1f), buf);
+          }
         } else {
-          app.moleculeState_.selectedAtom = ~0;
-          app.moleculeState_.dragging = false;
+          moleculeState_.selectedAtom = ~0;
+          moleculeState_.dragging = false;
         }
       } break;
  

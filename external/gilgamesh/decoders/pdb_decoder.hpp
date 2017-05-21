@@ -149,6 +149,9 @@ namespace gilgamesh {
     };
 
 
+    pdb_decoder() {
+    }
+
     pdb_decoder(const uint8_t *begin, const uint8_t *end) {
       glm::mat4 biomt;
       for (const uint8_t *p = begin; p != end; ) {
