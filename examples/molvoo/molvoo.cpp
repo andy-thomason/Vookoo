@@ -42,7 +42,7 @@ struct Atom {
   vec3 colour;
   float mass;
   vec3 prevPos;
-  int pad;
+  int selected;
   vec3 acc;
   int connections[5];
 };
@@ -220,11 +220,13 @@ private:
 class TextModel {
 public:
   TextModel() {
+    numGlyphs_ = 0;
   }
 
   TextModel(const std::string &filename, vk::Device device, vk::PhysicalDeviceMemoryProperties memprops, vk::CommandPool commandPool, vk::Queue queue) {
     using buf = vk::BufferUsageFlagBits;
     maxGlyphs_ = 8192;
+    numGlyphs_ = 0;
     glyphs_ = vku::GenericBuffer(device, memprops, buf::eStorageBuffer|buf::eTransferDst, maxGlyphs_ * sizeof(Glyph), vk::MemoryPropertyFlagBits::eHostVisible);
 
     uint32_t fountWidth = 1024;
@@ -681,10 +683,9 @@ private:
     glm::vec3 modelMouseDir = worldToModel * (cameraToWorld * cameraMouseDir);
 
     {
-      Atom *atoms = (Atom*)moleculeModel_.atoms().map(device);
-      Connection *conns = (Connection*)moleculeModel_.conns().map(device);
+      Atom *atoms = moleculeModel_.pAtoms();
 
-      if (moleculeState_.dragging) {
+      /*if (moleculeState_.dragging) {
         if (moleculeState_.selectedAtom < moleculeModel_.numAtoms()) {
           vec3 mousePos = modelCameraPos + modelMouseDir * moleculeState_.selectedDistance;
           vec3 atomPos = atoms[moleculeState_.selectedAtom].pos;
@@ -693,10 +694,7 @@ private:
           float f = length(axis) * 10.0f;
           atoms[moleculeState_.selectedAtom].acc += normalize(axis) * (f * timeStep);
         }
-      }
-
-      moleculeModel_.atoms().unmap(device);
-      moleculeModel_.conns().unmap(device);
+      }*/
     }
 
     window_.draw(device, fw_.graphicsQueue(),
@@ -721,47 +719,26 @@ private:
         using psflags = vk::PipelineStageFlagBits;
         using aflags = vk::AccessFlagBits;
 
-        /*moleculeModel_.atoms().barrier(
-          cb, psflags::eTopOfPipe, psflags::eComputeShader, {},
-          aflags::eShaderRead, aflags::eShaderRead|aflags::eShaderWrite, gfi, gfi
-        );
-
-        cb.bindDescriptorSets(vk::PipelineBindPoint::eCompute, standardLayout_.pipelineLayout(), 0, moleculeModel_.descriptorSet(), nullptr);
-        cb.bindPipeline(vk::PipelineBindPoint::eCompute, dynamicsPipeline_.pipeline());
-    
-        // Do the physics acceleration update on the GPU and find the nearest picked atom
-        cu.pass = 0;
-        cb.pushConstants(standardLayout_.pipelineLayout(), vk::ShaderStageFlagBits::eCompute, 0, sizeof(PushConstants), &cu);
-        cb.dispatch(std::max(cu.numAtoms, cu.numConnections), 1, 1);
-
-        moleculeModel_.atoms().barrier(
-          cb, psflags::eComputeShader, psflags::eComputeShader, {},
-          aflags::eShaderRead|aflags::eShaderWrite, aflags::eShaderRead|aflags::eShaderWrite, gfi, gfi
-        );
-
-        // Do the physics velocity update on the GPU and select an atom
-        cu.pass = 1;
-        cb.pushConstants(standardLayout_.pipelineLayout(), vk::ShaderStageFlagBits::eCompute, 0, sizeof(PushConstants), &cu);
-        cb.dispatch(cu.numAtoms, 1, 1);
-
-        cb.setEvent(*pickEvents_[cu.pickIndex], vk::PipelineStageFlagBits::eComputeShader);
-        
-        moleculeModel_.atoms().barrier(
-          cb, psflags::eComputeShader, psflags::eTopOfPipe, {},
-          aflags::eShaderRead|aflags::eShaderWrite, aflags::eShaderRead, gfi, gfi
-        );*/
+        uint32_t ninst = moleculeState_.showInstances ? moleculeModel_.numInstances() : 1;
 
         // Do the physics velocity update on the GPU and the first pick pass
         cu.pass = 0;
         cb.pushConstants(standardLayout_.pipelineLayout(), vk::ShaderStageFlagBits::eAll, 0, sizeof(PushConstants), &cu);
         cb.bindDescriptorSets(vk::PipelineBindPoint::eCompute, standardLayout_.pipelineLayout(), 0, moleculeModel_.descriptorSet(), nullptr);
         cb.bindPipeline(vk::PipelineBindPoint::eCompute, dynamicsPipeline_.pipeline());
-        cb.dispatch(cu.numAtoms, moleculeModel_.numInstances(), 1);
+        cb.dispatch(cu.numAtoms, ninst, 1);
 
         // Do the physics position update on the GPU and the second pick pass
         cu.pass = 1;
         cb.pushConstants(standardLayout_.pipelineLayout(), vk::ShaderStageFlagBits::eAll, 0, sizeof(PushConstants), &cu);
-        cb.dispatch(cu.numAtoms, moleculeModel_.numInstances(), 1);
+        cb.dispatch(cu.numAtoms, ninst, 1);
+
+        /*
+        moleculeModel_.atoms().barrier(
+          cb, psflags::eComputeShader, psflags::eTopOfPipe, {},
+          aflags::eShaderRead|aflags::eShaderWrite, aflags::eShaderRead, gfi, gfi
+        );
+        */
 
         // Signal the CPU that a pick event has occurred
         cb.setEvent(*pickEvents_[cu.pickIndex], vk::PipelineStageFlagBits::eComputeShader);
@@ -775,20 +752,20 @@ private:
         cb.draw(6 * 6, 1, 0, 0);
 
         cb.bindPipeline(vk::PipelineBindPoint::eGraphics, atomPipeline_.pipeline());
-        cb.draw(moleculeModel_.numAtoms() * 6, moleculeModel_.numInstances(), 0, 0);
+        cb.draw(moleculeModel_.numAtoms() * 6, ninst, 0, 0);
 
         cb.bindPipeline(vk::PipelineBindPoint::eGraphics, connPipeline_.pipeline());
-        cb.draw(moleculeModel_.numConnections() * 6, moleculeModel_.numInstances(), 0, 0);
-        //cb.draw(1 * 6, 1, 0, 0);
+        cb.draw(moleculeModel_.numConnections() * 6, ninst, 0, 0);
 
         cb.bindPipeline(vk::PipelineBindPoint::eGraphics, fountPipeline_.pipeline());
-        if (textModel_.numGlyphs()) cb.draw(textModel_.numGlyphs() * 6, 1, 0, 0);
+        if (textModel_.numGlyphs()) cb.draw(textModel_.numGlyphs() * 6, ninst, 0, 0);
 
         cb.endRenderPass();
         cb.end();
       }
     );
 
+    // A crude timer for now as we should be using very little CPU time.
     std::this_thread::sleep_for(std::chrono::milliseconds(16));
     return true;
   }
@@ -807,21 +784,62 @@ private:
     switch (button) {
       case GLFW_MOUSE_BUTTON_1: {
         if (action == GLFW_PRESS) {
-          moleculeState_.selectedAtom = moleculeState_.mouseAtom;
-          moleculeState_.dragging = true;
-          moleculeState_.selectedDistance = moleculeState_.mouseDistance;
-          int a = moleculeState_.mouseAtom;
-          if (a != -1) {
+          Atom *atoms = moleculeModel_.pAtoms();
+          int newStart = -1;
+          int newEnd = -1;
+
+          if (moleculeState_.mouseAtom == -1) {
+            newStart = newEnd = -1;
+          } else if (mods & GLFW_MOD_SHIFT) {
+            if (moleculeState_.startAtom != -1) {
+              auto startAtom = moleculeModel_.pdbAtoms()[moleculeState_.startAtom];
+              auto endAtom = moleculeModel_.pdbAtoms()[moleculeState_.mouseAtom];
+              //printf("%c %c\n", startAtom.chainID(), endAtom.chainID());
+              if (startAtom.chainID() != endAtom.chainID()) {
+                newStart = moleculeState_.startAtom;
+                newEnd = moleculeState_.endAtom;
+              } else {
+                newStart = moleculeState_.startAtom;
+                newEnd = moleculeState_.mouseAtom;
+              }
+            } else {
+              newStart = newEnd = moleculeState_.mouseAtom;
+            }
+          } else {
+            newStart = newEnd = moleculeState_.mouseAtom;
+          }
+
+          //printf("%d %d -> %d %d\n", moleculeState_.startAtom, moleculeState_.endAtom, newStart, newEnd);
+
+          if (moleculeState_.startAtom != -1) {
+            for (int i = moleculeState_.startAtom; i <= moleculeState_.endAtom; ++i) {
+              atoms[i].selected = 0;
+            }
+          }
+
+          if (newStart > newEnd) {
+            std::swap(newStart, newEnd);
+          }
+
+          moleculeState_.startAtom = newStart;
+          moleculeState_.endAtom = newEnd;
+
+          if (moleculeState_.startAtom != -1) {
+            for (int i = moleculeState_.startAtom; i <= moleculeState_.endAtom; ++i) {
+              atoms[i].selected = 1;
+            }
+
+            //moleculeState_.dragging = true;
+            moleculeState_.selectedDistance = moleculeState_.mouseDistance;
+            /*textModel_.reset();
+
             auto atom = moleculeModel_.pdbAtoms()[a];
             char buf[256];
-            snprintf(buf, sizeof(buf), "%s %s %d\n", atom.atomName().c_str(), atom.resName().c_str(), atom.resSeq());
-            Atom *atoms = moleculeModel_.pAtoms();
+            snprintf(buf, sizeof(buf), "%s %s %d (%d..%d)\n", atom.atomName().c_str(), atom.resName().c_str(), atom.resSeq(), a, moleculeState_.endAtom);
             vec3 pos = atoms[a].pos;
-            textModel_.reset();
-            textModel_.draw(pos, vec2(0), vec3(1, 1, 1), vec2(0.1f), buf);
+            textModel_.draw(pos, vec2(0), vec3(1, 1, 1), vec2(0.1f), buf);*/
           }
         } else {
-          moleculeState_.selectedAtom = ~0;
           moleculeState_.dragging = false;
         }
       } break;
@@ -846,6 +864,8 @@ private:
     auto &cam = app.cameraState_.cameraRotation;
 
     // move the molecule along the camera x and y axis.
+    if (action != GLFW_PRESS) return;
+
     switch (key) {
       case GLFW_KEY_W: {
         app.cameraState_.cameraDistance -= 4;
@@ -865,6 +885,44 @@ private:
       case GLFW_KEY_DOWN: {
         pos += cam[1] * 0.5f;
       } break;
+      case '[': {
+        app.rotateSelected(1);
+      } break;
+      case ']': {
+        app.rotateSelected(-1);
+      } break;
+      case ',': {
+        app.translateSelected(1);
+      } break;
+      case '.': {
+        app.translateSelected(-1);
+      } break;
+      case '=': {
+        app.moleculeState_.showInstances = !app.moleculeState_.showInstances;
+      } break;
+    }
+  }
+
+  void rotateSelected(int dir) {
+    Atom *atoms = moleculeModel_.pAtoms();
+    //mat4 xform = glm::translate(mat4, 
+    if (moleculeState_.startAtom != -1) {
+      vec3 pos1 = atoms[moleculeState_.startAtom].pos;
+      vec3 pos2 = atoms[moleculeState_.endAtom].pos;
+      vec3 axis = glm::normalize(pos2 - pos1);
+      mat4 rotate = glm::rotate(mat4{}, glm::radians(2.0f * dir), axis);
+      for (int i = moleculeState_.startAtom; i <= moleculeState_.endAtom; ++i) {
+        atoms[i].pos = vec3(rotate * vec4(atoms[i].pos - pos1, 1)) + pos1;
+      }
+    }
+  }
+
+  void translateSelected(int dir) {
+    Atom *atoms = moleculeModel_.pAtoms();
+    if (moleculeState_.startAtom != -1) {
+      for (int i = moleculeState_.startAtom; i <= moleculeState_.endAtom; ++i) {
+        atoms[i].pos.x += dir;
+      }
     }
   }
 
@@ -898,11 +956,13 @@ private:
 
   struct MoleculeState {
     glm::mat4 modelToWorld;
-    uint32_t selectedAtom;
-    uint32_t mouseAtom;
+    int startAtom = -1;
+    int endAtom = -1;
+    int mouseAtom;
     float selectedDistance;
     float mouseDistance;
     bool dragging = false;
+    bool showInstances = false;
   };
   MoleculeState moleculeState_;
 

@@ -23,7 +23,7 @@ struct Atom {
   vec3 colour;
   float mass;
   vec3 prevPos;
-  int pad;
+  int selected;
   vec3 acc;
   int connections[5];
 };
@@ -57,11 +57,9 @@ void main() {
   vec3 worldPos = worldCentre + u.cameraToWorld[0].xyz * vpos.x + u.cameraToWorld[1].xyz * vpos.y;
   vec3 cameraPos = u.cameraToWorld[3].xyz;
   gl_Position = u.worldToPerspective * vec4(worldPos, 1.0);
-  outColour = atom.colour;
+  outColour = atom.selected != 0 ? vec3(1, 1, 1) : atom.colour;
   outCentre = worldCentre - cameraPos;
   outRadius = atom.radius;
   outRayDir = normalize(worldPos - cameraPos);
   outRayStart = cameraPos;
 }
-
-
