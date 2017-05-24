@@ -312,20 +312,18 @@ public:
 
     glm::vec3 mean(0);
     for (auto &atom : pdbAtoms_) {
-      glm::vec3 pos(atom.x(), atom.y(), atom.z());
-      mean += pos;
+      mean += atom.pos();
     }
     mean /= (float)pdbAtoms_.size();
 
     std::vector<Atom> atoms;
     for (auto &atom : pdbAtoms_) {
-      glm::vec3 pos(atom.x(), atom.y(), atom.z());
       glm::vec3 colour = atom.colorByElement();
       colour.r = colour.r * 0.75f + 0.25f;
       colour.g = colour.g * 0.75f + 0.25f;
       colour.b = colour.b * 0.75f + 0.25f;
       Atom a{};
-      a.pos = a.prevPos = pos - mean;
+      a.pos = a.prevPos = atom.pos() - mean;
       float scale = 0.1f;
       if (atom.atomNameIs(" N  ") || atom.atomNameIs(" CA ") || atom.atomNameIs(" C  ") || atom.atomNameIs(" P  ")) scale = 0.4f;
       float radius = atom.vanDerVaalsRadius();

@@ -25,11 +25,39 @@ namespace gilgamesh {
   class pdb_decoder {
   public:
     class atom {
-      const uint8_t *p_;
-      const uint8_t *eol_;
+      glm::vec3 pos_;
+      int serial_;
+      int resSeq_;
+      float x_;
+      float y_;
+      float z_;
+      float occupancy_;
+      float tempFactor_;
+      std::array<char, 4> atomName_;
+      std::array<char, 3> resName_;
+      std::array<char, 2> element_;
+      std::array<char, 2> charge_;
+      char chainID_;
+      char iCode_;
       bool is_hetatom_;
+      char altLoc_;
+
     public:
-      atom(const uint8_t *p, const uint8_t *eol, bool is_hetatom) : p_(p), eol_(eol), is_hetatom_(is_hetatom) {
+      atom(const uint8_t *p, const uint8_t *eol, bool is_hetatom) : is_hetatom_(is_hetatom) {
+        serial_ = atoi(p - 1 + 7, p + 11);
+        atomName_ = (std::array<char, 4>&)*(p - 1 + 13);
+        altLoc_ = (char)p[-1+17];
+        resName_ = (std::array<char, 3>&)*(p - 1 + 18);
+        chainID_ = (char)p[-1+22];
+        resSeq_ = atoi(p - 1 + 23, p + 26);
+        iCode_ = (char)p[-1+27];
+        pos_.x = atof(p - 1 + 31, p + 38);
+        pos_.y = atof(p - 1 + 39, p + 46);
+        pos_.z = atof(p - 1 + 47, p + 54);
+        occupancy_ = atof(p - 1 + 55, p + 60);
+        tempFactor_ = atof(p - 1 + 61, p + 66);
+        element_ = (std::array<char, 2>&)*(p - 1 + 77);
+        charge_ = (std::array<char, 2>&)*(p - 1 + 79);
       }
 
       // http://www.wwpdb.org/documentation/file-format-content/format33/sect9.html#ATOM
@@ -47,32 +75,32 @@ namespace gilgamesh {
       // 61 - 66        Real(6.2)     tempFactor   Temperature  factor.
       // 77 - 78        LString(2)    element      Element symbol, right-justified.
       // 79 - 80        LString(2)    charge       Charge  on the atom.
-      int serial() const { return atoi(p_ - 1 + 7, p_ + 11); }
-      std::string atomName() const { return std::string(p_ - 1 + 13, p_ + 16); }
-      char altLoc() const { return (char)p_[-1+17]; }
-      std::string resName() const { return std::string(p_ - 1 + 18, p_ + 20); }
+      int serial() const { return serial_; }
+      std::string atomName() const { return std::string(atomName_.begin(), atomName_.end()); }
+      char altLoc() const { return altLoc_; }
+      std::string resName() const { return std::string(resName_.begin(), resName_.end()); }
 
-      char chainID() const { return (char)p_[-1+22]; }
-      int resSeq() const { return atoi(p_ - 1 + 23, p_ + 26); }
-      char iCode() const { return (char)p_[-1+27]; }
-      float x() const { return atof(p_ - 1 + 31, p_ + 38); }
-      float y() const { return atof(p_ - 1 + 39, p_ + 46); }
-      float z() const { return atof(p_ - 1 + 47, p_ + 54); }
-      float occupancy() const { return atof(p_ - 1 + 55, p_ + 60); }
-      float tempFactor() const { return atof(p_ - 1 + 61, p_ + 66); }
-      std::string element() const { return std::string(p_ - 1 + 77, p_ + 78); }
-      std::string charge() const { return std::string(p_ - 1 + 79, p_ + 80); }
+      char chainID() const { return chainID_; }
+      int resSeq() const { return resSeq_; }
+      char iCode() const { return iCode_; }
+      float x() const { return pos_.x; }
+      float y() const { return pos_.y; }
+      float z() const { return pos_.z; }
+      glm::vec3 pos() const { return pos_; }
+      float occupancy() const { return occupancy_; }
+      float tempFactor() const { return tempFactor_; }
+      std::string element() const { return std::string(element_.begin(), element_.end()); }
+      std::string charge() const { return std::string(charge_.begin(), charge_.end()); }
 
-      bool resNameIs(const char *name) const { return p_[17] == name[0] && p_[18] == name[1] && p_[19] == name[2]; }
-      bool atomNameIs(const char *name) const { return p_[12] == name[0] && p_[13] == name[1] && p_[14] == name[2] && p_[15] == name[3]; }
-      bool isHydrogen() const { return p_[12] == 'H' || p_[13] == 'H'; }
-      bool elementIs(const char *name) const { return p_[76] == name[0] && p_[77] == name[1]; }
-      bool chargeIs(const char *name) const { return p_[78] == name[0] && p_[79] == name[1]; }
+      bool resNameIs(const char *name) const { return resName_[0] == name[0] && resName_[1] == name[1] && resName_[2] == name[2]; }
+      bool atomNameIs(const char *name) const { return atomName_[1] == name[1] && atomName_[0] == name[0] && atomName_[2] == name[2] && atomName_[3] == name[3]; }
+      bool isHydrogen() const { return element_[0] == 'H' && element_[1] == ' '; }
+      bool elementIs(const char *name) const { return element_[0] == name[0] && element_[1] == name[1]; }
+      bool chargeIs(const char *name) const { return charge_[0] == name[0] && charge_[1] == name[1]; }
 
       bool is_hetatom() const { return is_hetatom_; }
 
       glm::vec4 colorByFunction() const {
-        std::string atom = atomName();
         if (
           (atomNameIs(" NZ ") && resNameIs("LYS")) ||
           (atomNameIs(" NH1") && resNameIs("ARG")) ||
@@ -110,8 +138,8 @@ namespace gilgamesh {
           " K", 0x8F40D4, "CA", 0x3DFF00,
         };
 
-        char e0 = p_[76];
-        char e1 = p_[77];
+        char e0 = element_[0];
+        char e1 = element_[1];
         uint32_t color = 0xdd77ff;
         for (const data_t &d : jmol) {
           if (e0 == d.name[0] && e1 == d.name[1]) {
@@ -137,8 +165,8 @@ namespace gilgamesh {
           "BI", 207, "PO", 197, "AT", 202, "RN", 220, "FR", 348, "RA", 283, " U", 186,
         };
 
-        char e0 = p_[76];
-        char e1 = p_[77];
+        char e0 = element_[0];
+        char e1 = element_[1];
         for (const data_t &d : data) {
           if (e0 == d.name[0] && e1 == d.name[1]) {
             return d.vdv * 0.01f;
