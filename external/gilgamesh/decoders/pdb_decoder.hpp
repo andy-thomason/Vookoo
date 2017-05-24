@@ -25,6 +25,8 @@ namespace gilgamesh {
   class pdb_decoder {
   public:
     class atom {
+      friend pdb_decoder;
+
       glm::vec3 pos_;
       int serial_;
       int resSeq_;
@@ -43,6 +45,9 @@ namespace gilgamesh {
       char altLoc_;
 
     public:
+      atom() {
+      }
+
       atom(const uint8_t *p, const uint8_t *eol, bool is_hetatom) : is_hetatom_(is_hetatom) {
         serial_ = atoi(p - 1 + 7, p + 11);
         atomName_ = (std::array<char, 4>&)*(p - 1 + 13);
@@ -183,18 +188,7 @@ namespace gilgamesh {
     pdb_decoder(const uint8_t *begin, const uint8_t *end) {
       glm::mat4 biomt;
 
-      if (end - begin < 5) return;
-
-      const uint8_t *p = begin;
-      initCIFParser();
-      cif_Comments(p, end);
-      cif_WhiteSpace(p, end);
-      if (cif_DataBlockHeading(p, end)) {
-        // CIF format
-        p = begin;
-        if (!CIF(p, end)) {
-        }
-      } else if (cif_icmp(begin, end, "HEADE")) {
+      if (begin + 5 <= end && !memcmp(begin, "HEADE", 5)) {
         // PDB format
         for (const uint8_t *p = begin; p != end; ) {
           const uint8_t *eol = p;
@@ -255,6 +249,95 @@ namespace gilgamesh {
             }
           }
           p = next_p;
+        }
+      } else {
+        // CIF format (very liberal parser!)
+        for (const uint8_t *p = begin; p != end; ++p) {
+          // Skip whitespace.
+          for(;;) {
+            while (p != end && *p <= ' ') {
+              ++p;
+            }
+            if (p != end && *p == '#') {
+              // Comment.
+              while (p != end && *p != '\r' && *p != '\n') {
+                ++p;
+              }
+            } else {
+              break;
+            }
+          }
+
+          // Read token
+          if (p == end) break;
+
+          if (*p == ';' && p != begin && (p[-1] == '\n' || p[-1] == '\r')) {
+            auto b = ++p;
+            for (;;) {
+              if (p == end) break;
+              if (*p == ';' && (p[-1] == '\n' || p[-1] == '\r')) break;
+              ++p;
+            }
+            cif_value(b, p);
+            p += p != end;
+          } if (*p == '\'' || *p == '"') {
+            auto delim = *p++;
+            auto b = p;
+            while (p != end && *p != delim) {
+              ++p;
+            }
+            cif_value(b, p);
+            p += p != end;
+          } else {
+            auto b = p;
+            while (p != end && *p >= '!') {
+              ++p;
+            }
+            switch (*b) {
+              case 'd': case 'D': {
+                if (p - b >= 5 && (b[1] | 0x20) == 'a' && (b[2] | 0x20) == 't' && (b[3] | 0x20) == 'a' && b[4] == '_') {
+                  cif_endloop();
+                  cif_data(b, p);
+                } else {
+                  cif_value(b, p);
+                }
+              } break;
+              case 's': case 'S': {
+                if (p - b >= 5 && (b[1] | 0x20) == 'a' && (b[2] | 0x20) == 'v' && (b[3] | 0x20) == 'e' && b[4] == '_') {
+                  cif_endloop();
+                  cif_save(b, p);
+                } else if (p - b >= 5 && (b[1] | 0x20) == 't' && (b[2] | 0x20) == 'o' && (b[3] | 0x20) == 'p' && b[4] == '_') {
+                  cif_endloop();
+                  cif_stop(b, p);
+                } else {
+                  cif_value(b, p);
+                }
+              } break;
+              case 'g': case 'G': {
+                if (p - b == 7 && (b[1] | 0x20) == 'l' && (b[2] | 0x20) == 'o' && (b[3] | 0x20) == 'b' && (b[4] | 0x20) == 'a' && (b[5] | 0x20) == 'l' && b[6] == '_') {
+                  cif_endloop();
+                  cif_global();
+                } else {
+                  cif_value(b, p);
+                }
+              } break;
+              case 'l': case 'L': {
+                if (p - b == 5 && (b[1] | 0x20) == 'o' && (b[2] | 0x20) == 'o' && (b[3] | 0x20) == 'p' && b[4] == '_') {
+                  cif_endloop();
+                  cif_loop();
+                } else {
+                  cif_value(b, p);
+                }
+              } break;
+              case '_': {
+                cif_endloop();
+                cif_tag(b, p);
+              } break;
+              default: {
+                cif_value(b, p);
+              } break;
+            }
+          }
         }
       }
     }
@@ -619,6 +702,217 @@ namespace gilgamesh {
 
     static constexpr bool debug_cif = true;
 
+    enum Tag {
+      _atom_site_group_PDB,
+      _atom_site_id,
+      _atom_site_type_symbol,
+      _atom_site_label_atom_id,
+      _atom_site_label_alt_id,
+      _atom_site_label_comp_id,
+      _atom_site_label_asym_id,
+      _atom_site_label_entity_id,
+      _atom_site_label_seq_id,
+      _atom_site_pdbx_PDB_ins_code,
+      _atom_site_Cartn_x,
+      _atom_site_Cartn_y,
+      _atom_site_Cartn_z,
+      _atom_site_occupancy,
+      _atom_site_B_iso_or_equiv,
+      _atom_site_Cartn_x_esd,
+      _atom_site_Cartn_y_esd,
+      _atom_site_Cartn_z_esd,
+      _atom_site_occupancy_esd,
+      _atom_site_B_iso_or_equiv_esd,
+      _atom_site_pdbx_formal_charge,
+      _atom_site_auth_seq_id,
+      _atom_site_auth_comp_id,
+      _atom_site_auth_asym_id,
+      _atom_site_auth_atom_id,
+      _atom_site_pdbx_PDB_model_num,
+      _unknown_tag,
+    };
+
+    std::vector<Tag> loop_tags_;
+    size_t tag_idx_ = 0;
+
+    enum State {
+      state_dataitem,
+      state_looptags,
+      state_loopvalues,
+    };
+ 
+    State state_ = state_dataitem;
+
+    void cif_loop() {
+      state_ = state_looptags;
+      std::cout << "loop\n";
+      tag_idx_ = 0;
+      loop_tags_.clear();
+    }
+
+    void cif_endloop() {
+      if (state_ == state_loopvalues) {
+        std::cout << "/loop\n";
+        state_ = state_dataitem;
+      }
+    }
+
+    void cif_data(const uint8_t *b, const uint8_t *e) {
+      std::cout << std::string(b, e) << " D\n";
+    }
+
+    void cif_value(const uint8_t *b, const uint8_t *e) {
+      if (state_ == state_looptags) {
+        state_ = state_loopvalues;
+      }
+
+      static int times = 0;
+
+      if (state_ == state_loopvalues) {
+        Tag tag = loop_tags_[tag_idx_];
+        if (tag == _atom_site_group_PDB) {
+          atoms_.push_back(atom{});
+        }
+        atom &a = atoms_.back();
+        int len = int(e - b);
+        switch (tag) {
+          case _atom_site_group_PDB: {
+            a.is_hetatom_ = *b == 'H';
+            /*
+ATOM   1      P  P     . U   A   1  1    ? -88.901  31.455   65.339  1.00 101.28 ? ? ? ? ? ? 1    U   2  P     1 
+            serial_ = atoi(p - 1 + 7, p + 11);
+            atomName_ = (std::array<char, 4>&)*(p - 1 + 13);
+            altLoc_ = (char)p[-1+17];
+            resName_ = (std::array<char, 3>&)*(p - 1 + 18);
+            chainID_ = (char)p[-1+22];
+            resSeq_ = atoi(p - 1 + 23, p + 26);
+            iCode_ = (char)p[-1+27];
+            pos_.x = atof(p - 1 + 31, p + 38);
+            pos_.y = atof(p - 1 + 39, p + 46);
+            pos_.z = atof(p - 1 + 47, p + 54);
+            occupancy_ = atof(p - 1 + 55, p + 60);
+            tempFactor_ = atof(p - 1 + 61, p + 66);
+            element_ = (std::array<char, 2>&)*(p - 1 + 77);
+            charge_ = (std::array<char, 2>&)*(p - 1 + 79);
+            */
+            break;
+          }
+          case _atom_site_id: a.serial_ = atoi(b, e); break;
+          case _atom_site_type_symbol: a.element_[0] = *b; a.element_[1] = b+1 < e ? b[1] : ' '; break;
+          case _atom_site_label_atom_id: a.atomName_[0] = *b; a.atomName_[1] = len < 1 ? b[1] : ' '; break; 
+          case _atom_site_label_alt_id: a.altLoc_ = *b; break;
+          case _atom_site_label_comp_id: a.resName_[0] = *b; a.resName_[1] = len <= 1 ? b[1] : ' '; a.resName_[2] = len < 3 ? b[2] : ' '; break;
+          //std::cout << "comp_id " << std::string(b, e); break;
+          case _atom_site_label_asym_id: break;
+          case _atom_site_label_entity_id: break;
+          case _atom_site_label_seq_id: break;
+          case _atom_site_pdbx_PDB_ins_code: break;
+          case _atom_site_Cartn_x: a.pos_.x = atof(b, e); break;
+          case _atom_site_Cartn_y: a.pos_.y = atof(b, e); break;
+          case _atom_site_Cartn_z: a.pos_.z = atof(b, e); break;
+          case _atom_site_occupancy: a.occupancy_ = atof(b, e); break;
+          case _atom_site_B_iso_or_equiv: break;
+          case _atom_site_Cartn_x_esd: break;
+          case _atom_site_Cartn_y_esd: break;
+          case _atom_site_Cartn_z_esd: break;
+          case _atom_site_occupancy_esd: break;
+          case _atom_site_B_iso_or_equiv_esd: break;
+          case _atom_site_pdbx_formal_charge: break;
+          case _atom_site_auth_seq_id: break;
+          case _atom_site_auth_comp_id: break;
+          case _atom_site_auth_asym_id: break;
+          case _atom_site_auth_atom_id: break;
+          case _atom_site_pdbx_PDB_model_num: break;
+          case _unknown_tag: break;
+        }
+        //std::cout << std::string(b, e) << " " << tag << " V\n";
+        if (++tag_idx_ >= loop_tags_.size()) {
+          tag_idx_ = 0;
+        }
+      }
+    }
+
+/*
+ATOM 0 V
+4 1 V
+O 2 V
+ 3 V
+ 4 V
+. 5 V
+U 6 V
+A 7 V
+1 8 V
+1 9 V
+? 10 V
+-87.527 11 V
+32.248 12 V
+65.521 13 V
+1.00 14 V
+100.03 15 V
+? 16 V
+? 17 V
+? 18 V
+? 19 V
+? 20 V
+? 21 V
+1 22 V
+U 23 V
+2 24 V
+ 25 V
+ 0 V
+*/
+    void cif_save(const uint8_t *b, const uint8_t *e) {
+    }
+
+    void cif_stop(const uint8_t *b, const uint8_t *e) {
+    }
+
+    void cif_global() {
+    }
+
+    void cif_tag(const uint8_t *b, const uint8_t *e) {
+      static const char * const tagName[] = {
+        "_atom_site.group_PDB",
+        "_atom_site.id",
+        "_atom_site.type_symbol",
+        "_atom_site.label_atom_id",
+        "_atom_site.label_alt_id",
+        "_atom_site.label_comp_id",
+        "_atom_site.label_asym_id",
+        "_atom_site.label_entity_id",
+        "_atom_site.label_seq_id",
+        "_atom_site.pdbx_PDB_ins_code",
+        "_atom_site.Cartn_x",
+        "_atom_site.Cartn_y",
+        "_atom_site.Cartn_z",
+        "_atom_site.occupancy",
+        "_atom_site.B_iso_or_equiv",
+        "_atom_site.Cartn_x_esd",
+        "_atom_site.Cartn_y_esd",
+        "_atom_site.Cartn_z_esd",
+        "_atom_site.occupancy_esd",
+        "_atom_site.B_iso_or_equiv_esd",
+        "_atom_site.pdbx_formal_charge",
+        "_atom_site.auth_seq_id",
+        "_atom_site.auth_comp_id",
+        "_atom_site.auth_asym_id",
+        "_atom_site.auth_atom_id",
+        "_atom_site.pdbx_PDB_model_num",
+      };
+
+      //std::cout << std::string(b, e) << " T\n";
+      int i = 0;
+      for (auto p : tagName) {
+        size_t len = strlen(p);
+        if (e - b == len && !memcmp(p, b, len)) {
+          //std::cout << i << "\n";
+          break;
+        }
+        ++i;
+      }
+      loop_tags_.push_back((Tag)(i));
+    }
+
     // <CIF>	<Comments>? <WhiteSpace>? { <DataBlock> { <WhiteSpace> <DataBlock> }* { <WhiteSpace> }? }?	yes
     // eg. data_bert\n...data_fred\n...<eof>
     bool CIF(const uint8_t *&p, const uint8_t *eof) {
@@ -665,7 +959,7 @@ namespace gilgamesh {
       if (!cif_SaveFrameHeading(p, eof)) return false;
       while (cif_WhiteSpace(p, eof) && cif_DataItems(p, eof)) {
       }
-      if (!cif_WhiteSpace(p, eof) || p + 5 > eof || !_memicmp(p, "save_", 5)) return false;
+      if (!cif_WhiteSpace(p, eof) || !cif_icmp(p, eof, "save_")) return false;
       p += 5;
       return true;
     }
