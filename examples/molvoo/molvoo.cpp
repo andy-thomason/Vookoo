@@ -530,7 +530,8 @@ private:
     }
 
     if (!filename) {
-      filename = SOURCE_DIR "molvoo/1hnw.pdb";
+      //filename = SOURCE_DIR "molvoo/1hnw.pdb";
+      filename = SOURCE_DIR "molvoo/5dge.cif";
     }
 
     glfwInit();

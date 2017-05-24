@@ -182,65 +182,80 @@ namespace gilgamesh {
 
     pdb_decoder(const uint8_t *begin, const uint8_t *end) {
       glm::mat4 biomt;
-      for (const uint8_t *p = begin; p != end; ) {
-        const uint8_t *eol = p;
-        while (eol != end && *eol != '\n') ++eol;
-        const uint8_t *next_p = eol != end ? eol + 1 : end;
-        while (eol != p && (*eol == '\r' || *eol == '\n')) --eol;
-        if (p != eol) {
-          switch (*p) {
-            case 'A': {
-              if (p + 5 < eol && !memcmp(p, "ATOM  ", 6)) {
-                atoms_.emplace_back(p, eol, false);
-              }
-            } break;
-            case 'H': {
-              if (p + 5 < eol && !memcmp(p, "HETATM", 6)) {
-                atoms_.emplace_back(p, eol, true);
-              }
-            } break;
-            case 'C': {
-              if (p + 5 < eol && !memcmp(p, "CONECT", 6)) {
-                // COLUMNS       DATA  TYPE      FIELD        DEFINITION
-                // -------------------------------------------------------------------------
-                //  1 -  6        Record name    "CONECT"
-                //  7 - 11       Integer        serial       Atom  serial number
-                //  12 - 16        Integer        serial       Serial number of bonded atom
-                //  17 - 21        Integer        serial       Serial  number of bonded atom
-                //  22 - 26        Integer        serial       Serial number of bonded atom
-                //  27 - 31        Integer        serial       Serial number of bonded atom
-                int a0 = atoi(p + 1 + 7, p + 11);
-                int a1 = atoi(p + 1 + 12, p + 16);
-                int a2 = atoi(p + 1 + 17, p + 21);
-                int a3 = atoi(p + 1 + 22, p + 26);
-                int a4 = atoi(p + 1 + 27, p + 31);
-                if (a0 && a1) connections_.emplace_back(a0, a1);
-                if (a0 && a2) connections_.emplace_back(a0, a2);
-                if (a0 && a3) connections_.emplace_back(a0, a3);
-                if (a0 && a4) connections_.emplace_back(a0, a4);
-              }
-            } break;
-            case 'R': {
-              if (p + 18 < eol && !memcmp(p, "REMARK 350   BIOMT", 18)) {
-                int row, inst;
-                float x, y, z, w;
-                sscanf((char*)p + 18, "%d %d %f %f %f %f", &row, &inst, &x, &y, &z, &w);
-                //printf("%d %d %f %f %f %f\n", row, inst, x, y, z, w);
-                if (row >= 1 && row <= 3) {
-                  biomt[0][row-1] = x;
-                  biomt[1][row-1] = y;
-                  biomt[2][row-1] = z;
-                  biomt[3][row-1] = w;
-                }
-                if (row == 3) {
-                  //printf("%s\n", glm::to_string(biomt).c_str());
-                  instanceMatrices_.push_back(biomt);
-                }
-              }
-            } break;
-          }
+
+      if (end - begin < 5) return;
+
+      const uint8_t *p = begin;
+      initCIFParser();
+      cif_Comments(p, end);
+      cif_WhiteSpace(p, end);
+      if (cif_DataBlockHeading(p, end)) {
+        // CIF format
+        p = begin;
+        if (!CIF(p, end)) {
         }
-        p = next_p;
+      } else if (cif_icmp(begin, end, "HEADE")) {
+        // PDB format
+        for (const uint8_t *p = begin; p != end; ) {
+          const uint8_t *eol = p;
+          while (eol != end && *eol != '\n') ++eol;
+          const uint8_t *next_p = eol != end ? eol + 1 : end;
+          while (eol != p && (*eol == '\r' || *eol == '\n')) --eol;
+          if (p != eol) {
+            switch (*p) {
+              case 'A': {
+                if (p + 5 < eol && !memcmp(p, "ATOM  ", 6)) {
+                  atoms_.emplace_back(p, eol, false);
+                }
+              } break;
+              case 'H': {
+                if (p + 5 < eol && !memcmp(p, "HETATM", 6)) {
+                  atoms_.emplace_back(p, eol, true);
+                }
+              } break;
+              case 'C': {
+                if (p + 5 < eol && !memcmp(p, "CONECT", 6)) {
+                  // COLUMNS       DATA  TYPE      FIELD        DEFINITION
+                  // -------------------------------------------------------------------------
+                  //  1 -  6        Record name    "CONECT"
+                  //  7 - 11       Integer        serial       Atom  serial number
+                  //  12 - 16        Integer        serial       Serial number of bonded atom
+                  //  17 - 21        Integer        serial       Serial  number of bonded atom
+                  //  22 - 26        Integer        serial       Serial number of bonded atom
+                  //  27 - 31        Integer        serial       Serial number of bonded atom
+                  int a0 = atoi(p + 1 + 7, p + 11);
+                  int a1 = atoi(p + 1 + 12, p + 16);
+                  int a2 = atoi(p + 1 + 17, p + 21);
+                  int a3 = atoi(p + 1 + 22, p + 26);
+                  int a4 = atoi(p + 1 + 27, p + 31);
+                  if (a0 && a1) connections_.emplace_back(a0, a1);
+                  if (a0 && a2) connections_.emplace_back(a0, a2);
+                  if (a0 && a3) connections_.emplace_back(a0, a3);
+                  if (a0 && a4) connections_.emplace_back(a0, a4);
+                }
+              } break;
+              case 'R': {
+                if (p + 18 < eol && !memcmp(p, "REMARK 350   BIOMT", 18)) {
+                  int row, inst;
+                  float x, y, z, w;
+                  sscanf((char*)p + 18, "%d %d %f %f %f %f", &row, &inst, &x, &y, &z, &w);
+                  //printf("%d %d %f %f %f %f\n", row, inst, x, y, z, w);
+                  if (row >= 1 && row <= 3) {
+                    biomt[0][row-1] = x;
+                    biomt[1][row-1] = y;
+                    biomt[2][row-1] = z;
+                    biomt[3][row-1] = w;
+                  }
+                  if (row == 3) {
+                    //printf("%s\n", glm::to_string(biomt).c_str());
+                    instanceMatrices_.push_back(biomt);
+                  }
+                }
+              } break;
+            }
+          }
+          p = next_p;
+        }
       }
     }
 
@@ -597,6 +612,326 @@ namespace gilgamesh {
     const std::vector<glm::mat4> &instanceMatrices() const { return instanceMatrices_; }
 
   private:
+    struct res {
+      uint8_t *p;
+      bool ok = false;
+    };
+
+    static constexpr bool debug_cif = true;
+
+    // <CIF>	<Comments>? <WhiteSpace>? { <DataBlock> { <WhiteSpace> <DataBlock> }* { <WhiteSpace> }? }?	yes
+    // eg. data_bert\n...data_fred\n...<eof>
+    bool CIF(const uint8_t *&p, const uint8_t *eof) {
+      cif_Comments(p, eof);
+      cif_WhiteSpace(p, eof);
+      while (cif_DataBlock(p, eof)) {
+      }
+      cif_WhiteSpace(p, eof);
+      return p == eof;
+    }
+
+    // <DataBlock>	<DataBlockHeading> {<WhiteSpace> { <DataItems> | <SaveFrame>} }*	yes
+    // eg. data_bert\n...\n...\n...
+    bool cif_DataBlock(const uint8_t *&p, const uint8_t *eof) {
+      if (!cif_DataBlockHeading(p, eof)) {
+        if (debug_cif) printf("expected a data block here %.*s\n", std::min(int(eof-p), 80), p);
+        return false;
+      }
+      while (cif_WhiteSpace(p, eof)) {
+        if (!cif_DataItems(p, eof) && !cif_SaveFrame(p, eof)) {
+          if (debug_cif) printf("expected DataItems or SaveFrame, got %.*s\n", std::min(int(eof-p), 80), p);
+          return false;
+        }
+      }
+      return true;
+    }
+
+    // <DataBlockHeading>	<DATA_> { <NonBlankChar> }+	no
+    bool cif_DataBlockHeading(const uint8_t *&p, const uint8_t *eof) {
+      const uint8_t *q = p;
+      if (cif_icmp(q, eof, "data_")) {
+        if (q == eof || !cif_NonBlankChar[*q]) return false;
+        while (q != eof && cif_NonBlankChar[*q]) {
+          ++q;
+        }
+        p = q;
+        return true;
+      }
+      return false;
+    }
+
+    // <SaveFrame>	<SaveFrameHeading> { <WhiteSpace> <DataItems> }+ <WhiteSpace> <SAVE_>	yes
+    bool cif_SaveFrame(const uint8_t *&p, const uint8_t *eof) {
+      if (!cif_SaveFrameHeading(p, eof)) return false;
+      while (cif_WhiteSpace(p, eof) && cif_DataItems(p, eof)) {
+      }
+      if (!cif_WhiteSpace(p, eof) || p + 5 > eof || !_memicmp(p, "save_", 5)) return false;
+      p += 5;
+      return true;
+    }
+
+    // <SaveFrameHeading>	<SAVE_> { <NonBlankChar> }+	no
+    bool cif_SaveFrameHeading(const uint8_t *&p, const uint8_t *eof) {
+      const uint8_t *q = p;
+      if (cif_icmp(q, eof, "save_") && cif_NonBlankChar[*q]) {
+        while (q != eof && cif_NonBlankChar[*q]) {
+          ++q;
+        }
+        p = q;
+        return true;
+      }
+      return false;
+    }
+
+    // <DataItems>	<Tag> <WhiteSpace> <Value> | <LoopHeader> <LoopBody>
+    bool cif_DataItems(const uint8_t *&p, const uint8_t *eof) {
+      if (debug_cif) printf("cif_DataItems %.*s\n", std::min(int(eof-p), 20), p);
+      const uint8_t *q = p;
+      std::string tag;
+      std::string value;
+      if (cif_Tag(q, eof, tag) && cif_WhiteSpaceValue(q, eof, value)) {
+        // eg. _xyz.abc 1.5
+        p = q;
+        return true;
+      } else if (q = p, cif_icmp(q, eof, "loop_")) {
+        // eg. loop_\n...
+        // <LoopHeader>	<LOOP_> {<WhiteSpace> <Tag>}+	no
+        if (!cif_WhiteSpace(q, eof) || !cif_Tag(q, eof, tag)) return false;
+
+        const uint8_t *r = q;
+        while (cif_WhiteSpace(r, eof) && cif_Tag(r, eof, tag)) {
+          q = r;
+        }
+        // <LoopBody>	<Value> { <WhiteSpace> <Value> }*	yes
+        if (!cif_WhiteSpaceValue(q, eof, value, true)) {
+          if (debug_cif) printf("expected a value here %.*s\n", std::min(int(eof-p), 80), p);
+          return false;
+        }
+        while (cif_WhiteSpaceValue(q, eof, value)) {
+        }
+        p = q;
+        return true;
+      }
+      return false;
+    }
+
+    // Reserved Words
+    // <DATA_>	{'D' | 'd'} {'A' | 'a'} {'T' | 't'} {'A' | 'a'} '_'	no
+    // <LOOP_>	{'L' | 'l'} {'O' | 'o'} {'O' | 'o'} {'P' | 'p'} '_'	no
+    // <GLOBAL_>	{'G' | 'g'} {'L' | 'l'} {'O' | 'o'} {'B' | 'b'} {'A' | 'a'} {'L' | 'l'} '_'	no
+    // <SAVE_>	{'S' | 's'} {'A' | 'a'} {'V' | 'v'} {'E' | 'e'} '_'	no
+    // <STOP_>	{'S' | 's'} {'T' | 't'} {'O' | 'o'} {'P' | 'p'}'_'	no
+
+    // Tags and Values
+    // <Tag>	'_'{ <NonBlankChar>}+	no
+    bool cif_Tag(const uint8_t *&p, const uint8_t *eof, std::string &tag) {
+      const uint8_t *q = p;
+      if (p+1 >= eof || *p != '_' || !cif_NonBlankChar[p[1]]) return false;
+      p += 2;
+      while (p != eof && cif_NonBlankChar[*p]) {
+        ++p;
+      }
+      tag.assign(q, p);
+      return true;
+    }
+
+    // <Value>	{ '.' | '?' | <Numeric> | <CharString> | <TextField> }	yes
+    bool cif_WhiteSpaceValue(const uint8_t *&p, const uint8_t *eof, std::string &value, bool noEolSemi = false) {
+      const uint8_t *q = p;
+      if(cif_WhiteSpace(q, eof)) {
+        bool isEol = q-1 > p && (q[-1] == '\n' || q[-1] == '\r');
+        if (q != eof && (*q == '\'' || *q == '"')) {
+          uint8_t qchar = *q;
+          ++q;
+          const uint8_t *r = p;
+          while (q != eof && cif_AnyPrintChar[*q] && *q != qchar) {
+            ++q;
+          }
+          if (q == eof || *q != qchar) return false;
+          value.assign(r, p);
+          p = q + 1;
+          return true;
+        } else if (q != eof && *q == ';' && isEol && !noEolSemi) {
+          // <eol><SemiColonTextField>	<eol>';' { {<AnyPrintChar>}* <eol>
+          // {{<TextLeadChar> {<AnyPrintChar>}*}? <eol>}*
+          // } ';'	yes
+          ++q;
+          while (q != eof && cif_AnyPrintChar[*q]) {
+            ++q;
+          }
+          if (!cif_eol(q, eof)) return false;
+
+          for(;;) {
+            if (q == eof || !cif_TextLeadChar[*q]) break;
+            ++q;
+            while (q != eof && cif_AnyPrintChar[*q]) {
+              ++q;
+            }
+            if (!cif_eol(q, eof)) return false;
+          }
+          if (q != eof && *q == ';') {
+            p = q + 1;
+            return true;
+          } else {
+            return false;
+          }
+        } else if (q != eof && (cif_OrdinaryChar[*q] || (*q == ';' && !isEol))) {
+          // <eol><UnquotedString>	<eol><OrdinaryChar> {<NonBlankChar>}*	yes
+          // <noteol><UnquotedString>	<noteol>{<OrdinaryChar>|';'} {<NonBlankChar>}*	yes
+          if (cif_icmp(q, eof, "data_") || cif_icmp(q, eof, "save_")) return false;
+          const uint8_t *r = q;
+          ++q;
+          while (q != eof && cif_NonBlankChar[*q]) {
+            ++q;
+          }
+
+          const uint8_t *s = r;
+
+          if (cif_icmp(s, q, "loop_") && s == r + 5) return false;
+          if (cif_icmp(s, q, "global_") && s == r + 7) return false;
+          if (cif_icmp(s, q, "stop_") && s == r + 5) return false;
+
+          value.assign(r, q);
+          p = q;
+          return true;
+        }
+      }
+      return false;
+    }
+
+    // Numeric Values
+    // <Numeric>	{ <Number> | <Number> '(' <UnsignedInteger> ')' }	no
+    // <Number>	{<Integer> | <Float> }	no
+    // <Integer>	{ '+' | '-' }? <UnsignedInteger>	no
+    // <Float>	{ <Integer><Exponent> |
+    // { {'+'|'-'} ? { {<Digit>} * '.' <UnsignedInteger> } |
+    // { <Digit>} + '.' } } {<Exponent>} ? } }	no
+    // <Exponent>	{ {'e' | 'E' } | {'e' | 'E' } { '+' | '- ' } } <UnsignedInteger>	no
+    // <UnsignedInteger>	{ <Digit> }+	no
+    // <Digit>	{ '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' }	no
+
+    // Character Strings and Text Fields
+    // <CharString>	<UnquotedString> | <SingleQuotedString> | <DoubleQuotedString>	yes
+    // <eol><UnquotedString>	<eol><OrdinaryChar> {<NonBlankChar>}*	yes
+    // <noteol><UnquotedString>	<noteol>{<OrdinaryChar>|';'} {<NonBlankChar>}*	yes
+    // <SingleQuotedString> <WhiteSpace>	<single_quote>{<AnyPrintChar>}* <single_quote> <WhiteSpace>	yes
+    // <DoubleQuotedString> <WhiteSpace>	<double_quote> {<AnyPrintChar>}* <double_quote> <WhiteSpace>	yes
+    // <TextField>	{ <SemiColonTextField> }	yes
+    // <eol><SemiColonTextField>	<eol>';' { {<AnyPrintChar>}* <eol>
+    // {{<TextLeadChar> {<AnyPrintChar>}*}? <eol>}*
+    // } ';'	yes
+
+    // WhiteSpace and Comments
+    // <WhiteSpace>	{ <SP> | <HT> | <eol> | <TokenizedComments>}+	yes
+
+    bool cif_eol(const uint8_t *&p, const uint8_t *eof) {
+      if (p == eof) return false;
+      if (*p != '\n' && *p != '\r') {
+        return false;
+      }
+      if (p + 1 != eof && *p == '\r' && p[1] == '\n') p += 2; else ++p;
+      return true;
+    }
+
+    bool cif_eolsemi(const uint8_t *&p, const uint8_t *eof) {
+      const uint8_t *q = p;
+      if (cif_eol(q, eof) && q != eof && *q == ';') {
+        p = q;
+        return true;
+      }
+      return false;
+    }
+
+    bool cif_wschr(const uint8_t *&p, const uint8_t *eof) {
+      if (*p == ' ' || *p == '\t') { ++p; return true; }
+      return cif_eol(p, eof);
+    }
+
+    bool cif_WhiteSpace(const uint8_t *&p, const uint8_t *eof) {
+      if (cif_wschr(p, eof)) {
+        cif_Comments(p, eof);
+        while (cif_wschr(p, eof)) {
+          cif_Comments(p, eof);
+        }
+        return true;
+      } else {
+        return false;
+      }
+    }
+
+    bool cif_icmp(const uint8_t *&p, const uint8_t *eof, const char *str) {
+      const uint8_t *q = p;
+      while (*str) {
+        if (q == eof) return false;
+        if (*str >= 'a' && *str <= 'z') {
+          if(*str != (*q | 0x20)) return false;
+        } else {
+          if (*str != *q) return false;
+        }
+        ++str;
+        ++q;
+      }
+      p = q;
+      return true;
+    }
+
+    // <Comments>	{ '#' {<AnyPrintChar>}* <eol>}+	yes
+    bool cif_Comments(const uint8_t *&p, const uint8_t *eof) {
+      if (p != eof && *p == '#') {
+        ++p;
+        while (p != eof && cif_AnyPrintChar[*p]) {
+          ++p;
+        }
+        return cif_eol(p, eof);
+      }
+      return false;
+    }
+
+    // <TokenizedComments>	{ <SP> | <HT> | <eol> |}+ <Comments>	yes
+    bool cif_TokenizedComments(const uint8_t *&p, const uint8_t *eof) {
+      if (cif_WhiteSpace(p, eof) && p != eof && *p == '#') {
+        ++p;
+        while (p != eof && cif_AnyPrintChar[*p]) {
+          ++p;
+        }
+        return true;
+      }
+      return false;
+    }
+
+    // Character Sets
+
+    // <OrdinaryChar>	{ '!' | '%' | '&' | '(' | ')' | '*' | '+' | ',' | '-' | '.' | '/' | '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' | ':' | '<' | '=' | '>' | '?' | '@' | 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H' | 'I' | 'J' | 'K' | 'L' | 'M' | 'N' | 'O' | 'P' | 'Q' | 'R' | 'S' | 'T' | 'U' | 'V' | 'W' | 'X' | 'Y' | 'Z' | '\' | '^' | '`' | 'a' | 'b' | 'c' | 'd' | 'e' | 'f' | 'g' | 'h' | 'i' | 'j' | 'k' | 'l' | 'm' | 'n' | 'o' | 'p' | 'q' | 'r' | 's' | 't' | 'u' | 'v' | 'w' | 'x' | 'y' | 'z' | '{' | '|' | '}' | '~' }	yes
+    std::array<bool, 256> cif_OrdinaryChar;
+
+    // <NonBlankChar>	<OrdinaryChar> | <double_quote> | '#' | '$' | <single_quote> | '_' |';' | '[' | ']'	yes
+    std::array<bool, 256> cif_NonBlankChar;
+
+    // <TextLeadChar>	<OrdinaryChar> | <double_quote> | '#' | '$' | <single_quote> | '_' | <SP> | <HT> |'[' | ']'	yes
+    std::array<bool, 256> cif_TextLeadChar;
+
+    // <AnyPrintChar>	<OrdinaryChar> | <double_quote> | '#' | '$' | <single_quote> | '_' | <SP> | <HT> | ';' | '[' | ']'	yes
+    std::array<bool, 256> cif_AnyPrintChar;
+
+    void initCIFParser() {
+      static const uint8_t chrs[] = {
+        '!',                     '%', '&',      '(', ')', '*', '+', ',', '-', '.', '/',
+        '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', ':',      '<', '=', '>', '?',
+        '@', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O',
+        'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',     '\\',      '^',
+        '`', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o',
+        'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', '{', '|', '}', '~'
+      };
+      for (auto &c : cif_OrdinaryChar) c = false;
+      for (auto c : chrs) cif_OrdinaryChar[c] = true;
+      cif_NonBlankChar = cif_OrdinaryChar;
+      for (auto c : {'"', '#', '$', '\'', '_', ';', '[', ']'}) cif_NonBlankChar[c] = true;
+      cif_TextLeadChar = cif_OrdinaryChar;
+      for (auto c : {'"', '#', '$', '\'', '_', ' ', '\t', '[', ']'}) cif_TextLeadChar[c] = true;
+      cif_AnyPrintChar = cif_OrdinaryChar;
+      for (auto c : {'"', '#', '$', '\'', '_', ' ', '\t', ';', '[', ']'}) cif_AnyPrintChar[c] = true;
+    }
+
     std::vector<atom> atoms_;
     std::vector<glm::mat4> instanceMatrices_;
     std::vector<std::pair<int, int> > connections_;
