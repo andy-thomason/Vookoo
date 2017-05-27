@@ -894,6 +894,7 @@ public:
   /// For a device local buffer, copy memory to the buffer object immediately.
   /// Note that this will stall the pipeline!
   void upload(vk::Device device, const vk::PhysicalDeviceMemoryProperties &memprops, vk::CommandPool commandPool, vk::Queue queue, const void *value, vk::DeviceSize size) const {
+    if (size == 0) return;
     using buf = vk::BufferUsageFlagBits;
     using pfb = vk::MemoryPropertyFlagBits;
     auto tmp = vku::GenericBuffer(device, memprops, buf::eTransferSrc, size, pfb::eHostVisible);

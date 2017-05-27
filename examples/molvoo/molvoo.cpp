@@ -325,7 +325,7 @@ public:
       Atom a{};
       a.pos = a.prevPos = atom.pos() - mean;
       float scale = 0.1f;
-      if (atom.atomNameIs(" N  ") || atom.atomNameIs(" CA ") || atom.atomNameIs(" C  ") || atom.atomNameIs(" P  ")) scale = 0.4f;
+      if (atom.atomNameIs("N") || atom.atomNameIs("CA") || atom.atomNameIs("C") || atom.atomNameIs("P")) scale = 0.4f;
       float radius = atom.vanDerVaalsRadius();
       a.radius = radius * scale;
       a.colour = colour;
@@ -346,7 +346,7 @@ public:
       if (prevChainID != chainID) prevC = -1;
 
       // iCode is 'A' etc. for alternates.
-      if (iCode == ' ') {
+      if (iCode == ' ' || iCode == '?') {
         /*for (size_t i = bidx; i != eidx; ++i) {
           for (size_t j = i+1; j <= eidx; ++j) {
             if (length(atoms[i].pos - atoms[j].pos) < vdv[i] + vdv[j]) {
@@ -432,9 +432,9 @@ public:
     numInstances_ = (uint32_t)instances.size();
 
     using buf = vk::BufferUsageFlagBits;
-    atoms_ = vku::GenericBuffer(device, memprops, buf::eStorageBuffer|buf::eTransferDst, numAtoms_ * sizeof(Atom), vk::MemoryPropertyFlagBits::eHostVisible);
+    atoms_ = vku::GenericBuffer(device, memprops, buf::eStorageBuffer|buf::eTransferDst, (numAtoms_+1) * sizeof(Atom), vk::MemoryPropertyFlagBits::eHostVisible);
     pick_ = vku::GenericBuffer(device, memprops, buf::eStorageBuffer, sizeof(Pick) * Pick::fifoSize, vk::MemoryPropertyFlagBits::eHostVisible);
-    conns_ = vku::GenericBuffer(device, memprops, buf::eStorageBuffer|buf::eTransferDst, sizeof(Connection) * numConnections_, vk::MemoryPropertyFlagBits::eHostVisible);
+    conns_ = vku::GenericBuffer(device, memprops, buf::eStorageBuffer|buf::eTransferDst, sizeof(Connection) * (numConnections_+1), vk::MemoryPropertyFlagBits::eHostVisible);
     instances_ = vku::GenericBuffer(device, memprops, buf::eStorageBuffer|buf::eTransferDst, sizeof(Instance) * numInstances_, vk::MemoryPropertyFlagBits::eHostVisible);
 
     atoms_.upload(device, memprops, commandPool, queue, atoms);
@@ -751,10 +751,10 @@ private:
         cb.draw(6 * 6, 1, 0, 0);
 
         cb.bindPipeline(vk::PipelineBindPoint::eGraphics, atomPipeline_.pipeline());
-        cb.draw(moleculeModel_.numAtoms() * 6, ninst, 0, 0);
+        if (moleculeModel_.numAtoms()) cb.draw(moleculeModel_.numAtoms() * 6, ninst, 0, 0);
 
         cb.bindPipeline(vk::PipelineBindPoint::eGraphics, connPipeline_.pipeline());
-        cb.draw(moleculeModel_.numConnections() * 6, ninst, 0, 0);
+        if (moleculeModel_.numConnections()) cb.draw(moleculeModel_.numConnections() * 6, ninst, 0, 0);
 
         cb.bindPipeline(vk::PipelineBindPoint::eGraphics, fountPipeline_.pipeline());
         if (textModel_.numGlyphs()) cb.draw(textModel_.numGlyphs() * 6, ninst, 0, 0);
