@@ -321,10 +321,11 @@ public:
 
     auto pms = pd.getSurfacePresentModesKHR(*surface_);
     vk::PresentModeKHR presentMode = pms[0];
-    if (std::find(pms.begin(), pms.end(), vk::PresentModeKHR::eMailbox) != pms.end()) {
-      presentMode = vk::PresentModeKHR::eMailbox;
-    } else if (std::find(pms.begin(), pms.end(), vk::PresentModeKHR::eFifo) != pms.end()) {
+    if (std::find(pms.begin(), pms.end(), vk::PresentModeKHR::eFifo) != pms.end()) {
       presentMode = vk::PresentModeKHR::eFifo;
+    } else {
+      std::cout << "No fifo mode available\n";
+      return;
     }
 
     //std::cout << "using " << vk::to_string(presentMode) << "\n";

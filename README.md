@@ -93,7 +93,15 @@ There are currently these examples:
     helloTriangle   Draw a triangle using vertex buffers
     texture         Draw a textured triangle
     teapot          Draw the Utah teapot (using gilgamesh)
-    trypsin         A simple molecule viewer (using gilgamesh)
+    molvoo          A simple molecule viewer (using gilgamesh)
+
+To build, you will need the Vulkan SDK from LunarG:
+
+    https://www.lunarg.com/vulkan-sdk/
+
+Once installed, check that the GLSL compiler works:
+
+    $ glslangValidator
 
 Building the examples on Windows:
 
@@ -108,3 +116,5 @@ Building the examples on Linux:
     cd build
     cmake ../examples
     make
+
+
