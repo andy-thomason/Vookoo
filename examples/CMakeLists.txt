@@ -48,6 +48,7 @@ endfunction(example)
 
 example(helloTriangle helloTriangle.vert helloTriangle.frag)
 example(pushConstants pushConstants.vert pushConstants.frag)
+example(uniforms uniforms.vert uniforms.frag)
 example(texture texture.vert texture.frag)
 example(molvoo atoms.vert atoms.frag fount.vert fount.frag conns.vert conns.frag dynamics.comp skybox.vert skybox.frag)
 example(teapot teapot.vert teapot.frag teapot.shadow.vert teapot.shadow.frag)
