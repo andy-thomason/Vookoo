@@ -83,24 +83,9 @@ int main() {
   //
   // Create a texture
 
-  // Create an image, memory and view for the texture on the GPU.
   vku::TextureImage2D texture{device, fw.memprops(), 2, 2, 1, vk::Format::eR8G8B8A8Unorm};
-
-  // Create an image and memory for the texture on the CPU.
-  vku::TextureImage2D stagingBuffer{device, fw.memprops(), 2, 2, 1, vk::Format::eR8G8B8A8Unorm, true};
-
-  // Copy pixels into the staging buffer
-  static const uint8_t pixels[] = { 0xff, 0xff, 0xff, 0xff,  0x00, 0xff, 0xff, 0xff,  0xff, 0x00, 0xff, 0xff,  0xff, 0xff, 0x00, 0xff, };
-  stagingBuffer.update(device, (const void*)pixels, 4);
-
-  // Copy the staging buffer to the GPU texture and set the layout.
-  vku::executeImmediately(device, window.commandPool(), fw.graphicsQueue(), [&](vk::CommandBuffer cb) {
-    texture.copy(cb, stagingBuffer);
-    texture.setLayout(cb, vk::ImageLayout::eShaderReadOnlyOptimal);
-  });
-
-  // Free the staging buffer.
-  stagingBuffer = vku::TextureImage2D{};
+  std::vector<uint8_t> pixels = { 0xff, 0xff, 0xff, 0xff,  0x00, 0xff, 0xff, 0xff,  0xff, 0x00, 0xff, 0xff,  0xff, 0xff, 0x00, 0xff, };
+  texture.upload(device, pixels, window.commandPool(), fw.memprops(), fw.graphicsQueue());
 
   ////////////////////////////////////////
   //

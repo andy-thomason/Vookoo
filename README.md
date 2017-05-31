@@ -88,12 +88,16 @@ you may also use the headers stand-alone, for example with Android builds.
 Examples
 ========
 
-There are currently these examples:
+There are currently these examples (in order of complexity)
 
+    Simple examples
     helloTriangle   Draw a triangle using vertex buffers
+    pushConstants   Draw a rotating triangle
     texture         Draw a textured triangle
-    teapot          Draw the Utah teapot (using gilgamesh)
-    molvoo          A simple molecule viewer (using gilgamesh)
+
+    Complex examples    
+    teapot          Draw the Utah teapot with cube map reflections
+    molvoo          A molecular viewer for very large complexes
 
 To build, you will need the Vulkan SDK from LunarG:
 

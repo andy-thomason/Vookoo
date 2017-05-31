@@ -888,6 +888,7 @@ public:
   void updateLocal(const vk::Device &device, const void *value, vk::DeviceSize size) const {
     void *ptr = device.mapMemory(*mem_, 0, size_, vk::MemoryMapFlags{});
     memcpy(ptr, value, (size_t)size);
+    flush(device);
     device.unmapMemory(*mem_);
   }
 
@@ -933,6 +934,16 @@ public:
 
   void *map(const vk::Device &device) const { return device.mapMemory(*mem_, 0, size_, vk::MemoryMapFlags{}); };
   void unmap(const vk::Device &device) const { return device.unmapMemory(*mem_); };
+
+  void flush(const vk::Device &device) const {
+    vk::MappedMemoryRange mr{*mem_, 0, size_};
+    return device.flushMappedMemoryRanges(mr);
+  }
+
+  void invalidate(const vk::Device &device) const {
+    vk::MappedMemoryRange mr{*mem_, 0, size_};
+    return device.invalidateMappedMemoryRanges(mr);
+  }
 
   vk::Buffer buffer() const { return *buffer_; }
   vk::DeviceMemory mem() const { return *mem_; }
