@@ -116,6 +116,7 @@ Building the examples on Windows:
 
 Building the examples on Linux:
 
+    sudo apt install libxinerama-dev libxcursor-dev libxrandr-dev
     mkdir build
     cd build
     cmake ../examples

@@ -44,5 +44,4 @@ example(02 pushConstants pushConstants.vert pushConstants.frag)
 example(03 uniforms uniforms.vert uniforms.frag)
 example(04 texture texture.vert texture.frag)
 example(05 teapot teapot.vert teapot.frag teapot.shadow.vert teapot.shadow.frag)
-example(DemoA molvoo atoms.vert atoms.frag fount.vert fount.frag conns.vert conns.frag dynamics.comp skybox.vert skybox.frag)
 
