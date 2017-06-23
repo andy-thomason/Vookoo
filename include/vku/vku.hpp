@@ -1483,6 +1483,34 @@ public:
 private:
 };
 
+/// An image to use as a colour buffer on a renderpass.
+class ColorAttachmentImage : public GenericImage {
+public:
+  ColorAttachmentImage() {
+  }
+
+  ColorAttachmentImage(vk::Device device, const vk::PhysicalDeviceMemoryProperties &memprops, uint32_t width, uint32_t height, vk::Format format = vk::Format::eR8G8B8A8Unorm) {
+    vk::ImageCreateInfo info;
+    info.flags = {};
+
+    info.imageType = vk::ImageType::e2D;
+    info.format = format;
+    info.extent = vk::Extent3D{ width, height, 1U };
+    info.mipLevels = 1;
+    info.arrayLayers = 1;
+    info.samples = vk::SampleCountFlagBits::e1;
+    info.tiling = vk::ImageTiling::eOptimal;
+    info.usage = vk::ImageUsageFlagBits::eColorAttachment|vk::ImageUsageFlagBits::eTransferSrc|vk::ImageUsageFlagBits::eSampled;
+    info.sharingMode = vk::SharingMode::eExclusive;
+    info.queueFamilyIndexCount = 0;
+    info.pQueueFamilyIndices = nullptr;
+    info.initialLayout = vk::ImageLayout::eUndefined;
+    typedef vk::ImageAspectFlagBits iafb;
+    create(device, memprops, info, vk::ImageViewType::e2D, iafb::eColor, false);
+  }
+private:
+};
+
 /// A class to help build samplers.
 /// Samplers tell the shader stages how to sample an image.
 /// They are used in combination with an image to make a combined image sampler
