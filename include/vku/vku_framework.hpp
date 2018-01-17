@@ -291,7 +291,7 @@ public:
   }
 
   void init(const vk::Instance &instance, const vk::Device &device, const vk::PhysicalDevice &physicalDevice, uint32_t graphicsQueueFamilyIndex, vk::SurfaceKHR surface) {
-    surface_ = vk::UniqueSurfaceKHR(surface);
+    surface_ = vk::UniqueSurfaceKHR(surface, vk::SurfaceKHRDeleter{ instance });
     device_ = device;
     presentQueueFamily_ = 0;
     auto &pd = physicalDevice;
