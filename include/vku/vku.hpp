@@ -541,7 +541,7 @@ private:
   struct State {
     std::vector<uint32_t> opcodes_;
     vk::UniqueShaderModule module_;
-    bool ok_;
+    bool ok_ = false;
   };
 
   State s;
