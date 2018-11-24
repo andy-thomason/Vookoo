@@ -12,6 +12,12 @@ add_definitions(-DBINARY_DIR="${PROJECT_BINARY_DIR}/")
 
 set(CMAKE_CXX_STANDARD 11)
 
+if (NOT CMAKE_VERSION VERSION_LESS 3.7.0)
+	message(STATUS "Finding Vulkan")
+	find_package(Vulkan)
+	message(STATUS ${Vulkan_LIBRARY})
+endif()
+
 function(example order exname)
   set(shaders "")
   
@@ -35,7 +41,7 @@ function(example order exname)
   endif()
 
   if (UNIX)
-    target_link_libraries(${order}-${exname} vulkan dl pthread X11 Xrandr Xinerama Xcursor)
+    target_link_libraries(${order}-${exname} ${Vulkan_LIBRARY} dl pthread X11 Xrandr Xinerama Xcursor)
   endif()
 endfunction(example)
 
