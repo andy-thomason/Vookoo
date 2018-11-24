@@ -94,7 +94,7 @@ int main() {
 
   Uniform u;
   u.colour = glm::vec4{1, 1, 1, 1};
-  u.rotation = glm::mat4{};
+  u.rotation = glm::mat4{1};
   int frame = 0;
 
   // Loop waiting for the window to close.
