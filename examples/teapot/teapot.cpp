@@ -2,6 +2,7 @@
 #include <vku/vku_framework.hpp>
 #include <vku/vku.hpp>
 #include <glm/glm.hpp>
+#define GLM_ENABLE_EXPERIMENTAL 1
 #include <glm/gtx/io.hpp>
 
 #include <gilgamesh/mesh.hpp>
