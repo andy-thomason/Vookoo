@@ -73,129 +73,129 @@ namespace detail
 		using std::make_unsigned;
 
 #	else//GLM_HAS_MAKE_SIGNED
-		template <typename genType>
+		template<typename genType>
 		struct make_signed
 		{};
 
-		template <>
+		template<>
 		struct make_signed<char>
 		{
 			typedef char type;
 		};
 
-		template <>
+		template<>
 		struct make_signed<short>
 		{
 			typedef short type;
 		};
 
-		template <>
+		template<>
 		struct make_signed<int>
 		{
 			typedef int type;
 		};
 
-		template <>
+		template<>
 		struct make_signed<long>
 		{
 			typedef long type;
 		};
 	
-		template <>
+		template<>
 		struct make_signed<unsigned char>
 		{
 			typedef char type;
 		};
 
-		template <>
+		template<>
 		struct make_signed<unsigned short>
 		{
 			typedef short type;
 		};
 
-		template <>
+		template<>
 		struct make_signed<unsigned int>
 		{
 			typedef int type;
 		};
 
-		template <>
+		template<>
 		struct make_signed<unsigned long>
 		{
 			typedef long type;
 		};
 
-		template <typename genType>
+		template<typename genType>
 		struct make_unsigned
 		{};
 
-		template <>
+		template<>
 		struct make_unsigned<char>
 		{
 			typedef unsigned char type;
 		};
 
-		template <>
+		template<>
 		struct make_unsigned<short>
 		{
 			typedef unsigned short type;
 		};
 
-		template <>
+		template<>
 		struct make_unsigned<int>
 		{
 			typedef unsigned int type;
 		};
 
-		template <>
+		template<>
 		struct make_unsigned<long>
 		{
 			typedef unsigned long type;
 		};
 
-		template <>
+		template<>
 		struct make_unsigned<unsigned char>
 		{
 			typedef unsigned char type;
 		};
 
-		template <>
+		template<>
 		struct make_unsigned<unsigned short>
 		{
 			typedef unsigned short type;
 		};
 
-		template <>
+		template<>
 		struct make_unsigned<unsigned int>
 		{
 			typedef unsigned int type;
 		};
 
-		template <>
+		template<>
 		struct make_unsigned<unsigned long>
 		{
 			typedef unsigned long type;
 		};
 
-		template <>
+		template<>
 		struct make_signed<long long>
 		{
 			typedef long long type;
 		};
 	
-		template <>
+		template<>
 		struct make_signed<unsigned long long>
 		{
 			typedef long long type;
 		};
 	
-		template <>
+		template<>
 		struct make_unsigned<long long>
 		{
 			typedef unsigned long long type;
 		};
 	
-		template <>
+		template<>
 		struct make_unsigned<unsigned long long>
 		{
 			typedef unsigned long long type;
@@ -216,43 +216,43 @@ namespace detail
 	/// @addtogroup core_precision
 	/// @{
 
-	/// Low precision signed integer. 
-	/// There is no guarantee on the actual precision.
+	/// Low qualifier signed integer. 
+	/// There is no guarantee on the actual qualifier.
 	/// 
 	/// @see <a href="http://www.opengl.org/registry/doc/GLSLangSpec.4.20.8.pdf">GLSL 4.20.8 specification, section 4.1.3 Integers</a>
 	/// @see <a href="http://www.opengl.org/registry/doc/GLSLangSpec.4.20.8.pdf">GLSL 4.20.8 specification, section 4.7.2 Precision Qualifier</a>
 	typedef detail::lowp_int_t				lowp_int;
 
-	/// Medium precision signed integer. 
-	/// There is no guarantee on the actual precision.
+	/// Medium qualifier signed integer. 
+	/// There is no guarantee on the actual qualifier.
 	/// 
 	/// @see <a href="http://www.opengl.org/registry/doc/GLSLangSpec.4.20.8.pdf">GLSL 4.20.8 specification, section 4.1.3 Integers</a>
 	/// @see <a href="http://www.opengl.org/registry/doc/GLSLangSpec.4.20.8.pdf">GLSL 4.20.8 specification, section 4.7.2 Precision Qualifier</a>
 	typedef detail::mediump_int_t			mediump_int;
 
-	/// High precision signed integer.
-	/// There is no guarantee on the actual precision.
+	/// High qualifier signed integer.
+	/// There is no guarantee on the actual qualifier.
 	/// 
 	/// @see <a href="http://www.opengl.org/registry/doc/GLSLangSpec.4.20.8.pdf">GLSL 4.20.8 specification, section 4.1.3 Integers</a>
 	/// @see <a href="http://www.opengl.org/registry/doc/GLSLangSpec.4.20.8.pdf">GLSL 4.20.8 specification, section 4.7.2 Precision Qualifier</a>
 	typedef detail::highp_int_t				highp_int;
 
-	/// Low precision unsigned integer. 
-	/// There is no guarantee on the actual precision.
+	/// Low qualifier unsigned integer. 
+	/// There is no guarantee on the actual qualifier.
 	/// 
 	/// @see <a href="http://www.opengl.org/registry/doc/GLSLangSpec.4.20.8.pdf">GLSL 4.20.8 specification, section 4.1.3 Integers</a>
 	/// @see <a href="http://www.opengl.org/registry/doc/GLSLangSpec.4.20.8.pdf">GLSL 4.20.8 specification, section 4.7.2 Precision Qualifier</a>
 	typedef detail::lowp_uint_t				lowp_uint;
 
-	/// Medium precision unsigned integer. 
-	/// There is no guarantee on the actual precision.
+	/// Medium qualifier unsigned integer. 
+	/// There is no guarantee on the actual qualifier.
 	/// 
 	/// @see <a href="http://www.opengl.org/registry/doc/GLSLangSpec.4.20.8.pdf">GLSL 4.20.8 specification, section 4.1.3 Integers</a>
 	/// @see <a href="http://www.opengl.org/registry/doc/GLSLangSpec.4.20.8.pdf">GLSL 4.20.8 specification, section 4.7.2 Precision Qualifier</a>
 	typedef detail::mediump_uint_t			mediump_uint;
 
-	/// High precision unsigned integer. 
-	/// There is no guarantee on the actual precision.
+	/// High qualifier unsigned integer. 
+	/// There is no guarantee on the actual qualifier.
 	/// 
 	/// @see <a href="http://www.opengl.org/registry/doc/GLSLangSpec.4.20.8.pdf">GLSL 4.20.8 specification, section 4.1.3 Integers</a>
 	/// @see <a href="http://www.opengl.org/registry/doc/GLSLangSpec.4.20.8.pdf">GLSL 4.20.8 specification, section 4.7.2 Precision Qualifier</a>
