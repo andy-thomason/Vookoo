@@ -132,7 +132,7 @@ public:
     std::vector<const char *> device_extensions;
     device_extensions.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
 
-    float queue_priorities[] = {0.0f};
+    const float queue_priorities[] = {0.0f};
     std::vector<vk::DeviceQueueCreateInfo> qci;
 
     qci.emplace_back(vk::DeviceQueueCreateFlags{}, graphicsQueueFamilyIndex_, 1,
@@ -299,8 +299,9 @@ public:
     bool found = false;
     for (uint32_t qi = 0; qi != qprops.size(); ++qi) {
       auto &qprop = qprops[qi];
-      VkBool32 presentSupport = false;
-      if (pd.getSurfaceSupportKHR(qi, *surface_)) {
+      //VkBool32 presentSupport = false;
+      if (pd.getSurfaceSupportKHR(qi, *surface_) && (qprop.queueFlags & vk::QueueFlagBits::eGraphics) == vk::QueueFlagBits::eGraphics) {
+	  //if (pd.getSurfaceSupportKHR(qi, *surface_)) {
         presentQueueFamily_ = qi;
         found = true;
       }
