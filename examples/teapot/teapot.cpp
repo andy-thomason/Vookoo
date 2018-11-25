@@ -86,9 +86,9 @@ int main() {
   };
 
   // World matrices of model, camera and light
-  glm::mat4 modelToWorld = glm::rotate(glm::mat4{}, glm::radians(-90.0f), glm::vec3(1, 0, 0));
-  glm::mat4 cameraToWorld = glm::translate(glm::mat4{}, glm::vec3(0, 2, 8));
-  glm::mat4 lightToWorld = glm::translate(glm::mat4{}, glm::vec3(8, 6, 0));
+  glm::mat4 modelToWorld = glm::rotate(glm::mat4{1}, glm::radians(-90.0f), glm::vec3(1, 0, 0));
+  glm::mat4 cameraToWorld = glm::translate(glm::mat4{1}, glm::vec3(0, 2, 8));
+  glm::mat4 lightToWorld = glm::translate(glm::mat4{1}, glm::vec3(8, 6, 0));
   lightToWorld = glm::rotate(lightToWorld, glm::radians(90.0f), glm::vec3(0, 1, 0));
   lightToWorld = glm::rotate(lightToWorld, glm::radians(-30.0f), glm::vec3(1, 0, 0));
 
