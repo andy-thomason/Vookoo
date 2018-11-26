@@ -61,7 +61,7 @@ public:
   // Construct a framework containing the instance, a device and one or more queues.
   Framework(const std::string &name) {
     std::vector<const char *> layers;
-    //layers.push_back("VK_LAYER_LUNARG_standard_validation");
+    layers.push_back("VK_LAYER_LUNARG_standard_validation");
 
     std::vector<const char *> instance_extensions;
     instance_extensions.push_back(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);
@@ -76,10 +76,10 @@ public:
 
     auto ci = vk::DebugReportCallbackCreateInfoEXT{
         //vk::DebugReportFlagBitsEXT::eInformation |
-            vk::DebugReportFlagBitsEXT::eWarning |
-            vk::DebugReportFlagBitsEXT::ePerformanceWarning |
-            vk::DebugReportFlagBitsEXT::eError,
-            //vk::DebugReportFlagBitsEXT::eDebug,
+        vk::DebugReportFlagBitsEXT::eWarning |
+        vk::DebugReportFlagBitsEXT::ePerformanceWarning |
+        vk::DebugReportFlagBitsEXT::eError,
+        //vk::DebugReportFlagBitsEXT::eDebug,
         &debugCallback};
     const VkDebugReportCallbackCreateInfoEXT &cir = ci;
 
@@ -291,7 +291,9 @@ public:
   }
 
   void init(const vk::Instance &instance, const vk::Device &device, const vk::PhysicalDevice &physicalDevice, uint32_t graphicsQueueFamilyIndex, vk::SurfaceKHR surface) {
-    surface_ = vk::UniqueSurfaceKHR(surface, vk::SurfaceKHRDeleter{ instance });
+    surface_ = vk::UniqueSurfaceKHR(surface);
+    //surface_ = vk::UniqueSurfaceKHR(surface, vk::SurfaceKHRDeleter{ instance });
+    instance_ = instance;
     device_ = device;
     presentQueueFamily_ = 0;
     auto &pd = physicalDevice;
@@ -573,6 +575,8 @@ public:
     for (auto &f : commandBufferFences_) {
       device_.destroyFence(f);
     }
+    swapchain_ = vk::UniqueSwapchainKHR{};
+    instance_.destroySurfaceKHR( *surface_ );
   }
 
   Window &operator=(Window &&rhs) = default;
@@ -617,6 +621,7 @@ public:
   int numImageIndices() const { return (int)images_.size(); }
 
 private:
+  vk::Instance instance_;
   vk::UniqueSurfaceKHR surface_;
   vk::UniqueSwapchainKHR swapchain_;
   vk::UniqueRenderPass renderPass_;

@@ -936,12 +936,12 @@ public:
   void unmap(const vk::Device &device) const { return device.unmapMemory(*mem_); };
 
   void flush(const vk::Device &device) const {
-    vk::MappedMemoryRange mr{*mem_, 0, size_};
+    vk::MappedMemoryRange mr{*mem_, 0, VK_WHOLE_SIZE};
     return device.flushMappedMemoryRanges(mr);
   }
 
   void invalidate(const vk::Device &device) const {
-    vk::MappedMemoryRange mr{*mem_, 0, size_};
+    vk::MappedMemoryRange mr{*mem_, 0, VK_WHOLE_SIZE};
     return device.invalidateMappedMemoryRanges(mr);
   }
 
