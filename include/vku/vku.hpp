@@ -300,7 +300,7 @@ inline BlockParams getBlockParams(vk::Format format) {
 /// Factory for renderpasses.
 /// example:
 ///     RenderpassMaker rpm;
-///     rpm.beginSubpass(vk::PipelineBindPoint::eGraphics);
+///     rpm.subpassBegin(vk::PipelineBindPoint::eGraphics);
 ///     rpm.subpassColorAttachment(vk::ImageLayout::eColorAttachmentOptimal);
 ///    
 ///     rpm.attachmentDescription(attachmentDesc);
