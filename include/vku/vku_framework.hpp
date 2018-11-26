@@ -291,8 +291,9 @@ public:
   }
 
   void init(const vk::Instance &instance, const vk::Device &device, const vk::PhysicalDevice &physicalDevice, uint32_t graphicsQueueFamilyIndex, vk::SurfaceKHR surface) {
-    surface_ = vk::UniqueSurfaceKHR(surface);
+    //surface_ = vk::UniqueSurfaceKHR(surface);
     //surface_ = vk::UniqueSurfaceKHR(surface, vk::SurfaceKHRDeleter{ instance });
+    surface_ = surface;
     instance_ = instance;
     device_ = device;
     presentQueueFamily_ = 0;
@@ -302,7 +303,7 @@ public:
     for (uint32_t qi = 0; qi != qprops.size(); ++qi) {
       auto &qprop = qprops[qi];
       VkBool32 presentSupport = false;
-      if (pd.getSurfaceSupportKHR(qi, *surface_)) {
+      if (pd.getSurfaceSupportKHR(qi, surface_)) {
         presentQueueFamily_ = qi;
         found = true;
       }
@@ -313,7 +314,7 @@ public:
       return;
     }
 
-    auto fmts = pd.getSurfaceFormatsKHR(*surface_);
+    auto fmts = pd.getSurfaceFormatsKHR(surface_);
     swapchainImageFormat_ = fmts[0].format;
     swapchainColorSpace_ = fmts[0].colorSpace;
     if (fmts.size() == 1 && swapchainImageFormat_ == vk::Format::eUndefined) {
@@ -328,11 +329,11 @@ public:
       }
     }
 
-    auto surfaceCaps = pd.getSurfaceCapabilitiesKHR(*surface_);
+    auto surfaceCaps = pd.getSurfaceCapabilitiesKHR(surface_);
     width_ = surfaceCaps.currentExtent.width;
     height_ = surfaceCaps.currentExtent.height;
 
-    auto pms = pd.getSurfacePresentModesKHR(*surface_);
+    auto pms = pd.getSurfacePresentModesKHR(surface_);
     vk::PresentModeKHR presentMode = pms[0];
     if (std::find(pms.begin(), pms.end(), vk::PresentModeKHR::eFifo) != pms.end()) {
       presentMode = vk::PresentModeKHR::eFifo;
@@ -348,7 +349,7 @@ public:
     bool sameQueues = queueFamilyIndices[0] == queueFamilyIndices[1];
     vk::SharingMode sharingMode = !sameQueues ? vk::SharingMode::eConcurrent : vk::SharingMode::eExclusive;
     swapinfo.imageExtent = surfaceCaps.currentExtent;
-    swapinfo.surface = *surface_;
+    swapinfo.surface = surface_;
     swapinfo.minImageCount = surfaceCaps.minImageCount + 1;
     swapinfo.imageFormat = swapchainImageFormat_;
     swapinfo.imageColorSpace = swapchainColorSpace_;
@@ -390,6 +391,7 @@ public:
     // The depth/stencil attachment.
     rpm.attachmentBegin(depthStencilImage_.format());
     rpm.attachmentLoadOp(vk::AttachmentLoadOp::eClear);
+    rpm.attachmentStencilLoadOp(vk::AttachmentLoadOp::eDontCare);
     rpm.attachmentFinalLayout(vk::ImageLayout::eDepthStencilAttachmentOptimal);
 
     // A subpass to render using the above two attachments.
@@ -447,7 +449,7 @@ public:
   /// Dump the capabilities of the physical device used by this window.
   void dumpCaps(std::ostream &os, vk::PhysicalDevice pd) const {
     os << "Surface formats\n";
-    auto fmts = pd.getSurfaceFormatsKHR(*surface_);
+    auto fmts = pd.getSurfaceFormatsKHR(surface_);
     for (auto &fmt : fmts) {
       auto fmtstr = vk::to_string(fmt.format);
       auto cstr = vk::to_string(fmt.colorSpace);
@@ -455,7 +457,7 @@ public:
     }
 
     os << "Present Modes\n";
-    auto presentModes = pd.getSurfacePresentModesKHR(*surface_);
+    auto presentModes = pd.getSurfacePresentModesKHR(surface_);
     for (auto pm : presentModes) {
       std::cout << vk::to_string(pm) << "\n";
     }
@@ -495,6 +497,7 @@ public:
     auto time = std::chrono::high_resolution_clock::now();
     auto delta = time - start;
     start = time;
+    // uncomment to get frame time.
     //std::cout << std::chrono::duration_cast<std::chrono::microseconds>(delta).count() << "us frame time\n";
 
     auto umax = std::numeric_limits<uint64_t>::max();
@@ -576,7 +579,6 @@ public:
       device_.destroyFence(f);
     }
     swapchain_ = vk::UniqueSwapchainKHR{};
-    instance_.destroySurfaceKHR( *surface_ );
   }
 
   Window &operator=(Window &&rhs) = default;
@@ -622,7 +624,7 @@ public:
 
 private:
   vk::Instance instance_;
-  vk::UniqueSurfaceKHR surface_;
+  vk::SurfaceKHR surface_;
   vk::UniqueSwapchainKHR swapchain_;
   vk::UniqueRenderPass renderPass_;
   vk::UniqueSemaphore imageAcquireSemaphore_;
