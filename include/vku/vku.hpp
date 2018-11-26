@@ -1341,6 +1341,7 @@ public:
       case il::ePreinitialized: dstMask = afb::eTransferWrite; break;
       case il::ePresentSrcKHR: dstMask = afb::eMemoryRead; break;
     }
+//printf("%08x %08x\n", (VkFlags)srcMask, (VkFlags)dstMask);
 
     imageMemoryBarriers.srcAccessMask = srcMask;
     imageMemoryBarriers.dstAccessMask = dstMask;
@@ -1436,7 +1437,7 @@ public:
 
   TextureImageCube(vk::Device device, const vk::PhysicalDeviceMemoryProperties &memprops, uint32_t width, uint32_t height, uint32_t mipLevels=1, vk::Format format = vk::Format::eR8G8B8A8Unorm, bool hostImage = false) {
     vk::ImageCreateInfo info;
-    info.flags = {};
+    info.flags = {vk::ImageCreateFlagBits::eCubeCompatible};
     info.imageType = vk::ImageType::e2D;
     info.format = format;
     info.extent = vk::Extent3D{ width, height, 1U };

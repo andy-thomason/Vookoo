@@ -155,10 +155,17 @@ int main() {
     spm.vertexAttribute(0, 0, vk::Format::eR32G32B32Sfloat, (uint32_t)offsetof(Vertex, pos));
     spm.vertexAttribute(1, 0, vk::Format::eR32G32B32Sfloat, (uint32_t)offsetof(Vertex, normal));
     spm.vertexAttribute(2, 0, vk::Format::eR32G32Sfloat, (uint32_t)offsetof(Vertex, uv));
+
+    // Shadows render only to the depth buffer
+    // Depth test is important.
     spm.depthTestEnable(VK_TRUE);
     spm.cullMode(vk::CullModeFlagBits::eBack);
     spm.frontFace(vk::FrontFace::eClockwise);
 
+    // We will be using the depth bias dynamic state: cb.setDepthBias()
+    spm.dynamicState(vk::DynamicState::eDepthBias);
+
+    // This image is the depth buffer for the first pass and becomes the texture for the second pass.
     vku::DepthStencilImage shadowImage(device, fw.memprops(), shadowSize, shadowSize);
 
     // Build the renderpass using only depth/stencil.
@@ -170,22 +177,24 @@ int main() {
     rpm.attachmentBegin(shadowImage.format());
     rpm.attachmentLoadOp(vk::AttachmentLoadOp::eClear);
     rpm.attachmentStoreOp(vk::AttachmentStoreOp::eStore);
+    rpm.attachmentInitialLayout(vk::ImageLayout::eUndefined);
     rpm.attachmentFinalLayout(vk::ImageLayout::eShaderReadOnlyOptimal);
 
     // A subpass to render using the above attachment.
     rpm.subpassBegin(vk::PipelineBindPoint::eGraphics);
     rpm.subpassDepthStencilAttachment(vk::ImageLayout::eDepthStencilAttachmentOptimal, 0);
 
-    // A dependency to reset the layout of the depth buffer to eUndefined (the default for initial layout)
+    // A dependency to reset the layout of the depth buffer to eUndefined.
     // eLateFragmentTests is the stage where the Z buffer is written.
     rpm.dependencyBegin(VK_SUBPASS_EXTERNAL, 0);
     rpm.dependencySrcStageMask(vk::PipelineStageFlagBits::eBottomOfPipe);
     rpm.dependencyDstStageMask(vk::PipelineStageFlagBits::eLateFragmentTests);
 
-    // A dependency to transition to eShaderReadOnlyOptimal
+    // A dependency to transition to eShaderReadOnlyOptimal.
     rpm.dependencyBegin(0, VK_SUBPASS_EXTERNAL);
     rpm.dependencySrcStageMask(vk::PipelineStageFlagBits::eLateFragmentTests);
     rpm.dependencyDstStageMask(vk::PipelineStageFlagBits::eBottomOfPipe);
+    rpm.attachmentStencilLoadOp(vk::AttachmentLoadOp::eDontCare);
 
     // Use the maker object to construct the renderpass
     vk::UniqueRenderPass shadowRenderPass = rpm.createUnique(device);
