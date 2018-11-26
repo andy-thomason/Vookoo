@@ -174,11 +174,8 @@ int main() {
       std::this_thread::sleep_for(std::chrono::milliseconds(16));
     }
 
-    std::cerr << "now!" << std::endl;
-
     // Wait until all drawing is done and then kill the window.
     device.waitIdle();
-    std::cerr << "now2!" << std::endl;
     // The Framework and Window objects will be destroyed here.
   }
   glfwDestroyWindow(glfwwindow);
