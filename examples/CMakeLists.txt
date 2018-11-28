@@ -1,22 +1,18 @@
-cmake_minimum_required (VERSION 3.1.0)
+cmake_minimum_required (VERSION 3.7.0 FATAL_ERROR)
 
 project(VookooExamples)
 
 include_directories(${PROJECT_SOURCE_DIR}/../external)
 include_directories(${PROJECT_SOURCE_DIR}/../include)
+
 link_directories(${PROJECT_SOURCE_DIR}/../external/GLFW)
-link_directories(${PROJECT_SOURCE_DIR}/../external/vulkan)
 
 add_definitions(-DSOURCE_DIR="${CMAKE_SOURCE_DIR}/")
 add_definitions(-DBINARY_DIR="${PROJECT_BINARY_DIR}/")
 
 set(CMAKE_CXX_STANDARD 11)
 
-if (NOT CMAKE_VERSION VERSION_LESS 3.7.0)
-	message(STATUS "Finding Vulkan")
-	find_package(Vulkan)
-	message(STATUS ${Vulkan_LIBRARY})
-endif()
+find_package(Vulkan REQUIRED)
 
 function(example order exname)
   set(shaders "")
@@ -33,11 +29,16 @@ function(example order exname)
   message(${shaders})
 
   add_executable(${order}-${exname} ${exname}/${exname}.cpp ${shaders} ../include/vku/vku.hpp ../include/vku/vku_framework.hpp)
-  target_link_libraries(${order}-${exname} glfw3)
+
+  target_include_directories(${order}-${exname} PRIVATE Vulkan::Vulkan)
+
+  # Require C++11
   target_compile_features(${order}-${exname} PRIVATE cxx_range_for)
 
+  target_link_libraries(${order}-${exname} glfw3)
+
   if (WIN32)
-    target_link_libraries(${order}-${exname} vulkan-1)
+    target_link_libraries(${order}-${exname} ${Vulkan_LIBRARY})
   endif()
 
   if (UNIX)
