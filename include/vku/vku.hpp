@@ -300,7 +300,7 @@ inline BlockParams getBlockParams(vk::Format format) {
 /// Factory for renderpasses.
 /// example:
 ///     RenderpassMaker rpm;
-///     rpm.beginSubpass(vk::PipelineBindPoint::eGraphics);
+///     rpm.subpassBegin(vk::PipelineBindPoint::eGraphics);
 ///     rpm.subpassColorAttachment(vk::ImageLayout::eColorAttachmentOptimal);
 ///    
 ///     rpm.attachmentDescription(attachmentDesc);
@@ -936,12 +936,12 @@ public:
   void unmap(const vk::Device &device) const { return device.unmapMemory(*mem_); };
 
   void flush(const vk::Device &device) const {
-    vk::MappedMemoryRange mr{*mem_, 0, size_};
+    vk::MappedMemoryRange mr{*mem_, 0, VK_WHOLE_SIZE};
     return device.flushMappedMemoryRanges(mr);
   }
 
   void invalidate(const vk::Device &device) const {
-    vk::MappedMemoryRange mr{*mem_, 0, size_};
+    vk::MappedMemoryRange mr{*mem_, 0, VK_WHOLE_SIZE};
     return device.invalidateMappedMemoryRanges(mr);
   }
 
@@ -1341,6 +1341,7 @@ public:
       case il::ePreinitialized: dstMask = afb::eTransferWrite; break;
       case il::ePresentSrcKHR: dstMask = afb::eMemoryRead; break;
     }
+//printf("%08x %08x\n", (VkFlags)srcMask, (VkFlags)dstMask);
 
     imageMemoryBarriers.srcAccessMask = srcMask;
     imageMemoryBarriers.dstAccessMask = dstMask;
@@ -1436,7 +1437,7 @@ public:
 
   TextureImageCube(vk::Device device, const vk::PhysicalDeviceMemoryProperties &memprops, uint32_t width, uint32_t height, uint32_t mipLevels=1, vk::Format format = vk::Format::eR8G8B8A8Unorm, bool hostImage = false) {
     vk::ImageCreateInfo info;
-    info.flags = {};
+    info.flags = {vk::ImageCreateFlagBits::eCubeCompatible};
     info.imageType = vk::ImageType::e2D;
     info.format = format;
     info.extent = vk::Extent3D{ width, height, 1U };

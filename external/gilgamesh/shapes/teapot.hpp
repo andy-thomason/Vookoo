@@ -21,7 +21,7 @@ public:
   // call this function to make a mesh
   // This works with the gilgamesh mesh, but is still generic.
   template <class Mesh>
-  size_t build(Mesh &mesh, const glm::mat4 &transform = glm::mat4(), const glm::vec4 &color=glm::vec4(1), int num_subdivs=8) {
+  size_t build(Mesh &mesh, const glm::mat4 &transform = glm::mat4{1}, const glm::vec4 &color=glm::vec4(1), int num_subdivs=8) {
     //int vi = 0;
     auto vertex = [&](const glm::vec3 &pos, const glm::vec3 &normal, const glm::vec2 &uv) {
       mesh.addVertexTransformed(transform, pos, normal, uv, color);

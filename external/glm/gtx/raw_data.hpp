@@ -6,15 +6,19 @@
 /// @defgroup gtx_raw_data GLM_GTX_raw_data
 /// @ingroup gtx
 ///
-/// @brief Projection of a vector to other one
+/// Include <glm/gtx/raw_data.hpp> to use the features of this extension.
 ///
-/// <glm/gtx/raw_data.hpp> need to be included to use these functionalities.
+/// Projection of a vector to other one
 
 #pragma once
 
 // Dependencies
 #include "../detail/setup.hpp"
 #include "../detail/type_int.hpp"
+
+#ifndef GLM_ENABLE_EXPERIMENTAL
+#	error "GLM: GLM_GTX_raw_data is an experimental extension and may change in the future. Use #define GLM_ENABLE_EXPERIMENTAL before including it, if you really want to use it."
+#endif
 
 #if GLM_MESSAGES == GLM_MESSAGES_ENABLED && !defined(GLM_EXT_INCLUDED)
 #	pragma message("GLM: GLM_GTX_raw_data extension included")
