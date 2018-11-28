@@ -301,11 +301,10 @@ public:
     auto qprops = pd.getQueueFamilyProperties();
     bool found = false;
     for (uint32_t qi = 0; qi != qprops.size(); ++qi) {
-      auto &qprop = qprops[qi];
-      VkBool32 presentSupport = false;
       if (pd.getSurfaceSupportKHR(qi, surface_)) {
         presentQueueFamily_ = qi;
         found = true;
+        break;
       }
     }
 
