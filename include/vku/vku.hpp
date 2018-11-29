@@ -39,7 +39,7 @@ std::string format(const char *fmt, Args... args) {
   int n = snprintf(nullptr, 0, fmt, args...);
   std::string result(n, '\0');
   snprintf(&*result.begin(), n+1, fmt, args...);
-  return std::move(result);
+  return result;
 }
 
 /// Utility function for finding memory types for uniforms and images.
@@ -88,7 +88,7 @@ inline std::vector<uint8_t> loadFile(const std::string &filename) {
     bytes.resize(size);
     is.read((char*)bytes.data(), size);
   }
-  return std::move(bytes);
+  return bytes;
 }
 
 /// Description of blocks for compressed formats.
@@ -508,7 +508,7 @@ public:
         result.push_back(b);
       }
     }
-    return std::move(result);
+    return result;
   }
 
   bool ok() const { return s.ok_; }
@@ -559,7 +559,7 @@ public:
         {}, (uint32_t)setLayouts_.size(),
         setLayouts_.data(), (uint32_t)pushConstantRanges_.size(),
         pushConstantRanges_.data()};
-    return std::move(device.createPipelineLayoutUnique(pipelineLayoutInfo));
+    return device.createPipelineLayoutUnique(pipelineLayoutInfo);
   }
 
   /// Add a descriptor set layout to the pipeline.
