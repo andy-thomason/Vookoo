@@ -6,7 +6,7 @@ Vulkan graphics data structres.
 
 Documentation:
 
-[/doc/html/classes.html]
+[classes](/doc/html/classes.html)
 
 Shaders modules are easy to construct:
 
