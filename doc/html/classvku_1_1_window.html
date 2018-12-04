@@ -104,12 +104,9 @@ var searchBox = new SearchBox("searchBox", "search",false,'Search');
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="pub-types"></a>
 Public Types</h2></td></tr>
-<tr class="memitem:a0b99b0d172e4689b58dbeca736ac0eb0"><td class="memItemLeft" align="right" valign="top"><a class="anchor" id="a0b99b0d172e4689b58dbeca736ac0eb0"></a>
-typedef void(&#160;</td><td class="memItemRight" valign="bottom"><b>staticCommandFunc_t</b>) (vk::CommandBuffer cb, int imageIndex, vk::RenderPassBeginInfo &amp;rpbi)</td></tr>
-<tr class="separator:a0b99b0d172e4689b58dbeca736ac0eb0"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ae76e4756658e2723bd2aec71bada3dfa"><td class="memItemLeft" align="right" valign="top"><a class="anchor" id="ae76e4756658e2723bd2aec71bada3dfa"></a>
-typedef void(&#160;</td><td class="memItemRight" valign="bottom"><b>preSubmitFunc_t</b>) (vk::CommandBuffer pscb, int imageIndex)</td></tr>
-<tr class="separator:ae76e4756658e2723bd2aec71bada3dfa"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a769e95844573decc2483a8459fa62539"><td class="memItemLeft" align="right" valign="top"><a class="anchor" id="a769e95844573decc2483a8459fa62539"></a>
+typedef void(&#160;</td><td class="memItemRight" valign="bottom"><b>renderFunc_t</b>) (vk::CommandBuffer cb, int imageIndex, vk::RenderPassBeginInfo &amp;rpbi)</td></tr>
+<tr class="separator:a769e95844573decc2483a8459fa62539"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="pub-methods"></a>
 Public Member Functions</h2></td></tr>
@@ -117,20 +114,30 @@ Public Member Functions</h2></td></tr>
 &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classvku_1_1_window.html#afa10614c5dee3dda4393a0e83a337330">Window</a> (const vk::Instance &amp;instance, const vk::Device &amp;device, const vk::PhysicalDevice &amp;physicalDevice, uint32_t graphicsQueueFamilyIndex, GLFWwindow *window)</td></tr>
 <tr class="memdesc:afa10614c5dee3dda4393a0e83a337330"><td class="mdescLeft">&#160;</td><td class="mdescRight">Construct a window, surface and swapchain using a GLFW window. <br /></td></tr>
 <tr class="separator:afa10614c5dee3dda4393a0e83a337330"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ad072da1daa9044b946518605fcef667e"><td class="memItemLeft" align="right" valign="top"><a class="anchor" id="ad072da1daa9044b946518605fcef667e"></a>
+&#160;</td><td class="memItemRight" valign="bottom"><b>Window</b> (const vk::Instance &amp;instance, const vk::Device &amp;device, const vk::PhysicalDevice &amp;physicalDevice, uint32_t graphicsQueueFamilyIndex, vk::SurfaceKHR surface)</td></tr>
+<tr class="separator:ad072da1daa9044b946518605fcef667e"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ae9effe08ad56041abb74a2ea41a369bf"><td class="memItemLeft" align="right" valign="top"><a class="anchor" id="ae9effe08ad56041abb74a2ea41a369bf"></a>
+void&#160;</td><td class="memItemRight" valign="bottom"><b>init</b> (const vk::Instance &amp;instance, const vk::Device &amp;device, const vk::PhysicalDevice &amp;physicalDevice, uint32_t graphicsQueueFamilyIndex, vk::SurfaceKHR surface)</td></tr>
+<tr class="separator:ae9effe08ad56041abb74a2ea41a369bf"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a62280edb5e49822c97ee4e841d5bd67c"><td class="memItemLeft" align="right" valign="top"><a class="anchor" id="a62280edb5e49822c97ee4e841d5bd67c"></a>
 void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classvku_1_1_window.html#a62280edb5e49822c97ee4e841d5bd67c">dumpCaps</a> (std::ostream &amp;os, vk::PhysicalDevice pd) const </td></tr>
 <tr class="memdesc:a62280edb5e49822c97ee4e841d5bd67c"><td class="mdescLeft">&#160;</td><td class="mdescRight">Dump the capabilities of the physical device used by this window. <br /></td></tr>
 <tr class="separator:a62280edb5e49822c97ee4e841d5bd67c"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a1b17178e243c6648251f9e562d68301e"><td class="memItemLeft" align="right" valign="top"><a class="anchor" id="a1b17178e243c6648251f9e562d68301e"></a>
-void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classvku_1_1_window.html#a1b17178e243c6648251f9e562d68301e">setStaticCommands</a> (const std::function&lt; staticCommandFunc_t &gt; &amp;func)</td></tr>
-<tr class="memdesc:a1b17178e243c6648251f9e562d68301e"><td class="mdescLeft">&#160;</td><td class="mdescRight">Build a static draw buffer. This will be rendered after any dynamic content generated in <a class="el" href="classvku_1_1_window.html#a19b78a889468cf9efac0388ca061e7bd">draw()</a> <br /></td></tr>
-<tr class="separator:a1b17178e243c6648251f9e562d68301e"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a19b78a889468cf9efac0388ca061e7bd"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classvku_1_1_window.html#a19b78a889468cf9efac0388ca061e7bd">draw</a> (const vk::Device &amp;device, const vk::Queue &amp;graphicsQueue, const std::function&lt; void(vk::CommandBuffer pscb, int imageIndex)&gt; &amp;preSubmit=defaultPreSubmitFunc)</td></tr>
-<tr class="separator:a19b78a889468cf9efac0388ca061e7bd"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:af7d7efcd33752450be9d09fd3407c7a9"><td class="memItemLeft" align="right" valign="top"><a class="anchor" id="af7d7efcd33752450be9d09fd3407c7a9"></a>
+void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classvku_1_1_window.html#af7d7efcd33752450be9d09fd3407c7a9">setStaticCommands</a> (const std::function&lt; renderFunc_t &gt; &amp;func)</td></tr>
+<tr class="memdesc:af7d7efcd33752450be9d09fd3407c7a9"><td class="mdescLeft">&#160;</td><td class="mdescRight">Build a static draw buffer. This will be rendered after any dynamic content generated in <a class="el" href="classvku_1_1_window.html#a74ee0b88b51ee7b749a5f6efb597bc53">draw()</a> <br /></td></tr>
+<tr class="separator:af7d7efcd33752450be9d09fd3407c7a9"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a74ee0b88b51ee7b749a5f6efb597bc53"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classvku_1_1_window.html#a74ee0b88b51ee7b749a5f6efb597bc53">draw</a> (const vk::Device &amp;device, const vk::Queue &amp;graphicsQueue, const std::function&lt; void(vk::CommandBuffer cb, int imageIndex, vk::RenderPassBeginInfo &amp;rpbi)&gt; &amp;dynamic=defaultRenderFunc)</td></tr>
+<tr class="separator:a74ee0b88b51ee7b749a5f6efb597bc53"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a38e18f5134cee0a1aec52d4e05ba01cb"><td class="memItemLeft" align="right" valign="top"><a class="anchor" id="a38e18f5134cee0a1aec52d4e05ba01cb"></a>
 uint32_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classvku_1_1_window.html#a38e18f5134cee0a1aec52d4e05ba01cb">presentQueueFamily</a> () const </td></tr>
 <tr class="memdesc:a38e18f5134cee0a1aec52d4e05ba01cb"><td class="mdescLeft">&#160;</td><td class="mdescRight">Return the queue family index used to present the surface to the display. <br /></td></tr>
 <tr class="separator:a38e18f5134cee0a1aec52d4e05ba01cb"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:af965a82c0d4db0cd2ec6d69b1aa6295a"><td class="memItemLeft" align="right" valign="top"><a class="anchor" id="af965a82c0d4db0cd2ec6d69b1aa6295a"></a>
+const vk::Queue&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classvku_1_1_window.html#af965a82c0d4db0cd2ec6d69b1aa6295a">presentQueue</a> () const </td></tr>
+<tr class="memdesc:af965a82c0d4db0cd2ec6d69b1aa6295a"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get the queue used to submit graphics jobs. <br /></td></tr>
+<tr class="separator:af965a82c0d4db0cd2ec6d69b1aa6295a"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ab316980670759352a77bcfea54f2018f"><td class="memItemLeft" align="right" valign="top"><a class="anchor" id="ab316980670759352a77bcfea54f2018f"></a>
 bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classvku_1_1_window.html#ab316980670759352a77bcfea54f2018f">ok</a> () const </td></tr>
 <tr class="memdesc:ab316980670759352a77bcfea54f2018f"><td class="mdescLeft">&#160;</td><td class="mdescRight">Return true if this window was created sucessfully. <br /></td></tr>
@@ -147,6 +154,9 @@ const std::vector&lt; vk::UniqueFramebuffer &gt; &amp;&#160;</td><td class="memI
 &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classvku_1_1_window.html#a7e577aa4b8d71daf4aecf3262ebb2248">~Window</a> ()</td></tr>
 <tr class="memdesc:a7e577aa4b8d71daf4aecf3262ebb2248"><td class="mdescLeft">&#160;</td><td class="mdescRight">Destroy resources when shutting down. <br /></td></tr>
 <tr class="separator:a7e577aa4b8d71daf4aecf3262ebb2248"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a1efbbfacbd83d55d7a8f074b95fece7c"><td class="memItemLeft" align="right" valign="top"><a class="anchor" id="a1efbbfacbd83d55d7a8f074b95fece7c"></a>
+<a class="el" href="classvku_1_1_window.html">Window</a> &amp;&#160;</td><td class="memItemRight" valign="bottom"><b>operator=</b> (<a class="el" href="classvku_1_1_window.html">Window</a> &amp;&amp;rhs)=default</td></tr>
+<tr class="separator:a1efbbfacbd83d55d7a8f074b95fece7c"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a313d031caea0a2ebd0c7ba3d28fc0a72"><td class="memItemLeft" align="right" valign="top"><a class="anchor" id="a313d031caea0a2ebd0c7ba3d28fc0a72"></a>
 uint32_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classvku_1_1_window.html#a313d031caea0a2ebd0c7ba3d28fc0a72">width</a> () const </td></tr>
 <tr class="memdesc:a313d031caea0a2ebd0c7ba3d28fc0a72"><td class="mdescLeft">&#160;</td><td class="mdescRight">Return the width of the display. <br /></td></tr>
@@ -202,14 +212,14 @@ int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="pub-static-methods"></a>
 Static Public Member Functions</h2></td></tr>
-<tr class="memitem:ab5bf1fea5f44dd81e5be3c3efd1f4c78"><td class="memItemLeft" align="right" valign="top"><a class="anchor" id="ab5bf1fea5f44dd81e5be3c3efd1f4c78"></a>
-static void&#160;</td><td class="memItemRight" valign="bottom"><b>defaultPreSubmitFunc</b> (vk::CommandBuffer pscb, int imageIndex)</td></tr>
-<tr class="separator:ab5bf1fea5f44dd81e5be3c3efd1f4c78"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ab4edce63a3db7babb78c32237d0f8d44"><td class="memItemLeft" align="right" valign="top"><a class="anchor" id="ab4edce63a3db7babb78c32237d0f8d44"></a>
+static void&#160;</td><td class="memItemRight" valign="bottom"><b>defaultRenderFunc</b> (vk::CommandBuffer cb, int imageIndex, vk::RenderPassBeginInfo &amp;rpbi)</td></tr>
+<tr class="separator:ab4edce63a3db7babb78c32237d0f8d44"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <div class="textblock"><p>This class wraps a window, a surface and a swap chain for that surface. </p>
 </div><h2 class="groupheader">Member Function Documentation</h2>
-<a class="anchor" id="a19b78a889468cf9efac0388ca061e7bd"></a>
+<a class="anchor" id="a74ee0b88b51ee7b749a5f6efb597bc53"></a>
 <div class="memitem">
 <div class="memproto">
 <table class="mlabels">
@@ -231,8 +241,8 @@ static void&#160;</td><td class="memItemRight" valign="bottom"><b>defaultPreSubm
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">const std::function&lt; void(vk::CommandBuffer pscb, int imageIndex)&gt; &amp;&#160;</td>
-          <td class="paramname"><em>preSubmit</em> = <code>defaultPreSubmitFunc</code>&#160;</td>
+          <td class="paramtype">const std::function&lt; void(vk::CommandBuffer cb, int imageIndex, vk::RenderPassBeginInfo &amp;rpbi)&gt; &amp;&#160;</td>
+          <td class="paramname"><em>dynamic</em> = <code>defaultRenderFunc</code>&#160;</td>
         </tr>
         <tr>
           <td></td>

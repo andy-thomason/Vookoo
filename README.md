@@ -4,6 +4,10 @@ Vookoo 2.0
 Vookoo is a set of dependency-free utilities to assist in the construction and updating of
 Vulkan graphics data structres.
 
+Documentation:
+
+[/doc/html/classes.html]
+
 Shaders modules are easy to construct:
 
     vku::ShaderModule vert_{device, BINARY_DIR "helloTriangle.vert.spv"};

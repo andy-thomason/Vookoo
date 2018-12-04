@@ -1,5 +1,5 @@
 var searchData=
 [
-  ['variable',['Variable',['../structvku_1_1_shader_module_1_1_variable.html',1,'vku::ShaderModule']]],
-  ['vertexbuffer',['VertexBuffer',['../classvku_1_1_vertex_buffer.html',1,'vku']]]
+  ['textureimage2d',['TextureImage2D',['../classvku_1_1_texture_image2_d.html',1,'vku']]],
+  ['textureimagecube',['TextureImageCube',['../classvku_1_1_texture_image_cube.html',1,'vku']]]
 ];

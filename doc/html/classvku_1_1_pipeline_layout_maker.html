@@ -107,13 +107,13 @@ vk::UniquePipelineLayout&#160;</td><td class="memItemRight" valign="bottom"><a c
 void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classvku_1_1_pipeline_layout_maker.html#ae30a82eae50f845a4c9d640072ec19ae">descriptorSetLayout</a> (vk::DescriptorSetLayout layout)</td></tr>
 <tr class="memdesc:ae30a82eae50f845a4c9d640072ec19ae"><td class="mdescLeft">&#160;</td><td class="mdescRight">Add a descriptor set layout to the pipeline. <br /></td></tr>
 <tr class="separator:ae30a82eae50f845a4c9d640072ec19ae"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ae4ecb34b6ac695f00d6467090180cc91"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classvku_1_1_pipeline_layout_maker.html#ae4ecb34b6ac695f00d6467090180cc91">pushConstantRange</a> (vk::PushConstantRange range)</td></tr>
-<tr class="separator:ae4ecb34b6ac695f00d6467090180cc91"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a69c02b6a3d0606448746e0924ccb45b0"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classvku_1_1_pipeline_layout_maker.html#a69c02b6a3d0606448746e0924ccb45b0">pushConstantRange</a> (vk::ShaderStageFlags stageFlags_, uint32_t offset_, uint32_t size_)</td></tr>
+<tr class="separator:a69c02b6a3d0606448746e0924ccb45b0"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <div class="textblock"><p>A class for building pipeline layouts. Pipeline layouts describe the descriptor sets and push constants used by the shaders. </p>
 </div><h2 class="groupheader">Member Function Documentation</h2>
-<a class="anchor" id="ae4ecb34b6ac695f00d6467090180cc91"></a>
+<a class="anchor" id="a69c02b6a3d0606448746e0924ccb45b0"></a>
 <div class="memitem">
 <div class="memproto">
 <table class="mlabels">
@@ -123,9 +123,25 @@ void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="clas
         <tr>
           <td class="memname">void vku::PipelineLayoutMaker::pushConstantRange </td>
           <td>(</td>
-          <td class="paramtype">vk::PushConstantRange&#160;</td>
-          <td class="paramname"><em>range</em></td><td>)</td>
+          <td class="paramtype">vk::ShaderStageFlags&#160;</td>
+          <td class="paramname"><em>stageFlags_</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
           <td></td>
+          <td class="paramtype">uint32_t&#160;</td>
+          <td class="paramname"><em>offset_</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">uint32_t&#160;</td>
+          <td class="paramname"><em>size_</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
         </tr>
       </table>
   </td>
