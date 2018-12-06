@@ -6,7 +6,7 @@ Vulkan graphics data structres.
 
 Documentation:
 
-[classes](/doc/html/classes.html)
+[classes](https://andy-thomason.github.io/Vookoo/doc/html/classes.html)
 
 Shaders modules are easy to construct:
 
