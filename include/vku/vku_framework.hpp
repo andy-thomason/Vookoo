@@ -646,7 +646,7 @@ private:
   vk::Format swapchainImageFormat_ = vk::Format::eB8G8R8A8Unorm;
   vk::ColorSpaceKHR swapchainColorSpace_ = vk::ColorSpaceKHR::eSrgbNonlinear;
   vk::Device device_;
-  bool ok_;
+  bool ok_ = false;
 };
 
 } // namespace vku
