@@ -111,7 +111,7 @@ public:
     // As a result we can expect a queue family with at least all three and maybe all four modes.
     for (uint32_t qi = 0; qi != qprops.size(); ++qi) {
       auto &qprop = qprops[qi];
-      //std::cout << vk::to_string(qprop.queueFlags) << "\n";
+      std::cout << vk::to_string(qprop.queueFlags) << "\n";
       if ((qprop.queueFlags & search) == search) {
         graphicsQueueFamilyIndex_ = qi;
         computeQueueFamilyIndex_ = qi;
@@ -132,7 +132,7 @@ public:
     std::vector<const char *> device_extensions;
     device_extensions.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
 
-    float queue_priorities[] = {0.0f};
+    static const float queue_priorities[] = {0.0f};
     std::vector<vk::DeviceQueueCreateInfo> qci;
 
     qci.emplace_back(vk::DeviceQueueCreateFlags{}, graphicsQueueFamilyIndex_, 1,
@@ -143,14 +143,11 @@ public:
                        queue_priorities);
     };
 
-    float graphicsQueue_priorities[] = {0.0f};
+    static const float graphicsQueue_priorities[] = {0.0f};
     device_ = physical_device_.createDeviceUnique(vk::DeviceCreateInfo{
         {}, (uint32_t)qci.size(), qci.data(),
         (uint32_t)layers.size(), layers.data(),
         (uint32_t)device_extensions.size(), device_extensions.data()});
-
-    //vk::Queue graphicsQueue_ = device_->getQueue(graphicsQueueFamilyIndex_, 0);
-    //vk::Queue computeQueue_ = device_->getQueue(computeQueueFamilyIndex_, 0);
 
     vk::PipelineCacheCreateInfo pipelineCacheInfo{};
     pipelineCache_ = device_->createPipelineCacheUnique(pipelineCacheInfo);
@@ -301,7 +298,8 @@ public:
     auto qprops = pd.getQueueFamilyProperties();
     bool found = false;
     for (uint32_t qi = 0; qi != qprops.size(); ++qi) {
-      if (pd.getSurfaceSupportKHR(qi, surface_)) {
+      auto &qprop = qprops[qi];
+      if (pd.getSurfaceSupportKHR(qi, surface_) && (qprop.queueFlags & vk::QueueFlagBits::eGraphics) == vk::QueueFlagBits::eGraphics) {
         presentQueueFamily_ = qi;
         found = true;
         break;
