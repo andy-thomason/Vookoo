@@ -808,7 +808,7 @@ public:
   PipelineMaker &logicOp(vk::LogicOp value) { colorBlendState_.logicOp = value; return *this; }
   PipelineMaker &blendConstants(float r, float g, float b, float a) { float *bc = colorBlendState_.blendConstants; bc[0] = r; bc[1] = g; bc[2] = b; bc[3] = a; return *this; }
 
-  PipelineMaker &dynamicState(vk::DynamicState value) { dynamicState_.push_back(value); }
+  PipelineMaker &dynamicState(vk::DynamicState value) { dynamicState_.push_back(value); return *this; }
 private:
   vk::PipelineInputAssemblyStateCreateInfo inputAssemblyState_;
   vk::Viewport viewport_;
@@ -842,6 +842,7 @@ public:
   /// Set the compute shader module.
   ComputePipelineMaker &module(const vk::PipelineShaderStageCreateInfo &value) {
     stage_ = value;
+    return *this;
   }
 
   /// Create a managed handle to a compute shader.
