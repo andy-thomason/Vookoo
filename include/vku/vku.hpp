@@ -297,6 +297,143 @@ inline BlockParams getBlockParams(vk::Format format) {
   return BlockParams{0, 0, 0};
 }
 
+/// Factory for instances.
+class InstanceMaker {
+public:
+  InstanceMaker() {
+  }
+
+  /// Set the default layers and extensions.
+  InstanceMaker &defaultLayers() {
+    layers_.push_back("VK_LAYER_LUNARG_standard_validation");
+    instance_extensions_.push_back(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);
+    instance_extensions_.push_back(VKU_SURFACE);
+    instance_extensions_.push_back("VK_KHR_surface");
+    return *this;
+  }
+
+  /// Add a layer. eg. "VK_LAYER_LUNARG_standard_validation"
+  InstanceMaker &layer(const char *layer) {
+    layers_.push_back(layer);
+    return *this;
+  }
+
+  /// Add an extension. eg. VK_EXT_DEBUG_REPORT_EXTENSION_NAME
+  InstanceMaker &extension(const char *layer) {
+    instance_extensions_.push_back(layer);
+    return *this;
+  }
+
+  /// Set the name of the application.
+  InstanceMaker &applicationName( const char* pApplicationName_ )
+  {
+    app_info_.pApplicationName = pApplicationName_;
+    return *this;
+  }
+
+  /// Set the version of the application.
+  InstanceMaker &applicationVersion( uint32_t applicationVersion_ )
+  {
+    app_info_.applicationVersion = applicationVersion_;
+    return *this;
+  }
+
+  /// Set the name of the engine.
+  InstanceMaker &engineName( const char* pEngineName_ )
+  {
+    app_info_.pEngineName = pEngineName_;
+    return *this;
+  }
+
+  /// Set the version of the engine.
+  InstanceMaker &engineVersion( uint32_t engineVersion_ )
+  {
+    app_info_.engineVersion = engineVersion_;
+    return *this;
+  }
+
+  /// Set the version of the api.
+  InstanceMaker &apiVersion( uint32_t apiVersion_ )
+  {
+    app_info_.apiVersion = apiVersion_;
+    return *this;
+  }
+
+  /// Create a self-deleting (unique) instance.
+  vk::UniqueInstance createUnique() {
+    return vk::createInstanceUnique(
+      vk::InstanceCreateInfo{
+        {}, &app_info_, (uint32_t)layers_.size(),
+        layers_.data(), (uint32_t)instance_extensions_.size(),
+        instance_extensions_.data()
+      }
+    );
+  }
+private:
+  std::vector<const char *> layers_;
+  std::vector<const char *> instance_extensions_;
+  vk::ApplicationInfo app_info_;
+};
+
+/// Factory for devices.
+class DeviceMaker {
+public:
+  /// Make queues and a logical device for a certain physical device.
+  DeviceMaker(vk::PhysicalDevice physical_device) : physical_device_(physical_device_) {
+  }
+
+  /// Set the default layers and extensions.
+  DeviceMaker &defaultLayers() {
+    layers_.push_back("VK_LAYER_LUNARG_standard_validation");
+    device_extensions_.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
+    return *this;
+  }
+
+  /// Add a layer. eg. "VK_LAYER_LUNARG_standard_validation"
+  DeviceMaker &layer(const char *layer) {
+    layers_.push_back(layer);
+    return *this;
+  }
+
+  /// Add an extension. eg. VK_EXT_DEBUG_REPORT_EXTENSION_NAME
+  DeviceMaker &extension(const char *layer) {
+    device_extensions_.push_back(layer);
+    return *this;
+  }
+
+  /// Add one or more queues to the device from a certain family.
+  DeviceMaker &queue(uint32_t familyIndex, float priority=0.0f, uint32_t n=1) {
+    if (num_queues_ + n > queue_priorities_.size()) throw std::runtime_error("vku::DeviceMaker: too many queues");
+
+    qci_.emplace_back(
+      vk::DeviceQueueCreateFlags{},
+      familyIndex, n,
+      queue_priorities_.data() + num_queues_
+    );
+
+    for (int i = 0; i != n; ++i) queue_priorities_[num_queues_++] = priority;
+
+    return *this;
+  }
+
+  /// Create a new logical device.
+  vk::UniqueDevice createUnique() {
+    float graphicsQueue_priorities[] = {0.0f};
+    return physical_device_.createDeviceUnique(vk::DeviceCreateInfo{
+        {}, (uint32_t)qci_.size(), qci_.data(),
+        (uint32_t)layers_.size(), layers_.data(),
+        (uint32_t)device_extensions_.size(), device_extensions_.data()});
+  }
+private:
+  vk::PhysicalDevice physical_device_;
+  std::vector<const char *> layers_;
+  std::vector<const char *> device_extensions_;
+  std::array<float, 64> queue_priorities_;
+  int num_queues_ = 0;
+  std::vector<vk::DeviceQueueCreateInfo> qci_;
+  vk::ApplicationInfo app_info_;
+};
+
 /// Factory for renderpasses.
 /// example:
 ///     RenderpassMaker rpm;
