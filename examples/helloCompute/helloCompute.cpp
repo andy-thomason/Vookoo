@@ -62,9 +62,10 @@ int main() {
 
   // A buffer to store the results in.
   // Note: this won't work for everyone. With some devices you
-  // will need to explictly upload and download data.
-  using buf = vk::BufferUsageFlagBits;
-  auto mybuf = vku::GenericBuffer(device, memprops, buf::eStorageBuffer, N * sizeof(float), vk::MemoryPropertyFlagBits::eHostVisible);
+  // may need to explictly upload and download data.
+  using bflags = vk::BufferUsageFlagBits;
+  using mflags = vk::MemoryPropertyFlagBits;
+  auto mybuf = vku::GenericBuffer(device, memprops, bflags::eStorageBuffer, N * sizeof(float), mflags::eHostVisible);
 
   vku::DescriptorSetUpdater update;
   update.beginDescriptorSet(descriptorSet);
