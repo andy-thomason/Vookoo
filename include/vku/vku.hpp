@@ -865,7 +865,7 @@ public:
   GenericBuffer() {
   }
 
-  GenericBuffer(vk::Device device, vk::PhysicalDeviceMemoryProperties memprops, vk::BufferUsageFlags usage, vk::DeviceSize size, vk::MemoryPropertyFlags memflags = vk::MemoryPropertyFlagBits::eDeviceLocal) {
+  GenericBuffer(vk::Device device, const vk::PhysicalDeviceMemoryProperties &memprops, vk::BufferUsageFlags usage, vk::DeviceSize size, vk::MemoryPropertyFlags memflags = vk::MemoryPropertyFlagBits::eDeviceLocal) {
     // Create the buffer object without memory.
     vk::BufferCreateInfo ci{};
     ci.size = size_ = size;
@@ -885,7 +885,7 @@ public:
     device.bindBufferMemory(*buffer_, *mem_, 0);
   }
 
-  /// For a host buffer, copy memory to the buffer object.
+  /// For a host visible buffer, copy memory to the buffer object.
   void updateLocal(const vk::Device &device, const void *value, vk::DeviceSize size) const {
     void *ptr = device.mapMemory(*mem_, 0, size_, vk::MemoryMapFlags{});
     memcpy(ptr, value, (size_t)size);
@@ -893,7 +893,7 @@ public:
     device.unmapMemory(*mem_);
   }
 
-  /// For a device local buffer, copy memory to the buffer object immediately.
+  /// For a purely device local buffer, copy memory to the buffer object immediately.
   /// Note that this will stall the pipeline!
   void upload(vk::Device device, const vk::PhysicalDeviceMemoryProperties &memprops, vk::CommandPool commandPool, vk::Queue queue, const void *value, vk::DeviceSize size) const {
     if (size == 0) return;
