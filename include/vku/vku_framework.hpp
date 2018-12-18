@@ -64,24 +64,7 @@ public:
     im.defaultLayers();
     instance_ = im.createUnique();
 
-    auto ci = vk::DebugReportCallbackCreateInfoEXT{
-        //vk::DebugReportFlagBitsEXT::eInformation |
-        vk::DebugReportFlagBitsEXT::eWarning |
-        vk::DebugReportFlagBitsEXT::ePerformanceWarning |
-        vk::DebugReportFlagBitsEXT::eError,
-        //vk::DebugReportFlagBitsEXT::eDebug,
-        &debugCallback};
-    const VkDebugReportCallbackCreateInfoEXT &cir = ci;
-
-    auto vkCreateDebugReportCallbackEXT =
-        (PFN_vkCreateDebugReportCallbackEXT)instance_->getProcAddr(
-            "vkCreateDebugReportCallbackEXT");
-
-    VkDebugReportCallbackEXT cb;
-    vkCreateDebugReportCallbackEXT(
-        *instance_, &(const VkDebugReportCallbackCreateInfoEXT &)ci,
-        nullptr, &cb);
-    callback_ = cb;
+    callback_ = DebugCallback(*instance_);
 
     auto pds = instance_->enumeratePhysicalDevices();
     physical_device_ = pds[0];
@@ -199,10 +182,7 @@ public:
     }
 
     if (instance_) {
-      auto vkDestroyDebugReportCallbackEXT =
-          (PFN_vkDestroyDebugReportCallbackEXT)instance_->getProcAddr(
-              "vkDestroyDebugReportCallbackEXT");
-      vkDestroyDebugReportCallbackEXT(*instance_, callback_, nullptr);
+      callback_.reset();
       instance_.reset();
     }
   }
@@ -213,18 +193,10 @@ public:
   bool ok() const { return ok_; }
 
 private:
-  // Report any errors or warnings.
-  static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
-      VkDebugReportFlagsEXT flags, VkDebugReportObjectTypeEXT objectType,
-      uint64_t object, size_t location, int32_t messageCode,
-      const char *pLayerPrefix, const char *pMessage, void *pUserData) {
-    printf("%08x debugCallback: %s\n", flags, pMessage);
-    return VK_FALSE;
-  }
-
   vk::UniqueInstance instance_;
+  vku::DebugCallback callback_;
   vk::UniqueDevice device_;
-  vk::DebugReportCallbackEXT callback_;
+  //vk::DebugReportCallbackEXT callback_;
   vk::PhysicalDevice physical_device_;
   vk::UniquePipelineCache pipelineCache_;
   vk::UniqueDescriptorPool descriptorPool_;

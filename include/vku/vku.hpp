@@ -430,6 +430,58 @@ private:
   std::vector<vk::DeviceQueueCreateInfo> qci_;
   vk::ApplicationInfo app_info_;
 };
+
+class DebugCallback {
+public:
+  DebugCallback() {
+  }
+
+  DebugCallback(
+    vk::Instance instance,
+    vk::DebugReportFlagsEXT flags =
+      vk::DebugReportFlagBitsEXT::eWarning |
+      vk::DebugReportFlagBitsEXT::eError
+  ) : instance_(instance) {
+    auto ci = vk::DebugReportCallbackCreateInfoEXT{flags, &debugCallback};
+
+    auto vkCreateDebugReportCallbackEXT =
+        (PFN_vkCreateDebugReportCallbackEXT)instance_.getProcAddr(
+            "vkCreateDebugReportCallbackEXT");
+
+    VkDebugReportCallbackEXT cb;
+    vkCreateDebugReportCallbackEXT(
+      instance_, &(const VkDebugReportCallbackCreateInfoEXT &)ci,
+      nullptr, &cb
+    );
+    callback_ = cb;
+  }
+
+  ~DebugCallback() {
+    //reset();
+  }
+
+  void reset() {
+    if (callback_) {
+      auto vkDestroyDebugReportCallbackEXT =
+          (PFN_vkDestroyDebugReportCallbackEXT)instance_.getProcAddr(
+              "vkDestroyDebugReportCallbackEXT");
+      vkDestroyDebugReportCallbackEXT(instance_, callback_, nullptr);
+      callback_ = vk::DebugReportCallbackEXT{};
+    }
+  }
+private:
+  // Report any errors or warnings.
+  static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
+      VkDebugReportFlagsEXT flags, VkDebugReportObjectTypeEXT objectType,
+      uint64_t object, size_t location, int32_t messageCode,
+      const char *pLayerPrefix, const char *pMessage, void *pUserData) {
+    printf("%08x debugCallback: %s\n", flags, pMessage);
+    return VK_FALSE;
+  }
+  vk::DebugReportCallbackEXT callback_;
+  vk::Instance instance_;
+};
+
 /// Factory for renderpasses.
 /// example:
 ///     RenderpassMaker rpm;
