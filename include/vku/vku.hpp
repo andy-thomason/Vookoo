@@ -307,7 +307,9 @@ public:
   InstanceMaker &defaultLayers() {
     layers_.push_back("VK_LAYER_LUNARG_standard_validation");
     instance_extensions_.push_back(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);
-    instance_extensions_.push_back(VKU_SURFACE);
+    #ifdef VKU_SURFACE
+      instance_extensions_.push_back(VKU_SURFACE);
+    #endif
     instance_extensions_.push_back("VK_KHR_surface");
     return *this;
   }
@@ -379,7 +381,7 @@ private:
 class DeviceMaker {
 public:
   /// Make queues and a logical device for a certain physical device.
-  DeviceMaker(vk::PhysicalDevice physical_device) : physical_device_(physical_device_) {
+  DeviceMaker() {
   }
 
   /// Set the default layers and extensions.
@@ -403,33 +405,28 @@ public:
 
   /// Add one or more queues to the device from a certain family.
   DeviceMaker &queue(uint32_t familyIndex, float priority=0.0f, uint32_t n=1) {
-    if (num_queues_ + n > queue_priorities_.size()) throw std::runtime_error("vku::DeviceMaker: too many queues");
+    queue_priorities_.emplace_back(n, priority);
 
     qci_.emplace_back(
       vk::DeviceQueueCreateFlags{},
       familyIndex, n,
-      queue_priorities_.data() + num_queues_
+      queue_priorities_.back().data()
     );
-
-    for (int i = 0; i != n; ++i) queue_priorities_[num_queues_++] = priority;
 
     return *this;
   }
 
   /// Create a new logical device.
-  vk::UniqueDevice createUnique() {
-    float graphicsQueue_priorities[] = {0.0f};
-    return physical_device_.createDeviceUnique(vk::DeviceCreateInfo{
+  vk::UniqueDevice createUnique(vk::PhysicalDevice physical_device) {
+    return physical_device.createDeviceUnique(vk::DeviceCreateInfo{
         {}, (uint32_t)qci_.size(), qci_.data(),
         (uint32_t)layers_.size(), layers_.data(),
         (uint32_t)device_extensions_.size(), device_extensions_.data()});
   }
 private:
-  vk::PhysicalDevice physical_device_;
   std::vector<const char *> layers_;
   std::vector<const char *> device_extensions_;
-  std::array<float, 64> queue_priorities_;
-  int num_queues_ = 0;
+  std::vector<std::vector<float> > queue_priorities_;
   std::vector<vk::DeviceQueueCreateInfo> qci_;
   vk::ApplicationInfo app_info_;
 };

@@ -60,19 +60,9 @@ public:
 
   // Construct a framework containing the instance, a device and one or more queues.
   Framework(const std::string &name) {
-    std::vector<const char *> layers;
-    layers.push_back("VK_LAYER_LUNARG_standard_validation");
-
-    std::vector<const char *> instance_extensions;
-    instance_extensions.push_back(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);
-    instance_extensions.push_back(VKU_SURFACE);
-    instance_extensions.push_back("VK_KHR_surface");
-
-    auto appinfo = vk::ApplicationInfo{};
-    instance_ = vk::createInstanceUnique(vk::InstanceCreateInfo{
-        {}, &appinfo, (uint32_t)layers.size(),
-        layers.data(), (uint32_t)instance_extensions.size(),
-        instance_extensions.data()});
+    vku::InstanceMaker im{};
+    im.defaultLayers();
+    instance_ = im.createUnique();
 
     auto ci = vk::DebugReportCallbackCreateInfoEXT{
         //vk::DebugReportFlagBitsEXT::eInformation |
@@ -129,26 +119,12 @@ public:
     // todo: find optimal texture format
     // auto rgbaprops = physical_device_.getFormatProperties(vk::Format::eR8G8B8A8Unorm);
 
-    std::vector<const char *> device_extensions;
-    device_extensions.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
-
-    static const float queue_priorities[] = {0.0f};
-    std::vector<vk::DeviceQueueCreateInfo> qci;
-
-    qci.emplace_back(vk::DeviceQueueCreateFlags{}, graphicsQueueFamilyIndex_, 1,
-                     queue_priorities);
-
-    if (computeQueueFamilyIndex_ != graphicsQueueFamilyIndex_) {
-      qci.emplace_back(vk::DeviceQueueCreateFlags{}, computeQueueFamilyIndex_, 1,
-                       queue_priorities);
-    };
-
-    static const float graphicsQueue_priorities[] = {0.0f};
-    device_ = physical_device_.createDeviceUnique(vk::DeviceCreateInfo{
-        {}, (uint32_t)qci.size(), qci.data(),
-        (uint32_t)layers.size(), layers.data(),
-        (uint32_t)device_extensions.size(), device_extensions.data()});
-
+    vku::DeviceMaker dm{};
+    dm.defaultLayers();
+    dm.queue(graphicsQueueFamilyIndex_);
+    if (computeQueueFamilyIndex_ != graphicsQueueFamilyIndex_) dm.queue(computeQueueFamilyIndex_);
+    device_ = dm.createUnique(physical_device_);
+    
     vk::PipelineCacheCreateInfo pipelineCacheInfo{};
     pipelineCache_ = device_->createPipelineCacheUnique(pipelineCacheInfo);
 
