@@ -1,4 +1,5 @@
-cmake_minimum_required (VERSION 3.7.0 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.1.3 FATAL_ERROR)
+cmake_policy(VERSION 3.1.3)
 
 project(VookooExamples)
 
@@ -12,11 +13,19 @@ add_definitions(-DBINARY_DIR="${PROJECT_BINARY_DIR}/")
 
 set(CMAKE_CXX_STANDARD 11)
 
+if (${CMAKE_VERSION} VERSION_LESS "3.7.0")
+  list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/../cmake")
+  message(STATUS "Will be using custom FindVulkan.cmake module to find Vulkan SDK")
+  message(WARNING "Better upgrade your CMake")
+else()
+  message(STATUS "Will be using standard FindVulkan.cmake module to find Vulkan SDK")
+endif()
+
 find_package(Vulkan REQUIRED)
 
 function(example order exname)
   set(shaders "")
-  
+
   foreach(shader ${ARGN})
     add_custom_command(
       OUTPUT ${shader}.spv
@@ -26,7 +35,7 @@ function(example order exname)
     list(APPEND shaders "${exname}/${shader}")
   endforeach(shader)
 
-  message(${shaders})
+  #message(STATUS "Included ${shaders} shaders")
 
   add_executable(${order}-${exname} ${exname}/${exname}.cpp ${shaders} ../include/vku/vku.hpp ../include/vku/vku_framework.hpp)
 
