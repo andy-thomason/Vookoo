@@ -39,7 +39,7 @@ function(example order exname)
 
   add_executable(${order}-${exname} ${exname}/${exname}.cpp ${shaders} ../include/vku/vku.hpp ../include/vku/vku_framework.hpp)
 
-  target_include_directories(${order}-${exname} PRIVATE Vulkan::Vulkan)
+  target_include_directories(${order}-${exname} PRIVATE ${Vulkan_INCLUDE_DIR})
 
   # Require C++11
   target_compile_features(${order}-${exname} PRIVATE cxx_range_for)
@@ -48,6 +48,7 @@ function(example order exname)
 
   if (WIN32)
     target_link_libraries(${order}-${exname} ${Vulkan_LIBRARY})
+	add_definitions(-DNOMINMAX)
   endif()
 
   if (UNIX)
