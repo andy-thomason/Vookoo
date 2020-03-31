@@ -28,7 +28,10 @@
 #include <functional>
 #include <cstddef>
 
-#include <vulkan/spirv.hpp11>
+#ifdef VOOKOO_SPIRV_SUPPORT
+  #include <vulkan/spirv.hpp11>
+#endif
+
 #include <vulkan/vulkan.hpp>
 
 namespace vku {
@@ -625,6 +628,7 @@ public:
     s.ok_ = true;
   }
 
+#ifdef VOOKOO_SPIRV_SUPPORT
   /// A variable in a shader.
   struct Variable {
     // The name of the variable from the GLSL/HLSL
@@ -695,6 +699,7 @@ public:
     }
     return result;
   }
+#endif
 
   bool ok() const { return s.ok_; }
   VkShaderModule module() { return *s.module_; }

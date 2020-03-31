@@ -118,12 +118,13 @@ Building the examples on Windows:
     cmake -G "Visual Studio 14 2015 Win64" ..\examples
     VookooExamples.sln
 
-Building the examples on Linux:
+Building the examples on Ubuntu:
 
-    sudo apt install libxinerama-dev libxcursor-dev libxrandr-dev
+    sudo apt install libxinerama-dev libxcursor-dev libxrandr-dev glslang-dev glslang-tools mesa-common-dev
     mkdir build
     cd build
     cmake ../examples
     make
 
+Please give feedback if these setting do not work for you.
 
