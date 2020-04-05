@@ -16,14 +16,16 @@
 #define GLFW_EXPOSE_NATIVE_WIN32
 #define VKU_SURFACE "VK_KHR_win32_surface"
 #pragma warning(disable : 4005)
-#else
+#elif defined(__APPLE__)
+#define VK_USE_PLATFORM_METAL_EXT
+#else // X11
 #define VK_USE_PLATFORM_XLIB_KHR
 #define GLFW_EXPOSE_NATIVE_X11
 #define VKU_SURFACE "VK_KHR_xlib_surface"
 #endif
 
 #ifndef VKU_NO_GLFW
-#define GLFW_INCLUDE_VULKAN
+#include <vulkan/vulkan.hpp>
 #include <GLFW/glfw3.h>
 #include <GLFW/glfw3native.h>
 #endif
@@ -226,6 +228,12 @@ public:
     auto x11window = glfwGetX11Window(window);
     auto ci = vk::XlibSurfaceCreateInfoKHR{{}, display, x11window};
     auto surface = instance.createXlibSurfaceKHR(ci);
+#endif
+#ifdef VK_EXT_METAL_SURFACE_EXTENSION_NAME
+    vk::SurfaceKHR surface;
+    glfwCreateWindowSurface(instance, window,
+	                        nullptr,
+	                        reinterpret_cast<VkSurfaceKHR *>(&surface));
 #endif
     init(instance, device, physicalDevice, graphicsQueueFamilyIndex, surface);
   }
