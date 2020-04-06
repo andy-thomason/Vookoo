@@ -44,7 +44,7 @@ function(example order exname)
   # Require C++11
   target_compile_features(${order}-${exname} PRIVATE cxx_range_for)
 
-  target_link_libraries(${order}-${exname} glfw3)
+  target_link_libraries(${order}-${exname} glfw)
 
   if (WIN32)
     target_link_libraries(${order}-${exname} ${Vulkan_LIBRARY})
