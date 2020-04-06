@@ -194,7 +194,7 @@ extern "C" {
 #endif
 #if defined(GLFW_INCLUDE_VULKAN)
  #if defined(__APPLE__)
-  #include <MoltenVK/vulkan/vulkan.h>
+ #include <vulkan/vulkan.h>
  #else
   #include <vulkan/vulkan.h>
  #endif
