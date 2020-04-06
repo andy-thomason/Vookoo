@@ -6,8 +6,6 @@ project(VookooExamples)
 include_directories(${PROJECT_SOURCE_DIR}/../external)
 include_directories(${PROJECT_SOURCE_DIR}/../include)
 
-link_directories(${PROJECT_SOURCE_DIR}/../external/GLFW)
-
 add_definitions(-DSOURCE_DIR="${CMAKE_SOURCE_DIR}/")
 add_definitions(-DBINARY_DIR="${PROJECT_BINARY_DIR}/")
 
@@ -39,24 +37,21 @@ function(example order exname)
 
   add_executable(${order}-${exname} ${exname}/${exname}.cpp ${shaders} ../include/vku/vku.hpp ../include/vku/vku_framework.hpp)
 
-  target_include_directories(${order}-${exname} PRIVATE ${Vulkan_INCLUDE_DIR})
-
   # Require C++11
   target_compile_features(${order}-${exname} PRIVATE cxx_range_for)
 
-  target_link_libraries(${order}-${exname} glfw)
+  target_link_libraries(${order}-${exname} glfw Vulkan::Vulkan)
 
   if (WIN32)
-    target_link_libraries(${order}-${exname} ${Vulkan_LIBRARY})
+    target_link_libraries(${order}-${exname})
 	add_definitions(-DNOMINMAX)
   endif()
 
   if(APPLE)
-    find_package(glfw3 REQUIRED)
-    target_link_libraries(${order}-${exname} ${Vulkan_LIBRARY} glfw dl pthread)
+    target_link_libraries(${order}-${exname} dl pthread)
   else(APPLE)
     if (UNIX)
-      target_link_libraries(${order}-${exname} ${Vulkan_LIBRARY} dl pthread X11 Xrandr Xinerama Xcursor)
+      target_link_libraries(${order}-${exname} dl pthread X11 Xrandr Xinerama Xcursor)
     endif()
   endif(APPLE)
 endfunction(example)
