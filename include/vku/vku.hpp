@@ -314,7 +314,7 @@ public:
       instance_extensions_.push_back(VKU_SURFACE);
     #endif
     instance_extensions_.push_back("VK_KHR_surface");
-#ifdef __APPLE__
+#if defined( __APPLE__ ) && defined(VK_EXT_METAL_SURFACE_EXTENSION_NAME)
     instance_extensions_.push_back(VK_EXT_METAL_SURFACE_EXTENSION_NAME);
 #endif //__APPLE__
     return *this;
