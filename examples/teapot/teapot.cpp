@@ -224,7 +224,7 @@ int main() {
     // Create a cubemap
 
     // see: https://github.com/dariomanesku/cmft
-    auto cubeBytes = vku::loadFile(SOURCE_DIR "okretnica.ktx");
+    auto cubeBytes = vku::loadFile(SOURCE_DIR "examples/okretnica.ktx");
     vku::KTXFileLayout ktx(cubeBytes.data(), cubeBytes.data()+cubeBytes.size());
     if (!ktx.ok()) {
       std::cout << "Could not load KTX file" << std::endl;

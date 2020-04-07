@@ -4,6 +4,14 @@ Vookoo 2.0
 Vookoo is a set of dependency-free utilities to assist in the construction and updating of
 Vulkan graphics data structures.
 
+To compile example codes, use the CMakeLists.txt in the root of the distribution.
+On unix machines (Linux/Mac OS X), the following will compile the examples:
+
+    mkdir build
+    cd build
+    cmake ..
+    make
+
 Documentation:
 
 [classes](https://andy-thomason.github.io/Vookoo/doc/html/classes.html)
