@@ -351,22 +351,31 @@ public:
 
   typedef void (renderFunc_t)(vk::CommandBuffer cb, int imageIndex, vk::RenderPassBeginInfo &rpbi);
 
-  /// Build a static draw buffer. This will be rendered after any dynamic content generated in draw()
+  /// Build a static draw buffer. This will be rendered after any dynamic
+  /// content generated in draw()
   void setStaticCommands(const std::function<renderFunc_t> &func) {
-    for (int i = 0; i != staticDrawBuffers_.size(); ++i) {
-      vk::CommandBuffer cb = *staticDrawBuffers_[i];
+    this->func = func;
+    buildStaticCBs();
+  }
 
-      std::array<float, 4> clearColorValue{0.75f, 0.75f, 0.75f, 1};
-      vk::ClearDepthStencilValue clearDepthValue{ 1.0f, 0 };
-      std::array<vk::ClearValue, 2> clearColours{vk::ClearValue{clearColorValue}, clearDepthValue};
-      vk::RenderPassBeginInfo rpbi;
-      rpbi.renderPass = *renderPass_;
-      rpbi.framebuffer = *framebuffers_[i];
-      rpbi.renderArea = vk::Rect2D{{0, 0}, {width_, height_}};
-      rpbi.clearValueCount = (uint32_t)clearColours.size();
-      rpbi.pClearValues = clearColours.data();
+  void buildStaticCBs() {
+    if(func) {
+      for (int i = 0; i != staticDrawBuffers_.size(); ++i) {
+        vk::CommandBuffer cb = *staticDrawBuffers_[i];
 
-      func(cb, i, rpbi); 
+        std::array<float, 4> clearColorValue{0.75f, 0.75f, 0.75f, 1};
+        vk::ClearDepthStencilValue clearDepthValue{1.0f, 0};
+        std::array<vk::ClearValue, 2> clearColours{
+            vk::ClearValue{clearColorValue}, clearDepthValue};
+        vk::RenderPassBeginInfo rpbi;
+        rpbi.renderPass = *renderPass_;
+        rpbi.framebuffer = *framebuffers_[i];
+        rpbi.renderArea = vk::Rect2D{{0, 0}, {width_, height_}};
+        rpbi.clearValueCount = (uint32_t)clearColours.size();
+        rpbi.pClearValues = clearColours.data();
+
+        func(cb, i, rpbi);
+      }
     }
   }
 
@@ -626,6 +635,8 @@ public:
     createDepthStencil();
 
     createFrameBuffers();
+
+    buildStaticCBs();
   }
 
   vk::Device device() const { return device_; }
@@ -648,6 +659,9 @@ private:
   std::vector<vk::UniqueFramebuffer> framebuffers_;
   std::vector<vk::UniqueCommandBuffer> staticDrawBuffers_;
   std::vector<vk::UniqueCommandBuffer> dynamicDrawBuffers_;
+  /// \brief Function called to recreate the static buffers on window size
+  /// change.
+  std::function<renderFunc_t> func;
 
   vku::DepthStencilImage depthStencilImage_;
 
