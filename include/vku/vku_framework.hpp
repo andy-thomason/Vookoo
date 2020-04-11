@@ -391,8 +391,11 @@ public:
 
     auto umax = std::numeric_limits<uint64_t>::max();
     uint32_t imageIndex = 0;
-    device.acquireNextImageKHR(*swapchain_, umax, *imageAcquireSemaphore_, vk::Fence(), &imageIndex);
-
+    auto acquired = device.acquireNextImageKHR(*swapchain_, umax, *imageAcquireSemaphore_, vk::Fence(), &imageIndex);
+    if (acquired != vk::Result::eSuccess) {
+      recreate();
+      return;
+    }
     vk::PipelineStageFlags waitStages = vk::PipelineStageFlagBits::eColorAttachmentOutput;
     vk::Semaphore ccSema = *commandCompleteSemaphore_;
     vk::Semaphore iaSema = *imageAcquireSemaphore_;
@@ -444,7 +447,6 @@ public:
     try {
 	    presentQueue().presentKHR(presentInfo);
     } catch (const vk::OutOfDateKHRError &e) {
-    	std::cerr << "Recreating things." << std::endl;
     	recreate();
     }
   }
