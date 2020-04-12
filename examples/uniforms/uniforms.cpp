@@ -85,18 +85,23 @@ int main() {
     };
     vku::HostVertexBuffer buffer(device, fw.memprops(), vertices);
 
-    // Make a pipeline to use the vertex format and shaders.
-    vku::PipelineMaker pm{(uint32_t)width, (uint32_t)height};
-    pm.shader(vk::ShaderStageFlagBits::eVertex, vert_);
-    pm.shader(vk::ShaderStageFlagBits::eFragment, frag_);
-    pm.vertexBinding(0, (uint32_t)sizeof(Vertex));
-    pm.vertexAttribute(0, 0, vk::Format::eR32G32Sfloat, (uint32_t)offsetof(Vertex, pos));
-    pm.vertexAttribute(1, 0, vk::Format::eR32G32B32Sfloat, (uint32_t)offsetof(Vertex, colour));
+    auto buildPipeline = [&]() {
+      // Make a pipeline to use the vertex format and shaders.
+      vku::PipelineMaker pm{window.width(), window.height()};
+      pm.shader(vk::ShaderStageFlagBits::eVertex, vert_);
+      pm.shader(vk::ShaderStageFlagBits::eFragment, frag_);
+      pm.vertexBinding(0, (uint32_t)sizeof(Vertex));
+      pm.vertexAttribute(0, 0, vk::Format::eR32G32Sfloat,
+                         (uint32_t)offsetof(Vertex, pos));
+      pm.vertexAttribute(1, 0, vk::Format::eR32G32B32Sfloat,
+                         (uint32_t)offsetof(Vertex, colour));
 
-    // Create a pipeline using a renderPass built for our window.
-    auto renderPass = window.renderPass();
-    auto &cache = fw.pipelineCache();
-    auto pipeline = pm.createUnique(device, cache, *pipelineLayout_, renderPass);
+      // Create a pipeline using a renderPass built for our window.
+      auto renderPass = window.renderPass();
+      auto &cache = fw.pipelineCache();
+      return pm.createUnique(device, cache, *pipelineLayout_, renderPass);
+    };
+    auto pipeline = buildPipeline();
 
     // Read the pushConstants example first.
     // 
@@ -141,6 +146,13 @@ int main() {
       window.draw(
         device, fw.graphicsQueue(),
         [&](vk::CommandBuffer cb, int imageIndex, vk::RenderPassBeginInfo &rpbi) {
+          static auto ww = window.width();
+          static auto wh = window.height();
+          if (ww != window.width() || wh != window.height()) {
+            ww = window.width();
+            wh = window.height();
+            pipeline = buildPipeline();
+          }
           vk::CommandBufferBeginInfo bi{};
           cb.begin(bi);
           // Instead of pushConstants() we use updateBuffer()
