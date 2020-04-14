@@ -705,7 +705,7 @@ public:
 #endif
 
   bool ok() const { return s.ok_; }
-  VkShaderModule module() { return *s.module_; }
+  VkShaderModule module() const { return *s.module_; }
 
   /// Write a C++ consumable dump of the shader.
   /// Todo: make this more idiomatic.
@@ -851,7 +851,7 @@ public:
   }
 
   /// Add a shader module to the pipeline.
-  void shader(vk::ShaderStageFlagBits stage, vku::ShaderModule &shader,
+  void shader(vk::ShaderStageFlagBits stage, const vku::ShaderModule &shader,
                  const char *entryPoint = "main") {
     vk::PipelineShaderStageCreateInfo info{};
     info.module = shader.module();
