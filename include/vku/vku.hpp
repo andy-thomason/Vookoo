@@ -2,7 +2,7 @@
 //
 /// Vookoo high level C++ Vulkan interface.
 //
-/// (C) Andy Thomason 2017 MIT License
+/// (C) Vookoo Contributors, MIT License
 //
 /// This is a utility set alongside the vkcpp C++ interface to Vulkan which makes
 /// constructing Vulkan pipelines and resources very easy for beginners.
