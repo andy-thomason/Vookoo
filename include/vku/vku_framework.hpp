@@ -2,7 +2,7 @@
 //
 // Demo framework for the Vookoo for the Vookoo high level C++ Vulkan interface.
 //
-// (C) Andy Thomason 2017 MIT License
+// (C) Vookoo Contributors, MIT License
 //
 // This is an optional demo framework for the Vookoo high level C++ Vulkan interface.
 //
