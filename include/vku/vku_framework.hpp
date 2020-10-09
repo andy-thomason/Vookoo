@@ -109,7 +109,7 @@ public:
     dm.queue(graphicsQueueFamilyIndex_);
     if (computeQueueFamilyIndex_ != graphicsQueueFamilyIndex_) dm.queue(computeQueueFamilyIndex_);
     device_ = dm.createUnique(physical_device_);
-    
+
     vk::PipelineCacheCreateInfo pipelineCacheInfo{};
     pipelineCache_ = device_->createPipelineCacheUnique(pipelineCacheInfo);
 
@@ -555,7 +555,7 @@ public:
     swapinfo.compositeAlpha = vk::CompositeAlphaFlagBitsKHR::eOpaque;
     swapinfo.presentMode = presentMode;
     swapinfo.clipped = 1;
-    swapinfo.oldSwapchain = vk::SwapchainKHR{};
+    swapinfo.oldSwapchain = *swapchain_;
     swapchain_ = device_.createSwapchainKHRUnique(swapinfo);
   }
 
