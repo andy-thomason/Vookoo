@@ -10,6 +10,7 @@
 #include <gilgamesh/shapes/teapot.hpp>
 #include <gilgamesh/decoders/fbx_decoder.hpp>
 #include <gilgamesh/encoders/fbx_encoder.hpp>
+struct Vertex { glm::vec3 pos; glm::vec3 normal; glm::vec2 uv; };
 
 int main() {
   glfwInit();
@@ -59,7 +60,6 @@ int main() {
     shape.build(mesh);
     mesh.reindex(true);
 
-    struct Vertex { glm::vec3 pos; glm::vec3 normal; glm::vec2 uv; };
     std::vector<Vertex> vertices;
 
     auto meshpos = mesh.pos();
@@ -123,19 +123,38 @@ int main() {
     //
     // Build the final pipeline including enabling the depth test
 
-    vku::ShaderModule final_vert{device, BINARY_DIR "teapot.vert.spv"};
-    vku::ShaderModule final_frag{device, BINARY_DIR "teapot.frag.spv"};
 
-    vku::PipelineMaker pm{window.width(), window.height()};
-    pm.shader(vk::ShaderStageFlagBits::eVertex, final_vert);
-    pm.shader(vk::ShaderStageFlagBits::eFragment, final_frag);
-    pm.vertexBinding(0, (uint32_t)sizeof(Vertex));
-    pm.vertexAttribute(0, 0, vk::Format::eR32G32B32Sfloat, (uint32_t)offsetof(Vertex, pos));
-    pm.vertexAttribute(1, 0, vk::Format::eR32G32B32Sfloat, (uint32_t)offsetof(Vertex, normal));
-    pm.vertexAttribute(2, 0, vk::Format::eR32G32Sfloat, (uint32_t)offsetof(Vertex, uv));
-    pm.depthTestEnable(VK_TRUE);
-    pm.cullMode(vk::CullModeFlagBits::eBack);
-    pm.frontFace(vk::FrontFace::eCounterClockwise);
+//    vku::PipelineMaker pm{window.width(), window.height()};
+//    pm.shader(vk::ShaderStageFlagBits::eVertex, final_vert);
+//    pm.shader(vk::ShaderStageFlagBits::eFragment, final_frag);
+//    pm.vertexBinding(0, (uint32_t)sizeof(Vertex));
+//    pm.vertexAttribute(0, 0, vk::Format::eR32G32B32Sfloat, (uint32_t)offsetof(Vertex, pos));
+//    pm.vertexAttribute(1, 0, vk::Format::eR32G32B32Sfloat, (uint32_t)offsetof(Vertex, normal));
+//    pm.vertexAttribute(2, 0, vk::Format::eR32G32Sfloat, (uint32_t)offsetof(Vertex, uv));
+//    pm.depthTestEnable(VK_TRUE);
+//    pm.cullMode(vk::CullModeFlagBits::eBack);
+//    pm.frontFace(vk::FrontFace::eCounterClockwise);
+
+		vku::ShaderModule final_vert{window.device(), BINARY_DIR "teapot.vert.spv"};
+		vku::ShaderModule final_frag{window.device(), BINARY_DIR "teapot.frag.spv"};
+	auto buildCameraPipeline = [&]() {
+		{
+
+			vku::PipelineMaker pm{window.width(), window.height()};
+			pm.shader(vk::ShaderStageFlagBits::eVertex, final_vert);
+			pm.shader(vk::ShaderStageFlagBits::eFragment, final_frag);
+			pm.vertexBinding(0, (uint32_t)sizeof(Vertex));
+			pm.vertexAttribute(0, 0, vk::Format::eR32G32B32Sfloat, (uint32_t)offsetof(Vertex, pos));
+			pm.vertexAttribute(1, 0, vk::Format::eR32G32B32Sfloat, (uint32_t)offsetof(Vertex, normal));
+			pm.vertexAttribute(2, 0, vk::Format::eR32G32Sfloat, (uint32_t)offsetof(Vertex, uv));
+			pm.depthTestEnable(VK_TRUE);
+			pm.cullMode(vk::CullModeFlagBits::eBack);
+			pm.frontFace(vk::FrontFace::eCounterClockwise);
+			return pm;
+		}
+	};
+
+	auto pm = buildCameraPipeline();
 
     auto renderPass = window.renderPass();
     auto &cache = fw.pipelineCache();
@@ -304,7 +323,24 @@ int main() {
         [&](vk::CommandBuffer cb, int imageIndex, vk::RenderPassBeginInfo &rpbi) {
           Uniform uniform{};
           modelToWorld = glm::rotate(modelToWorld, glm::radians(1.0f), glm::vec3(0, 0, 1));
-          uniform.modelToPerspective = cameraToPerspective * worldToCamera * modelToWorld;
+          static auto ow = window.width();
+          static auto oh = window.height();
+          if (ow != window.width()) {
+            ow = window.width();
+            oh = window.height();
+            cameraToPerspective =
+                leftHandCorrection *
+                glm::perspective(glm::radians(45.0f),
+                                 (float)ow /
+                                     oh, // window.width() / window.height(),
+                                 1.0f, 100.0f);
+            auto pm = buildCameraPipeline();
+            renderPass = window.renderPass();
+            finalPipeline =
+                pm.createUnique(device, cache, *pipelineLayout, renderPass);
+          }
+          uniform.modelToPerspective =
+              cameraToPerspective * worldToCamera * modelToWorld;
           uniform.normalToWorld = modelToWorld;
           uniform.modelToWorld = modelToWorld;
           uniform.modelToLight = lightToPerspective * worldToLight * modelToWorld;

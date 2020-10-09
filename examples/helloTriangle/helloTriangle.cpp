@@ -65,33 +65,46 @@ int main() {
     };
     vku::HostVertexBuffer buffer(device, fw.memprops(), vertices);
 
-    // Make a pipeline to use the vertex format and shaders.
-    vku::PipelineMaker pm{(uint32_t)width, (uint32_t)height};
-    pm.shader(vk::ShaderStageFlagBits::eVertex, vert_);
-    pm.shader(vk::ShaderStageFlagBits::eFragment, frag_);
-    pm.vertexBinding(0, (uint32_t)sizeof(Vertex));
-    pm.vertexAttribute(0, 0, vk::Format::eR32G32Sfloat, (uint32_t)offsetof(Vertex, pos));
-    pm.vertexAttribute(1, 0, vk::Format::eR32G32B32Sfloat, (uint32_t)offsetof(Vertex, colour));
+    auto buildPipeline = [&]() {
+          // Make a pipeline to use the vertex format and shaders.
+          vku::PipelineMaker pm{window.width(), window.height()};
+          pm.shader(vk::ShaderStageFlagBits::eVertex, vert_);
+          pm.shader(vk::ShaderStageFlagBits::eFragment, frag_);
+          pm.vertexBinding(0, (uint32_t)sizeof(Vertex));
+          pm.vertexAttribute(0, 0, vk::Format::eR32G32Sfloat,
+                             (uint32_t)offsetof(Vertex, pos));
+          pm.vertexAttribute(1, 0, vk::Format::eR32G32B32Sfloat,
+                             (uint32_t)offsetof(Vertex, colour));
 
-    // Create a pipeline using a renderPass built for our window.
-    auto renderPass = window.renderPass();
-    auto &cache = fw.pipelineCache();
-    auto pipeline = pm.createUnique(device, cache, *pipelineLayout_, renderPass);
+          // Create a pipeline using a renderPass built for our window.
+          auto renderPass = window.renderPass();
+          auto &cache = fw.pipelineCache();
+
+          return pm.createUnique(device, cache, *pipelineLayout_, renderPass);
+        };
+    auto pipeline = buildPipeline();
 
     // We only need to create the command buffer(s) once.
     // This simple function lets us do that.
-    window.setStaticCommands(
-      [&pipeline, &buffer](vk::CommandBuffer cb, int imageIndex, vk::RenderPassBeginInfo &rpbi) {
-        vk::CommandBufferBeginInfo bi{};
-        cb.begin(bi);
-        cb.beginRenderPass(rpbi, vk::SubpassContents::eInline);
-        cb.bindPipeline(vk::PipelineBindPoint::eGraphics, *pipeline);
-        cb.bindVertexBuffers(0, buffer.buffer(), vk::DeviceSize(0));
-        cb.draw(3, 1, 0, 0);
-        cb.endRenderPass();
-        cb.end();
+    window.setStaticCommands([&pipeline, &buffer, &window, &buildPipeline](
+                                 vk::CommandBuffer cb, int imageIndex,
+                                 vk::RenderPassBeginInfo &rpbi) {
+      static auto ww = window.width();
+      static auto wh = window.height();
+      if (ww != window.width() || wh != window.height()) {
+        ww = window.width();
+        wh = window.height();
+        pipeline = buildPipeline();
       }
-    );
+      vk::CommandBufferBeginInfo bi{};
+      cb.begin(bi);
+      cb.beginRenderPass(rpbi, vk::SubpassContents::eInline);
+      cb.bindPipeline(vk::PipelineBindPoint::eGraphics, *pipeline);
+      cb.bindVertexBuffers(0, buffer.buffer(), vk::DeviceSize(0));
+      cb.draw(3, 1, 0, 0);
+      cb.endRenderPass();
+      cb.end();
+    });
 
     // Loop waiting for the window to close.
     while (!glfwWindowShouldClose(glfwwindow)) {
