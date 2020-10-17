@@ -407,9 +407,8 @@ public:
     device.waitForFences(cbFence, 1, umax);
     device.resetFences(cbFence);
 
-    std::array<float, 4> clearColorValue{0.75f, 0.75f, 0.75f, 1};
     vk::ClearDepthStencilValue clearDepthValue{ 1.0f, 0 };
-    std::array<vk::ClearValue, 2> clearColours{vk::ClearValue{clearColorValue}, clearDepthValue};
+    std::array<vk::ClearValue, 2> clearColours{vk::ClearValue{clearColorValue()}, clearDepthValue};
     vk::RenderPassBeginInfo rpbi;
     rpbi.renderPass = *renderPass_;
     rpbi.framebuffer = *framebuffers_[imageIndex];
@@ -643,6 +642,8 @@ public:
 
   vk::Device device() const { return device_; }
 
+  std::array<float,4> &clearColorValue() { return clearColorValue_; }
+
 private:
   vk::Instance instance_;
   vk::PhysicalDevice physicalDevice_;
@@ -670,6 +671,7 @@ private:
   uint32_t presentQueueFamily_ = 0;
   uint32_t width_;
   uint32_t height_;
+  std::array<float, 4> clearColorValue_{0.75f, 0.75f, 0.75f, 1};
   vk::Format swapchainImageFormat_ = vk::Format::eB8G8R8A8Unorm;
   vk::ColorSpaceKHR swapchainColorSpace_ = vk::ColorSpaceKHR::eSrgbNonlinear;
   vk::Device device_;
