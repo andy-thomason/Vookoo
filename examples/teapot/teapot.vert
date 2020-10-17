@@ -1,5 +1,5 @@
 #version 450
-
+layout (constant_id = 0) const int xF = 1;
 layout(location = 0) in vec3 inPosition;
 layout(location = 1) in vec3 inNormal;
 layout(location = 2) in vec2 inUv;
@@ -26,6 +26,7 @@ out gl_PerVertex {
 void main() {
   // Get position in camera, light and world space.
   gl_Position = u.modelToPerspective * vec4(inPosition.xyz, 1.0);
+  gl_Position.x *= xF;
   vec4 lightSpacePos = u.modelToLight * vec4(inPosition.xyz, 1.0);
   vec3 worldPos = (u.modelToWorld * vec4(inPosition.xyz, 1.0)).xyz;
 
