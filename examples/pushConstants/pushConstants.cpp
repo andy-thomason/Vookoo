@@ -93,7 +93,7 @@ int main() {
 
       // Create a pipeline using a renderPass built for our window.
       auto renderPass = window.renderPass();
-      auto &cache = fw.pipelineCache();
+      auto cache = fw.pipelineCache();
       return pm.createUnique(device, cache, *pipelineLayout_, renderPass);
     };
     auto pipeline = buildPipeline();

@@ -70,7 +70,7 @@ int main() {
     pm.vertexAttribute(1, 0, vk::Format::eR32G32B32Sfloat, (uint32_t)offsetof(Vertex, colour));
 
     auto renderPass = window.renderPass();
-    auto &cache = fw.pipelineCache();
+    auto cache = fw.pipelineCache();
     return  pm.createUnique(device, cache, *pipelineLayout, renderPass);
   };
 
