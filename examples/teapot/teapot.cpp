@@ -157,7 +157,7 @@ int main() {
 	auto pm = buildCameraPipeline();
 
     auto renderPass = window.renderPass();
-    auto &cache = fw.pipelineCache();
+    auto cache = fw.pipelineCache();
     auto finalPipeline = pm.createUnique(device, cache, *pipelineLayout, renderPass);
 
     ////////////////////////////////////////

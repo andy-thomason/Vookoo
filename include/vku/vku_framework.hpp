@@ -142,25 +142,25 @@ public:
   }
 
   /// Get the Vulkan instance.
-  const vk::Instance instance() const { return *instance_; }
+  vk::Instance instance() const { return *instance_; }
 
   /// Get the Vulkan device.
-  const vk::Device device() const { return *device_; }
+  vk::Device device() const { return *device_; }
 
   /// Get the queue used to submit graphics jobs
-  const vk::Queue graphicsQueue() const { return device_->getQueue(graphicsQueueFamilyIndex_, 0); }
+  vk::Queue graphicsQueue() const { return device_->getQueue(graphicsQueueFamilyIndex_, 0); }
 
   /// Get the queue used to submit compute jobs
-  const vk::Queue computeQueue() const { return device_->getQueue(computeQueueFamilyIndex_, 0); }
+  vk::Queue computeQueue() const { return device_->getQueue(computeQueueFamilyIndex_, 0); }
 
   /// Get the physical device.
   const vk::PhysicalDevice &physicalDevice() const { return physical_device_; }
 
   /// Get the default pipeline cache (you can use your own if you like).
-  const vk::PipelineCache pipelineCache() const { return *pipelineCache_; }
+  vk::PipelineCache pipelineCache() const { return *pipelineCache_; }
 
   /// Get the default descriptor pool (you can use your own if you like).
-  const vk::DescriptorPool descriptorPool() const { return *descriptorPool_; }
+  vk::DescriptorPool descriptorPool() const { return *descriptorPool_; }
 
   /// Get the family index for the graphics queues.
   uint32_t graphicsQueueFamilyIndex() const { return graphicsQueueFamilyIndex_; }
@@ -455,7 +455,7 @@ public:
   uint32_t presentQueueFamily() const { return presentQueueFamily_; }
 
   /// Get the queue used to submit graphics jobs
-  const vk::Queue presentQueue() const { return device_.getQueue(presentQueueFamily_, 0); }
+  vk::Queue presentQueue() const { return device_.getQueue(presentQueueFamily_, 0); }
 
   /// Return true if this window was created sucessfully.
   bool ok() const { return ok_; }
@@ -492,7 +492,7 @@ public:
   vk::ColorSpaceKHR swapchainColorSpace() const { return swapchainColorSpace_; }
 
   /// Return the swapchain object
-  const vk::SwapchainKHR swapchain() const { return *swapchain_; }
+  vk::SwapchainKHR swapchain() const { return *swapchain_; }
 
   /// Return the views of the swap chain images
   const std::vector<vk::ImageView> &imageViews() const { return imageViews_; }
