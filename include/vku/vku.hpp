@@ -308,7 +308,7 @@ public:
 
   /// Set the default layers and extensions.
   InstanceMaker &defaultLayers() {
-    layers_.push_back("VK_LAYER_LUNARG_standard_validation");
+    layers_.push_back("VK_LAYER_KHRONOS_validation");
     instance_extensions_.push_back(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);
     #ifdef VKU_SURFACE
       instance_extensions_.push_back(VKU_SURFACE);
@@ -320,7 +320,7 @@ public:
     return *this;
   }
 
-  /// Add a layer. eg. "VK_LAYER_LUNARG_standard_validation"
+  /// Add a layer. eg. "VK_LAYER_KHRONOS_validation"
   InstanceMaker &layer(const char *layer) {
     layers_.push_back(layer);
     return *this;
