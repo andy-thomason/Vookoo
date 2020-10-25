@@ -860,6 +860,37 @@ public:
     modules_.emplace_back(info);
   }
 
+  struct SpecEntry {
+    uint32_t    constantID;
+    uint32_t    value;
+  };
+  /// Add a shader module with specialized constants to the pipeline.
+  void shader(vk::ShaderStageFlagBits stage, vku::ShaderModule &shader,
+              std::initializer_list<SpecEntry> specEntries,
+              const char *entryPoint = "main") {
+    auto data = std::unique_ptr<SpecData>{new SpecData};
+    uint32_t offset = 0;
+    data->data_size_ = specEntries.size()*sizeof(uint32_t);
+    data->data_ = std::unique_ptr<char[]>(new char[data->data_size_]);
+    for (auto &entry : specEntries) {
+      data->specializationMapEntries_.emplace_back(
+          entry.constantID, offset, sizeof(uint32_t));
+      *reinterpret_cast<int32_t *>(data->data_.get() + offset) = entry.value;
+      offset += sizeof(uint32_t);
+    }
+    data->specializationInfo_.mapEntryCount = specEntries.size();
+    data->specializationInfo_.pMapEntries = data->specializationMapEntries_.data();
+    data->specializationInfo_.dataSize = data->data_size_;
+    data->specializationInfo_.pData = data->data_.get();
+    vk::PipelineShaderStageCreateInfo info{};
+    info.module = shader.module();
+    info.pName = entryPoint;
+    info.stage = stage;
+    info.pSpecializationInfo = &data->specializationInfo_;
+    modules_.emplace_back(info);
+    moduleSpecializations_.emplace_back(std::move(data));
+  }
+
   /// Add a blend state to the pipeline for one colour attachment.
   /// If you don't do this, a default is used.
   void colorBlend(const vk::PipelineColorBlendAttachmentState &state) {
@@ -1012,6 +1043,13 @@ private:
   vk::PipelineColorBlendStateCreateInfo colorBlendState_;
   std::vector<vk::PipelineColorBlendAttachmentState> colorBlendAttachments_;
   std::vector<vk::PipelineShaderStageCreateInfo> modules_;
+  struct SpecData {
+    vk::SpecializationInfo specializationInfo_;
+    std::vector<vk::SpecializationMapEntry> specializationMapEntries_;
+    std::unique_ptr<char []> data_;
+    size_t data_size_;
+  };
+  std::vector<std::unique_ptr<SpecData>> moduleSpecializations_;
   std::vector<vk::VertexInputAttributeDescription> vertexAttributeDescriptions_;
   std::vector<vk::VertexInputBindingDescription> vertexBindingDescriptions_;
   std::vector<vk::DynamicState> dynamicState_;

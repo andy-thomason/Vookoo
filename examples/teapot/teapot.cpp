@@ -141,7 +141,7 @@ int main() {
 		{
 
 			vku::PipelineMaker pm{window.width(), window.height()};
-			pm.shader(vk::ShaderStageFlagBits::eVertex, final_vert);
+			pm.shader(vk::ShaderStageFlagBits::eVertex, final_vert, {{0,3}});
 			pm.shader(vk::ShaderStageFlagBits::eFragment, final_frag);
 			pm.vertexBinding(0, (uint32_t)sizeof(Vertex));
 			pm.vertexAttribute(0, 0, vk::Format::eR32G32B32Sfloat, (uint32_t)offsetof(Vertex, pos));
