@@ -123,25 +123,17 @@ int main() {
     //
     // Build the final pipeline including enabling the depth test
 
-
-//    vku::PipelineMaker pm{window.width(), window.height()};
-//    pm.shader(vk::ShaderStageFlagBits::eVertex, final_vert);
-//    pm.shader(vk::ShaderStageFlagBits::eFragment, final_frag);
-//    pm.vertexBinding(0, (uint32_t)sizeof(Vertex));
-//    pm.vertexAttribute(0, 0, vk::Format::eR32G32B32Sfloat, (uint32_t)offsetof(Vertex, pos));
-//    pm.vertexAttribute(1, 0, vk::Format::eR32G32B32Sfloat, (uint32_t)offsetof(Vertex, normal));
-//    pm.vertexAttribute(2, 0, vk::Format::eR32G32Sfloat, (uint32_t)offsetof(Vertex, uv));
-//    pm.depthTestEnable(VK_TRUE);
-//    pm.cullMode(vk::CullModeFlagBits::eBack);
-//    pm.frontFace(vk::FrontFace::eCounterClockwise);
-
 		vku::ShaderModule final_vert{window.device(), BINARY_DIR "teapot.vert.spv"};
 		vku::ShaderModule final_frag{window.device(), BINARY_DIR "teapot.frag.spv"};
 	auto buildCameraPipeline = [&]() {
 		{
 
 			vku::PipelineMaker pm{window.width(), window.height()};
-			pm.shader(vk::ShaderStageFlagBits::eVertex, final_vert, {{0,3}});
+			pm.shader(vk::ShaderStageFlagBits::eVertex, final_vert, {
+                                                                                    {0,2},
+                                                                                    {1, 0.5f },
+                                                                                    {3, true }
+                                                                                });
 			pm.shader(vk::ShaderStageFlagBits::eFragment, final_frag);
 			pm.vertexBinding(0, (uint32_t)sizeof(Vertex));
 			pm.vertexAttribute(0, 0, vk::Format::eR32G32B32Sfloat, (uint32_t)offsetof(Vertex, pos));

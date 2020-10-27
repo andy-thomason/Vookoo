@@ -860,28 +860,25 @@ public:
     modules_.emplace_back(info);
   }
 
-  struct SpecEntry {
+  struct SpecConst {
     uint32_t    constantID;
-    uint32_t    value;
+    std::aligned_union<4,VkBool32, uint32_t, int32_t, float, double>::type
+        data;
+    uint32_t alignment;
+    uint32_t size;
+
+    template <typename T>
+    SpecConst(uint32_t constantID, T value)
+        : constantID(constantID), alignment{alignof(T)}, size(sizeof(T)) {
+      new (&data) T{value};
+    }
+
   };
   /// Add a shader module with specialized constants to the pipeline.
   void shader(vk::ShaderStageFlagBits stage, vku::ShaderModule &shader,
-              std::initializer_list<SpecEntry> specEntries,
+              std::initializer_list<SpecConst> specConstants,
               const char *entryPoint = "main") {
-    auto data = std::unique_ptr<SpecData>{new SpecData};
-    uint32_t offset = 0;
-    data->data_size_ = specEntries.size()*sizeof(uint32_t);
-    data->data_ = std::unique_ptr<char[]>(new char[data->data_size_]);
-    for (auto &entry : specEntries) {
-      data->specializationMapEntries_.emplace_back(
-          entry.constantID, offset, sizeof(uint32_t));
-      *reinterpret_cast<int32_t *>(data->data_.get() + offset) = entry.value;
-      offset += sizeof(uint32_t);
-    }
-    data->specializationInfo_.mapEntryCount = specEntries.size();
-    data->specializationInfo_.pMapEntries = data->specializationMapEntries_.data();
-    data->specializationInfo_.dataSize = data->data_size_;
-    data->specializationInfo_.pData = data->data_.get();
+    auto data = std::unique_ptr<SpecList>{new SpecList{specConstants}};
     vk::PipelineShaderStageCreateInfo info{};
     info.module = shader.module();
     info.pName = entryPoint;
@@ -1043,18 +1040,50 @@ private:
   vk::PipelineColorBlendStateCreateInfo colorBlendState_;
   std::vector<vk::PipelineColorBlendAttachmentState> colorBlendAttachments_;
   std::vector<vk::PipelineShaderStageCreateInfo> modules_;
-  struct SpecData {
+  struct SpecList {
     vk::SpecializationInfo specializationInfo_;
     std::vector<vk::SpecializationMapEntry> specializationMapEntries_;
     std::unique_ptr<char []> data_;
     size_t data_size_;
+
+    SpecList(){}
+    SpecList(const std::initializer_list<SpecConst> &specConstants);
   };
-  std::vector<std::unique_ptr<SpecData>> moduleSpecializations_;
+  std::vector<std::unique_ptr<SpecList>> moduleSpecializations_;
   std::vector<vk::VertexInputAttributeDescription> vertexAttributeDescriptions_;
   std::vector<vk::VertexInputBindingDescription> vertexBindingDescriptions_;
   std::vector<vk::DynamicState> dynamicState_;
   uint32_t subpass_ = 0;
 };
+
+PipelineMaker::SpecList::SpecList(const std::initializer_list<SpecConst> &specConstants)
+{
+  auto data = this;
+  auto round_offset = [](uint32_t offset, uint32_t alignment) {
+    uint32_t unaligned = offset & (alignment-1);
+    return unaligned == 0 ? offset : offset + alignment-unaligned;
+  };
+  uint32_t offset = 0;
+  for (auto &entry : specConstants) {
+    offset = round_offset(offset, entry.alignment) + entry.size;
+  }
+  data_size_ = offset;
+  // We rely on the fact that new allocates with the maximum basic type alignment.
+  data_ = std::unique_ptr<char[]>(new char[data->data_size_]);
+  offset = 0;
+  for (auto &entry : specConstants) {
+    offset = round_offset(offset, entry.alignment);
+    data->specializationMapEntries_.emplace_back(
+        entry.constantID, offset, entry.size);
+    const char *src = reinterpret_cast<const char *>(&entry.data);
+    std::copy(src, src+entry.size, data->data_.get() + offset);
+    offset += entry.size;
+  }
+  data->specializationInfo_.mapEntryCount = specConstants.size();
+  data->specializationInfo_.pMapEntries = data->specializationMapEntries_.data();
+  data->specializationInfo_.dataSize = data->data_size_;
+  data->specializationInfo_.pData = data->data_.get();
+}
 
 /// A class for building compute pipelines.
 class ComputePipelineMaker {
