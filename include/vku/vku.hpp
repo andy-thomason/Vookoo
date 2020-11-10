@@ -18,6 +18,7 @@
 #ifndef VKU_HPP
 #define VKU_HPP
 
+#include <utility>
 #include <array>
 #include <fstream>
 #include <iostream>
@@ -771,6 +772,22 @@ private:
   std::vector<vk::PushConstantRange> pushConstantRanges_;
 };
 
+
+struct SpecConst {
+  uint32_t    constantID;
+  std::aligned_union<4,VkBool32, uint32_t, int32_t, float, double>::type
+      data;
+  uint32_t alignment;
+  uint32_t size;
+
+  template <typename T>
+  SpecConst(uint32_t constantID, T value)
+      : constantID(constantID), alignment{alignof(T)}, size(sizeof(T)) {
+    new (&data) T{value};
+  }
+
+};
+
 /// A class for building pipelines.
 /// All the state of the pipeline is exposed through individual calls.
 /// The pipeline encapsulates all the OpenGL state in a single object.
@@ -778,6 +795,28 @@ private:
 /// This class exposes all the values as individuals so a pipeline can be customised.
 /// The default is to generate a working pipeline.
 class PipelineMaker {
+public:
+  struct SpecData {
+    vk::SpecializationInfo specializationInfo_;
+    std::vector<vk::SpecializationMapEntry> specializationMapEntries_;
+    std::unique_ptr<char []> data_;
+    size_t data_size_;
+
+    SpecData(){}
+
+    template <typename iterator, typename sentinel>
+    SpecData(iterator b, sentinel e);
+
+    template <typename SCList>
+    SpecData(const SCList &specConstants);
+
+    SpecData(std::initializer_list<SpecConst> list)
+        : SpecData(list.begin(), list.end()) {}
+    SpecData(SpecData &&) = default;
+    SpecData(const SpecData &) = delete;
+    SpecData &operator=(SpecData &&) = default;
+    SpecData &operator=(const SpecData &) = delete;
+  };
 public:
   PipelineMaker(uint32_t width, uint32_t height) {
     inputAssemblyState_.topology = vk::PrimitiveTopology::eTriangleList;
@@ -860,25 +899,11 @@ public:
     modules_.emplace_back(info);
   }
 
-  struct SpecConst {
-    uint32_t    constantID;
-    std::aligned_union<4,VkBool32, uint32_t, int32_t, float, double>::type
-        data;
-    uint32_t alignment;
-    uint32_t size;
-
-    template <typename T>
-    SpecConst(uint32_t constantID, T value)
-        : constantID(constantID), alignment{alignof(T)}, size(sizeof(T)) {
-      new (&data) T{value};
-    }
-
-  };
   /// Add a shader module with specialized constants to the pipeline.
   void shader(vk::ShaderStageFlagBits stage, vku::ShaderModule &shader,
-              std::initializer_list<SpecConst> specConstants,
+              SpecData specConstants,
               const char *entryPoint = "main") {
-    auto data = std::unique_ptr<SpecList>{new SpecList{specConstants}};
+    auto data = std::unique_ptr<SpecData>{new SpecData{std::move(specConstants)}};
     vk::PipelineShaderStageCreateInfo info{};
     info.module = shader.module();
     info.pName = entryPoint;
@@ -1040,25 +1065,49 @@ private:
   vk::PipelineColorBlendStateCreateInfo colorBlendState_;
   std::vector<vk::PipelineColorBlendAttachmentState> colorBlendAttachments_;
   std::vector<vk::PipelineShaderStageCreateInfo> modules_;
-  struct SpecList {
-    vk::SpecializationInfo specializationInfo_;
-    std::vector<vk::SpecializationMapEntry> specializationMapEntries_;
-    std::unique_ptr<char []> data_;
-    size_t data_size_;
-
-    SpecList(){}
-    SpecList(const std::initializer_list<SpecConst> &specConstants);
-  };
-  std::vector<std::unique_ptr<SpecList>> moduleSpecializations_;
+  std::vector<std::unique_ptr<SpecData>> moduleSpecializations_;
   std::vector<vk::VertexInputAttributeDescription> vertexAttributeDescriptions_;
   std::vector<vk::VertexInputBindingDescription> vertexBindingDescriptions_;
   std::vector<vk::DynamicState> dynamicState_;
   uint32_t subpass_ = 0;
 };
 
-PipelineMaker::SpecList::SpecList(const std::initializer_list<SpecConst> &specConstants)
+template <typename iterator, typename sentinel>
+PipelineMaker::SpecData::SpecData(iterator b, sentinel e)
 {
-  auto data = this;
+  auto round_offset = [](uint32_t offset, uint32_t alignment) {
+    uint32_t unaligned = offset & (alignment-1);
+    return unaligned == 0 ? offset : offset + alignment-unaligned;
+  };
+  uint32_t offset = 0;
+  for (auto it = b; it != e; ++it) {
+    auto &entry = *it;
+    offset = round_offset(offset, entry.alignment) + entry.size;
+  }
+  data_size_ = offset;
+  // We rely on the fact that new allocates with the maximum basic type alignment.
+  data_ = std::unique_ptr<char[]>(new char[data_size_]);
+  offset = 0;
+  int specCount = 0;
+  for (auto it = b; it != e; ++it) {
+    auto &entry = *it;
+    offset = round_offset(offset, entry.alignment);
+    specializationMapEntries_.emplace_back(
+        entry.constantID, offset, entry.size);
+    const char *src = reinterpret_cast<const char *>(&entry.data);
+    std::copy(src, src+entry.size, data_.get() + offset);
+    offset += entry.size;
+    ++specCount;
+  }
+  specializationInfo_.mapEntryCount = specCount;
+  specializationInfo_.pMapEntries = specializationMapEntries_.data();
+  specializationInfo_.dataSize =  data_size_;
+  specializationInfo_.pData = data_.get();
+}
+
+template <typename SCList>
+PipelineMaker::SpecData::SpecData(const SCList &specConstants)
+{
   auto round_offset = [](uint32_t offset, uint32_t alignment) {
     uint32_t unaligned = offset & (alignment-1);
     return unaligned == 0 ? offset : offset + alignment-unaligned;
@@ -1069,20 +1118,20 @@ PipelineMaker::SpecList::SpecList(const std::initializer_list<SpecConst> &specCo
   }
   data_size_ = offset;
   // We rely on the fact that new allocates with the maximum basic type alignment.
-  data_ = std::unique_ptr<char[]>(new char[data->data_size_]);
+  data_ = std::unique_ptr<char[]>(new char[data_size_]);
   offset = 0;
   for (auto &entry : specConstants) {
     offset = round_offset(offset, entry.alignment);
-    data->specializationMapEntries_.emplace_back(
+    specializationMapEntries_.emplace_back(
         entry.constantID, offset, entry.size);
     const char *src = reinterpret_cast<const char *>(&entry.data);
-    std::copy(src, src+entry.size, data->data_.get() + offset);
+    std::copy(src, src+entry.size, data_.get() + offset);
     offset += entry.size;
   }
-  data->specializationInfo_.mapEntryCount = specConstants.size();
-  data->specializationInfo_.pMapEntries = data->specializationMapEntries_.data();
-  data->specializationInfo_.dataSize = data->data_size_;
-  data->specializationInfo_.pData = data->data_.get();
+  specializationInfo_.mapEntryCount = specConstants.size();
+  specializationInfo_.pMapEntries = specializationMapEntries_.data();
+  specializationInfo_.dataSize =  data_size_;
+  specializationInfo_.pData = data_.get();
 }
 
 /// A class for building compute pipelines.
