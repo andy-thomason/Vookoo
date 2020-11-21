@@ -1,4 +1,4 @@
-
+#include <cstdlib>
 #include <vku/vku_framework.hpp>
 #include <vku/vku.hpp>
 #include <glm/glm.hpp>
@@ -12,7 +12,30 @@
 #include <gilgamesh/encoders/fbx_encoder.hpp>
 struct Vertex { glm::vec3 pos; glm::vec3 normal; glm::vec2 uv; };
 
-int main() {
+// Compilation constant values.
+bool useIntFactor = false;
+float floatFactor = 1.0;
+int intFactor = 1;
+
+void usage(char *cmd)
+{
+  std::cerr << "Usage: " << cmd << " [ -f <floatScale> | -i <intScale> ]" << std::endl;
+}
+
+int main(int argc, char *argv[]) {
+  if (argc != 1 && argc != 3)
+    usage(argv[0]);
+  if (argc == 3) {
+    if( argv[1] == std::string{"-f"} ) {
+      floatFactor = std::atof(argv[2]);
+      useIntFactor = false;
+    } else if (argv[1] == std::string{"-i"}) {
+      useIntFactor = true;
+      intFactor = std::atoi(argv[2]);
+    } else
+      usage(argv[0]);
+  }
+
   glfwInit();
 
   glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
@@ -123,38 +146,40 @@ int main() {
     //
     // Build the final pipeline including enabling the depth test
 
-
-//    vku::PipelineMaker pm{window.width(), window.height()};
-//    pm.shader(vk::ShaderStageFlagBits::eVertex, final_vert);
-//    pm.shader(vk::ShaderStageFlagBits::eFragment, final_frag);
-//    pm.vertexBinding(0, (uint32_t)sizeof(Vertex));
-//    pm.vertexAttribute(0, 0, vk::Format::eR32G32B32Sfloat, (uint32_t)offsetof(Vertex, pos));
-//    pm.vertexAttribute(1, 0, vk::Format::eR32G32B32Sfloat, (uint32_t)offsetof(Vertex, normal));
-//    pm.vertexAttribute(2, 0, vk::Format::eR32G32Sfloat, (uint32_t)offsetof(Vertex, uv));
-//    pm.depthTestEnable(VK_TRUE);
-//    pm.cullMode(vk::CullModeFlagBits::eBack);
-//    pm.frontFace(vk::FrontFace::eCounterClockwise);
-
 		vku::ShaderModule final_vert{window.device(), BINARY_DIR "teapot.vert.spv"};
 		vku::ShaderModule final_frag{window.device(), BINARY_DIR "teapot.frag.spv"};
-	auto buildCameraPipeline = [&]() {
-		{
+                auto buildCameraPipeline = [&]() {
+                  {
 
-			vku::PipelineMaker pm{window.width(), window.height()};
-			pm.shader(vk::ShaderStageFlagBits::eVertex, final_vert, {{0,3}});
-			pm.shader(vk::ShaderStageFlagBits::eFragment, final_frag);
-			pm.vertexBinding(0, (uint32_t)sizeof(Vertex));
-			pm.vertexAttribute(0, 0, vk::Format::eR32G32B32Sfloat, (uint32_t)offsetof(Vertex, pos));
-			pm.vertexAttribute(1, 0, vk::Format::eR32G32B32Sfloat, (uint32_t)offsetof(Vertex, normal));
-			pm.vertexAttribute(2, 0, vk::Format::eR32G32Sfloat, (uint32_t)offsetof(Vertex, uv));
-			pm.depthTestEnable(VK_TRUE);
-			pm.cullMode(vk::CullModeFlagBits::eBack);
-			pm.frontFace(vk::FrontFace::eCounterClockwise);
-			return pm;
-		}
-	};
+                    vku::PipelineMaker pm{window.width(), window.height()};
+                    std::vector<vku::SpecConst> specList{
+                        {0, intFactor},
+                        {1, floatFactor},
+                        {3, useIntFactor}
+                    };
+                    pm.shader(vk::ShaderStageFlagBits::eVertex, final_vert,
+                              specList);
+                    //pm.shader(vk::ShaderStageFlagBits::eVertex, final_vert, {
+                    //                {0,2},
+                    //                {1, 0.5f },
+                    //                {3, false }
+                    //            });
+                    pm.shader(vk::ShaderStageFlagBits::eFragment, final_frag);
+                    pm.vertexBinding(0, (uint32_t)sizeof(Vertex));
+                    pm.vertexAttribute(0, 0, vk::Format::eR32G32B32Sfloat,
+                                       (uint32_t)offsetof(Vertex, pos));
+                    pm.vertexAttribute(1, 0, vk::Format::eR32G32B32Sfloat,
+                                       (uint32_t)offsetof(Vertex, normal));
+                    pm.vertexAttribute(2, 0, vk::Format::eR32G32Sfloat,
+                                       (uint32_t)offsetof(Vertex, uv));
+                    pm.depthTestEnable(VK_TRUE);
+                    pm.cullMode(vk::CullModeFlagBits::eBack);
+                    pm.frontFace(vk::FrontFace::eCounterClockwise);
+                    return pm;
+                  }
+                };
 
-	auto pm = buildCameraPipeline();
+                auto pm = buildCameraPipeline();
 
     auto renderPass = window.renderPass();
     auto cache = fw.pipelineCache();
