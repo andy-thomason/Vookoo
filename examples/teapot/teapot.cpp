@@ -27,7 +27,7 @@ int main(int argc, char *argv[]) {
     usage(argv[0]);
   if (argc == 3) {
     if( argv[1] == std::string{"-f"} ) {
-      floatFactor = std::atof(argv[2]);
+      floatFactor = static_cast<float>(std::atof(argv[2]));
       useIntFactor = false;
     } else if (argv[1] == std::string{"-i"}) {
       useIntFactor = true;
@@ -285,9 +285,9 @@ int main(int argc, char *argv[]) {
     vku::executeImmediately(device, window.commandPool(), fw.graphicsQueue(), [&](vk::CommandBuffer cb) {
       vk::Buffer buf = stagingBuffer.buffer();
       for (uint32_t mipLevel = 0; mipLevel != ktx.mipLevels(); ++mipLevel) {
-        auto width = ktx.width(mipLevel); 
-        auto height = ktx.height(mipLevel); 
-        auto depth = ktx.depth(mipLevel); 
+        auto width = ktx.width(mipLevel);
+        auto height = ktx.height(mipLevel);
+        auto depth = ktx.depth(mipLevel);
         for (uint32_t face = 0; face != ktx.faces(); ++face) {
           cubeMap.copy(cb, buf, mipLevel, face, width, height, depth, ktx.offset(mipLevel, 0, face));
         }

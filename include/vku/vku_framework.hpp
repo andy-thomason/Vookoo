@@ -445,7 +445,7 @@ public:
     presentInfo.pWaitSemaphores = &ccSema;
     try {
 	    presentQueue().presentKHR(presentInfo);
-    } catch (const vk::OutOfDateKHRError &e) {
+    } catch (const vk::OutOfDateKHRError) {
     	recreate();
     }
   }

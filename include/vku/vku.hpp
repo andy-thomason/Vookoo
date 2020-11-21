@@ -1128,7 +1128,7 @@ PipelineMaker::SpecData::SpecData(const SCList &specConstants)
     std::copy(src, src+entry.size, data_.get() + offset);
     offset += entry.size;
   }
-  specializationInfo_.mapEntryCount = specConstants.size();
+  specializationInfo_.mapEntryCount = static_cast<uint32_t>(specConstants.size());
   specializationInfo_.pMapEntries = specializationMapEntries_.data();
   specializationInfo_.dataSize =  data_size_;
   specializationInfo_.pData = data_.get();
