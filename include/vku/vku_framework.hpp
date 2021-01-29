@@ -61,7 +61,7 @@ public:
   }
 
   // Construct a framework containing the instance, a device and one or more queues.
-  Framework(const std::string &name) {
+  Framework(const std::string &name, const int deviceId=0) {
     vku::InstanceMaker im{};
     im.defaultLayers();
     instance_ = im.createUnique();
@@ -69,7 +69,7 @@ public:
     callback_ = DebugCallback(*instance_);
 
     auto pds = instance_->enumeratePhysicalDevices();
-    physical_device_ = pds[0];
+    physical_device_ = pds[deviceId];
     auto qprops = physical_device_.getQueueFamilyProperties();
     const auto badQueue = ~(uint32_t)0;
     graphicsQueueFamilyIndex_ = badQueue;
@@ -245,8 +245,8 @@ public:
 
   void init(const vk::Instance &instance, const vk::Device &device, const vk::PhysicalDevice &physicalDevice, uint32_t graphicsQueueFamilyIndex, vk::SurfaceKHR surface) {
     //surface_ = vk::UniqueSurfaceKHR(surface);
-    //surface_ = vk::UniqueSurfaceKHR(surface, vk::SurfaceKHRDeleter{ instance });
-    surface_ = surface;
+    surface_ = vk::UniqueSurfaceKHR(surface, vk::ObjectDestroy<vk::Instance, vk::DispatchLoaderStatic>(instance));
+    // surface_ = surface;
     graphicsQueueFamilyIndex_ = graphicsQueueFamilyIndex;
     physicalDevice_ = physicalDevice;
     instance_ = instance;
@@ -257,7 +257,7 @@ public:
     bool found = false;
     for (uint32_t qi = 0; qi != qprops.size(); ++qi) {
       auto &qprop = qprops[qi];
-      if (pd.getSurfaceSupportKHR(qi, surface_) && (qprop.queueFlags & vk::QueueFlagBits::eGraphics) == vk::QueueFlagBits::eGraphics) {
+      if (pd.getSurfaceSupportKHR(qi, surface_.get()) && (qprop.queueFlags & vk::QueueFlagBits::eGraphics) == vk::QueueFlagBits::eGraphics) {
         presentQueueFamily_ = qi;
         found = true;
         break;
@@ -269,7 +269,7 @@ public:
       return;
     }
 
-    auto fmts = pd.getSurfaceFormatsKHR(surface_);
+    auto fmts = pd.getSurfaceFormatsKHR(surface_.get());
     swapchainImageFormat_ = fmts[0].format;
     swapchainColorSpace_ = fmts[0].colorSpace;
     if (fmts.size() == 1 && swapchainImageFormat_ == vk::Format::eUndefined) {
@@ -329,7 +329,7 @@ public:
 	/// Dump the capabilities of the physical device used by this window.
   void dumpCaps(std::ostream &os, vk::PhysicalDevice pd) const {
     os << "Surface formats\n";
-    auto fmts = pd.getSurfaceFormatsKHR(surface_);
+    auto fmts = pd.getSurfaceFormatsKHR(surface_.get());
     for (auto &fmt : fmts) {
       auto fmtstr = vk::to_string(fmt.format);
       auto cstr = vk::to_string(fmt.colorSpace);
@@ -337,7 +337,7 @@ public:
     }
 
     os << "Present Modes\n";
-    auto presentModes = pd.getSurfacePresentModesKHR(surface_);
+    auto presentModes = pd.getSurfacePresentModesKHR(surface_.get());
     for (auto pm : presentModes) {
       std::cout << vk::to_string(pm) << "\n";
     }
@@ -519,7 +519,7 @@ public:
 
   /// Create a new swapchain and destroy the previous one if any.
   void createSwapchain() {
-    auto pms = physicalDevice_.getSurfacePresentModesKHR(surface_);
+    auto pms = physicalDevice_.getSurfacePresentModesKHR(surface_.get());
     vk::PresentModeKHR presentMode = pms[0];
     if (std::find(pms.begin(), pms.end(), vk::PresentModeKHR::eFifo) !=
         pms.end()) {
@@ -529,7 +529,7 @@ public:
       return;
     }
 
-    auto surfaceCaps = physicalDevice_.getSurfaceCapabilitiesKHR(surface_);
+    auto surfaceCaps = physicalDevice_.getSurfaceCapabilitiesKHR(surface_.get());
     width_ = surfaceCaps.currentExtent.width;
     height_ = surfaceCaps.currentExtent.height;
     vk::SwapchainCreateInfoKHR swapinfo{};
@@ -539,7 +539,7 @@ public:
     vk::SharingMode sharingMode = !sameQueues ? vk::SharingMode::eConcurrent
                                               : vk::SharingMode::eExclusive;
     swapinfo.imageExtent = surfaceCaps.currentExtent;
-    swapinfo.surface = surface_;
+    swapinfo.surface = surface_.get();
     swapinfo.minImageCount = surfaceCaps.minImageCount + 1;
     swapinfo.imageFormat = swapchainImageFormat_;
     swapinfo.imageColorSpace = swapchainColorSpace_;
@@ -648,7 +648,7 @@ private:
   vk::Instance instance_;
   vk::PhysicalDevice physicalDevice_;
   uint32_t graphicsQueueFamilyIndex_;
-  vk::SurfaceKHR surface_;
+  vk::UniqueSurfaceKHR surface_;
   vk::UniqueSwapchainKHR swapchain_;
   vk::UniqueRenderPass renderPass_;
   vk::UniqueSemaphore imageAcquireSemaphore_;
