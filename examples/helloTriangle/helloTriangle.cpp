@@ -27,7 +27,7 @@ int main() {
 
   {
     // Initialise the Vookoo demo framework.
-    vku::Framework fw{title};
+    vku::Framework fw{title, 0};
     if (!fw.ok()) {
       std::cout << "Framework creation failed" << std::endl;
       exit(1);
