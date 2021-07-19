@@ -166,7 +166,6 @@ int main() {
       ww = window.width();
       wh = window.height();
       pipeline = buildPipeline();
-      std::cout << "." << std::endl;
     }
 
     Uniform uniform {
