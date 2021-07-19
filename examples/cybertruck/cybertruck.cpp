@@ -41,21 +41,6 @@ int main() {
   }
   window.dumpCaps(std::cout, fw.physicalDevice());
 
-  // https://learnopengl.com/Getting-started/Coordinate-Systems
-  // https://www.khronos.org/opengl/wiki/Face_Culling
-  // https://matthewwellings.com/blog/the-new-vulkan-coordinate-system/
-  // https://www.saschawillems.de/blog/2019/03/29/flipping-the-vulkan-viewport/
-  // flip viewport to match opengl ( +x > Right, +y ^ UP, +z towards viewer from screen ), instead of vulkan default
-  // also requires pipeline set with cullMode:BACK and frontFace:CounterClockWise
-  auto viewport = vk::Viewport{
-    .x = 0.0f,                                     //Vulkan default:0
-    .y = static_cast<float>(window.height()),      //Vulkan default:0
-    .width = static_cast<float>(window.width()),   //Vulkan default:width
-    .height = -static_cast<float>(window.height()),//Vulkan default:height
-    .minDepth = 0.0f,                              //Vulkan default:0
-    .maxDepth = 1.0f                               //Vulkan default:1
-  };
-
   ////////////////////////////////////////
   //
   // Create Uniform Buffer
@@ -131,17 +116,35 @@ int main() {
 
   auto pipelineLayout = plm.createUnique(device);
 
-  vku::PipelineMaker pm{window.width(), window.height()};
-  pm.shader(vk::ShaderStageFlagBits::eVertex, vert)
-    .shader(vk::ShaderStageFlagBits::eFragment, frag)
-    .vertexBinding(0, sizeof(Vertex))
-    .vertexAttribute(0, 0, vk::Format::eR32G32Sfloat, offsetof(Vertex, pos))
-    .viewport(viewport) // viewport set to match openGL, affects cullMode and frontFace
-    .frontFace(vk::FrontFace::eCounterClockwise) // openGL default, GL_CCW face is front
-    .cullMode(vk::CullModeFlagBits::eBack); // openGL default, GL_BACK is the face to be culled
-
-  // Create a pipeline using a renderPass built for our window.
-  auto pipeline = pm.createUnique(device, fw.pipelineCache(), *pipelineLayout, window.renderPass());
+  auto buildPipeline = [&]() {
+    // https://learnopengl.com/Getting-started/Coordinate-Systems
+    // https://www.khronos.org/opengl/wiki/Face_Culling
+    // https://matthewwellings.com/blog/the-new-vulkan-coordinate-system/
+    // https://www.saschawillems.de/blog/2019/03/29/flipping-the-vulkan-viewport/
+    // flip viewport to match opengl ( +x > Right, +y ^ UP, +z towards viewer from screen ), instead of vulkan default
+    // also requires pipeline set with cullMode:BACK and frontFace:CounterClockWise
+    auto viewport = vk::Viewport{
+      .x = 0.0f,                                     //Vulkan default:0
+      .y = static_cast<float>(window.height()),      //Vulkan default:0
+      .width = static_cast<float>(window.width()),   //Vulkan default:width
+      .height = -static_cast<float>(window.height()),//Vulkan default:height
+      .minDepth = 0.0f,                              //Vulkan default:0
+      .maxDepth = 1.0f                               //Vulkan default:1
+    };
+  
+    vku::PipelineMaker pm{window.width(), window.height()};
+    pm.shader(vk::ShaderStageFlagBits::eVertex, vert)
+      .shader(vk::ShaderStageFlagBits::eFragment, frag)
+      .vertexBinding(0, sizeof(Vertex))
+      .vertexAttribute(0, 0, vk::Format::eR32G32Sfloat, offsetof(Vertex, pos))
+      .viewport(viewport) // viewport set to match openGL, affects cullMode and frontFace
+      .frontFace(vk::FrontFace::eCounterClockwise) // openGL default, GL_CCW face is front
+      .cullMode(vk::CullModeFlagBits::eBack); // openGL default, GL_BACK is the face to be culled
+  
+    // Create a pipeline using a renderPass built for our window.
+    return pm.createUnique(device, fw.pipelineCache(), *pipelineLayout, window.renderPass());
+  };
+  auto pipeline = buildPipeline();
 
   ////////////////////////////////////////
   //
@@ -157,11 +160,20 @@ int main() {
       glfwGetCursorPos(glfwwindow, &xpos, &ypos);
     };
 
+    static auto ww = window.width();
+    static auto wh = window.height();
+    if (ww != window.width() || wh != window.height()) {
+      ww = window.width();
+      wh = window.height();
+      pipeline = buildPipeline();
+      std::cout << "." << std::endl;
+    }
+
     Uniform uniform {
-      .iResolution = glm::vec4(window.width(), window.height(), 1., 0.),
+      .iResolution = glm::vec4(ww, wh, 1., 0.),
       .iTime = glm::vec4{iFrame/60.0f, 0.0, 0.0, 0.0},
       .iFrame = glm::ivec4{iFrame++, 0, 0, 0},
-      .iMouse = glm::vec4{xpos, window.height()-ypos, state*xpos, state*ypos},
+      .iMouse = glm::vec4{xpos, wh-ypos, state*xpos, state*ypos},
     };
 
     window.draw(device, fw.graphicsQueue(),
