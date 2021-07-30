@@ -505,31 +505,33 @@ public:
 
   /// Begin an attachment description.
   /// After this you can call attachment* many times
-  void attachmentBegin(vk::Format format) {
+  RenderpassMaker& attachmentBegin(vk::Format format) {
     vk::AttachmentDescription desc{{}, format};
     s.attachmentDescriptions.push_back(desc);
+    return *this;
   }
 
-  void attachmentFlags(vk::AttachmentDescriptionFlags value) { s.attachmentDescriptions.back().flags = value; };
-  void attachmentFormat(vk::Format value) { s.attachmentDescriptions.back().format = value; };
-  void attachmentSamples(vk::SampleCountFlagBits value) { s.attachmentDescriptions.back().samples = value; };
-  void attachmentLoadOp(vk::AttachmentLoadOp value) { s.attachmentDescriptions.back().loadOp = value; };
-  void attachmentStoreOp(vk::AttachmentStoreOp value) { s.attachmentDescriptions.back().storeOp = value; };
-  void attachmentStencilLoadOp(vk::AttachmentLoadOp value) { s.attachmentDescriptions.back().stencilLoadOp = value; };
-  void attachmentStencilStoreOp(vk::AttachmentStoreOp value) { s.attachmentDescriptions.back().stencilStoreOp = value; };
-  void attachmentInitialLayout(vk::ImageLayout value) { s.attachmentDescriptions.back().initialLayout = value; };
-  void attachmentFinalLayout(vk::ImageLayout value) { s.attachmentDescriptions.back().finalLayout = value; };
+  RenderpassMaker& attachmentFlags(vk::AttachmentDescriptionFlags value) { s.attachmentDescriptions.back().flags = value; return *this;};
+  RenderpassMaker&attachmentFormat(vk::Format value) { s.attachmentDescriptions.back().format = value; return *this;};
+  RenderpassMaker& attachmentSamples(vk::SampleCountFlagBits value) { s.attachmentDescriptions.back().samples = value; return *this;};
+  RenderpassMaker& attachmentLoadOp(vk::AttachmentLoadOp value) { s.attachmentDescriptions.back().loadOp = value; return *this;};
+  RenderpassMaker& attachmentStoreOp(vk::AttachmentStoreOp value) { s.attachmentDescriptions.back().storeOp = value;  return *this; };
+  RenderpassMaker& attachmentStencilLoadOp(vk::AttachmentLoadOp value) { s.attachmentDescriptions.back().stencilLoadOp = value; return *this;};
+  RenderpassMaker& attachmentStencilStoreOp(vk::AttachmentStoreOp value) { s.attachmentDescriptions.back().stencilStoreOp = value; return *this;};
+  RenderpassMaker& attachmentInitialLayout(vk::ImageLayout value) { s.attachmentDescriptions.back().initialLayout = value; return *this;};
+  RenderpassMaker& attachmentFinalLayout(vk::ImageLayout value) { s.attachmentDescriptions.back().finalLayout = value; return *this;};
 
   /// Start a subpass description.
   /// After this you can can call subpassColorAttachment many times
   /// and subpassDepthStencilAttachment once.
-  void subpassBegin(vk::PipelineBindPoint bp) {
+  RenderpassMaker& subpassBegin(vk::PipelineBindPoint bp) {
     vk::SubpassDescription desc{};
     desc.pipelineBindPoint = bp;
     s.subpassDescriptions.push_back(desc);
+    return *this;
   }
 
-  void subpassColorAttachment(vk::ImageLayout layout, uint32_t attachment) {
+  RenderpassMaker& subpassColorAttachment(vk::ImageLayout layout, uint32_t attachment) {
     vk::SubpassDescription &subpass = s.subpassDescriptions.back();
     auto *p = getAttachmentReference();
     p->layout = layout;
@@ -538,14 +540,16 @@ public:
       subpass.pColorAttachments = p;
     }
     subpass.colorAttachmentCount++;
+    return *this;
   }
 
-  void subpassDepthStencilAttachment(vk::ImageLayout layout, uint32_t attachment) {
+  RenderpassMaker& subpassDepthStencilAttachment(vk::ImageLayout layout, uint32_t attachment) {
     vk::SubpassDescription &subpass = s.subpassDescriptions.back();
     auto *p = getAttachmentReference();
     p->layout = layout;
     p->attachment = attachment;
     subpass.pDepthStencilAttachment = p;
+    return *this;
   }
 
   vk::UniqueRenderPass createUnique(const vk::Device &device) const {
@@ -559,20 +563,33 @@ public:
     return device.createRenderPassUnique(renderPassInfo);
   }
 
-  void dependencyBegin(uint32_t srcSubpass, uint32_t dstSubpass) {
+  vk::UniqueRenderPass createUnique(const vk::Device &device, const vk::RenderPassMultiviewCreateInfo &I) const {
+    vk::RenderPassCreateInfo renderPassInfo{};
+    renderPassInfo.attachmentCount = (uint32_t)s.attachmentDescriptions.size();
+    renderPassInfo.pAttachments = s.attachmentDescriptions.data();
+    renderPassInfo.subpassCount = (uint32_t)s.subpassDescriptions.size();
+    renderPassInfo.pSubpasses = s.subpassDescriptions.data();
+    renderPassInfo.dependencyCount = (uint32_t)s.subpassDependencies.size();
+    renderPassInfo.pDependencies = s.subpassDependencies.data();
+    renderPassInfo.pNext = &I; // identical to createUnique(const vk::Device &device) except set pNext to use multi-view &I
+    return device.createRenderPassUnique(renderPassInfo);
+  }
+
+  RenderpassMaker& dependencyBegin(uint32_t srcSubpass, uint32_t dstSubpass) {
     vk::SubpassDependency desc{};
     desc.srcSubpass = srcSubpass;
     desc.dstSubpass = dstSubpass;
     s.subpassDependencies.push_back(desc);
+    return *this;
   }
 
-  void dependencySrcSubpass(uint32_t value) { s.subpassDependencies.back().srcSubpass = value; };
-  void dependencyDstSubpass(uint32_t value) { s.subpassDependencies.back().dstSubpass = value; };
-  void dependencySrcStageMask(vk::PipelineStageFlags value) { s.subpassDependencies.back().srcStageMask = value; };
-  void dependencyDstStageMask(vk::PipelineStageFlags value) { s.subpassDependencies.back().dstStageMask = value; };
-  void dependencySrcAccessMask(vk::AccessFlags value) { s.subpassDependencies.back().srcAccessMask = value; };
-  void dependencyDstAccessMask(vk::AccessFlags value) { s.subpassDependencies.back().dstAccessMask = value; };
-  void dependencyDependencyFlags(vk::DependencyFlags value) { s.subpassDependencies.back().dependencyFlags = value; };
+  RenderpassMaker& dependencySrcSubpass(uint32_t value) { s.subpassDependencies.back().srcSubpass = value; return *this;};
+  RenderpassMaker& dependencyDstSubpass(uint32_t value) { s.subpassDependencies.back().dstSubpass = value; return *this;};
+  RenderpassMaker& dependencySrcStageMask(vk::PipelineStageFlags value) { s.subpassDependencies.back().srcStageMask = value; return *this;};
+  RenderpassMaker& dependencyDstStageMask(vk::PipelineStageFlags value) { s.subpassDependencies.back().dstStageMask = value; return *this;};
+  RenderpassMaker& dependencySrcAccessMask(vk::AccessFlags value) { s.subpassDependencies.back().srcAccessMask = value; return *this;};
+  RenderpassMaker& dependencyDstAccessMask(vk::AccessFlags value) { s.subpassDependencies.back().dstAccessMask = value; return *this;};
+  RenderpassMaker& dependencyDependencyFlags(vk::DependencyFlags value) { s.subpassDependencies.back().dependencyFlags = value; return *this;};
 private:
   constexpr static int max_refs = 64;
 
@@ -757,14 +774,16 @@ public:
   }
 
   /// Add a descriptor set layout to the pipeline.
-  void descriptorSetLayout(vk::DescriptorSetLayout layout) {
+  PipelineLayoutMaker& descriptorSetLayout(vk::DescriptorSetLayout layout) {
     setLayouts_.push_back(layout);
+    return *this;
   }
 
   /// Add a push constant range to the pipeline.
   /// These describe the size and location of variables in the push constant area.
-  void pushConstantRange(vk::ShaderStageFlags stageFlags_, uint32_t offset_, uint32_t size_) {
+  PipelineLayoutMaker& pushConstantRange(vk::ShaderStageFlags stageFlags_, uint32_t offset_, uint32_t size_) {
     pushConstantRanges_.emplace_back(stageFlags_, offset_, size_);
+    return *this;
   }
 
 private:
@@ -890,17 +909,18 @@ public:
   }
 
   /// Add a shader module to the pipeline.
-  void shader(vk::ShaderStageFlagBits stage, const vku::ShaderModule &shader,
+  PipelineMaker& shader(vk::ShaderStageFlagBits stage, const vku::ShaderModule &shader,
                  const char *entryPoint = "main") {
     vk::PipelineShaderStageCreateInfo info{};
     info.module = shader.module();
     info.pName = entryPoint;
     info.stage = stage;
     modules_.emplace_back(info);
+    return *this;
   }
 
   /// Add a shader module with specialized constants to the pipeline.
-  void shader(vk::ShaderStageFlagBits stage, vku::ShaderModule &shader,
+  PipelineMaker& shader(vk::ShaderStageFlagBits stage, vku::ShaderModule &shader,
               SpecData specConstants,
               const char *entryPoint = "main") {
     auto data = std::unique_ptr<SpecData>{new SpecData{std::move(specConstants)}};
@@ -911,23 +931,26 @@ public:
     info.pSpecializationInfo = &data->specializationInfo_;
     modules_.emplace_back(info);
     moduleSpecializations_.emplace_back(std::move(data));
+    return *this;
   }
 
   /// Add a blend state to the pipeline for one colour attachment.
   /// If you don't do this, a default is used.
-  void colorBlend(const vk::PipelineColorBlendAttachmentState &state) {
+  PipelineMaker& colorBlend(const vk::PipelineColorBlendAttachmentState &state) {
     colorBlendAttachments_.push_back(state);
+    return *this;
   }
 
-  void subPass(uint32_t subpass) {
+  PipelineMaker& subPass(uint32_t subpass) {
     subpass_ = subpass;
+    return *this;
   }
 
   /// Begin setting colour blend value
   /// If you don't do this, a default is used.
   /// Follow this with blendEnable() blendSrcColorBlendFactor() etc.
   /// Default is a regular alpha blend.
-  void blendBegin(vk::Bool32 enable) {
+  PipelineMaker& blendBegin(vk::Bool32 enable) {
     colorBlendAttachments_.emplace_back();
     auto &blend = colorBlendAttachments_.back();
     blend.blendEnable = enable;
@@ -939,54 +962,59 @@ public:
     blend.alphaBlendOp = vk::BlendOp::eAdd;
     typedef vk::ColorComponentFlagBits ccbf;
     blend.colorWriteMask = ccbf::eR|ccbf::eG|ccbf::eB|ccbf::eA;
+    return *this;
   }
 
   /// Enable or disable blending (called after blendBegin())
-  void blendEnable(vk::Bool32 value) { colorBlendAttachments_.back().blendEnable = value; }
+  PipelineMaker& blendEnable(vk::Bool32 value) { colorBlendAttachments_.back().blendEnable = value; return *this;}
 
   /// Source colour blend factor (called after blendBegin())
-  void blendSrcColorBlendFactor(vk::BlendFactor value) { colorBlendAttachments_.back().srcColorBlendFactor = value; }
+  PipelineMaker& blendSrcColorBlendFactor(vk::BlendFactor value) { colorBlendAttachments_.back().srcColorBlendFactor = value; return *this;}
 
   /// Destination colour blend factor (called after blendBegin())
-  void blendDstColorBlendFactor(vk::BlendFactor value) { colorBlendAttachments_.back().dstColorBlendFactor = value; }
+  PipelineMaker& blendDstColorBlendFactor(vk::BlendFactor value) { colorBlendAttachments_.back().dstColorBlendFactor = value; return *this;}
 
   /// Blend operation (called after blendBegin())
-  void blendColorBlendOp(vk::BlendOp value) { colorBlendAttachments_.back().colorBlendOp = value; }
+  PipelineMaker& blendColorBlendOp(vk::BlendOp value) { colorBlendAttachments_.back().colorBlendOp = value; return *this;}
 
   /// Source alpha blend factor (called after blendBegin())
-  void blendSrcAlphaBlendFactor(vk::BlendFactor value) { colorBlendAttachments_.back().srcAlphaBlendFactor = value; }
+  PipelineMaker& blendSrcAlphaBlendFactor(vk::BlendFactor value) { colorBlendAttachments_.back().srcAlphaBlendFactor = value; return *this;}
 
   /// Destination alpha blend factor (called after blendBegin())
-  void blendDstAlphaBlendFactor(vk::BlendFactor value) { colorBlendAttachments_.back().dstAlphaBlendFactor = value; }
+  PipelineMaker& blendDstAlphaBlendFactor(vk::BlendFactor value) { colorBlendAttachments_.back().dstAlphaBlendFactor = value; return *this;}
 
   /// Alpha operation (called after blendBegin())
-  void blendAlphaBlendOp(vk::BlendOp value) { colorBlendAttachments_.back().alphaBlendOp = value; }
+  PipelineMaker& blendAlphaBlendOp(vk::BlendOp value) { colorBlendAttachments_.back().alphaBlendOp = value; return *this;}
 
   /// Colour write mask (called after blendBegin())
-  void blendColorWriteMask(vk::ColorComponentFlags value) { colorBlendAttachments_.back().colorWriteMask = value; }
+  PipelineMaker& blendColorWriteMask(vk::ColorComponentFlags value) { colorBlendAttachments_.back().colorWriteMask = value; return *this;}
 
   /// Add a vertex attribute to the pipeline.
-  void vertexAttribute(uint32_t location_, uint32_t binding_, vk::Format format_, uint32_t offset_) {
+  PipelineMaker& vertexAttribute(uint32_t location_, uint32_t binding_, vk::Format format_, uint32_t offset_) {
     vertexAttributeDescriptions_.push_back({location_, binding_, format_, offset_});
+    return *this;
   }
 
   /// Add a vertex attribute to the pipeline.
-  void vertexAttribute(const vk::VertexInputAttributeDescription &desc) {
+  PipelineMaker& vertexAttribute(const vk::VertexInputAttributeDescription &desc) {
     vertexAttributeDescriptions_.push_back(desc);
+    return *this;
   }
 
   /// Add a vertex binding to the pipeline.
   /// Usually only one of these is needed to specify the stride.
   /// Vertices can also be delivered one per instance.
-  void vertexBinding(uint32_t binding_, uint32_t stride_, vk::VertexInputRate inputRate_ = vk::VertexInputRate::eVertex) {
+  PipelineMaker& vertexBinding(uint32_t binding_, uint32_t stride_, vk::VertexInputRate inputRate_ = vk::VertexInputRate::eVertex) {
     vertexBindingDescriptions_.push_back({binding_, stride_, inputRate_});
+    return *this;
   }
 
   /// Add a vertex binding to the pipeline.
   /// Usually only one of these is needed to specify the stride.
   /// Vertices can also be delivered one per instance.
-  void vertexBinding(const vk::VertexInputBindingDescription &desc) {
+  PipelineMaker& vertexBinding(const vk::VertexInputBindingDescription &desc) {
     vertexBindingDescriptions_.push_back(desc);
+    return *this;
   }
 
   /// Specify the topology of the pipeline.
@@ -1141,11 +1169,12 @@ public:
   }
 
   /// Add a shader module to the pipeline.
-  void shader(vk::ShaderStageFlagBits stage, vku::ShaderModule &shader,
+  ComputePipelineMaker& shader(vk::ShaderStageFlagBits stage, vku::ShaderModule &shader,
                  const char *entryPoint = "main") {
     stage_.module = shader.module();
     stage_.pName = entryPoint;
     stage_.stage = stage;
+    return *this;
   }
 
   /// Set the compute shader module.
@@ -1332,12 +1361,13 @@ public:
   }
 
   /// Call this to begin a new descriptor set.
-  void beginDescriptorSet(vk::DescriptorSet dstSet) {
+  DescriptorSetUpdater& beginDescriptorSet(vk::DescriptorSet dstSet) {
     dstSet_ = dstSet;
+    return *this;
   }
 
   /// Call this to begin a new set of images.
-  void beginImages(uint32_t dstBinding, uint32_t dstArrayElement, vk::DescriptorType descriptorType) {
+  DescriptorSetUpdater& beginImages(uint32_t dstBinding, uint32_t dstArrayElement, vk::DescriptorType descriptorType) {
     vk::WriteDescriptorSet wdesc{};
     wdesc.dstSet = dstSet_;
     wdesc.dstBinding = dstBinding;
@@ -1346,20 +1376,22 @@ public:
     wdesc.descriptorType = descriptorType;
     wdesc.pImageInfo = imageInfo_.data() + numImages_;
     descriptorWrites_.push_back(wdesc);
+    return *this;
   }
 
   /// Call this to add a combined image sampler.
-  void image(vk::Sampler sampler, vk::ImageView imageView, vk::ImageLayout imageLayout) {
+  DescriptorSetUpdater& image(vk::Sampler sampler, vk::ImageView imageView, vk::ImageLayout imageLayout) {
     if (!descriptorWrites_.empty() && numImages_ != imageInfo_.size() && descriptorWrites_.back().pImageInfo) {
       descriptorWrites_.back().descriptorCount++;
       imageInfo_[numImages_++] = vk::DescriptorImageInfo{sampler, imageView, imageLayout};
     } else {
       ok_ = false;
     }
+    return *this;
   }
 
   /// Call this to start defining buffers.
-  void beginBuffers(uint32_t dstBinding, uint32_t dstArrayElement, vk::DescriptorType descriptorType) {
+  DescriptorSetUpdater& beginBuffers(uint32_t dstBinding, uint32_t dstArrayElement, vk::DescriptorType descriptorType) {
     vk::WriteDescriptorSet wdesc{};
     wdesc.dstSet = dstSet_;
     wdesc.dstBinding = dstBinding;
@@ -1368,16 +1400,18 @@ public:
     wdesc.descriptorType = descriptorType;
     wdesc.pBufferInfo = bufferInfo_.data() + numBuffers_;
     descriptorWrites_.push_back(wdesc);
+    return *this;
   }
 
   /// Call this to add a new buffer.
-  void buffer(vk::Buffer buffer, vk::DeviceSize offset, vk::DeviceSize range) {
+  DescriptorSetUpdater& buffer(vk::Buffer buffer, vk::DeviceSize offset, vk::DeviceSize range) {
     if (!descriptorWrites_.empty() && numBuffers_ != bufferInfo_.size() && descriptorWrites_.back().pBufferInfo) {
       descriptorWrites_.back().descriptorCount++;
       bufferInfo_[numBuffers_++] = vk::DescriptorBufferInfo{buffer, offset, range};
     } else {
       ok_ = false;
     }
+    return *this;
   }
 
   /// Call this to start adding buffer views. (for example, writable images).
@@ -1433,22 +1467,26 @@ public:
   DescriptorSetLayoutMaker() {
   }
 
-  void buffer(uint32_t binding, vk::DescriptorType descriptorType, vk::ShaderStageFlags stageFlags, uint32_t descriptorCount) {
+  DescriptorSetLayoutMaker& buffer(uint32_t binding, vk::DescriptorType descriptorType, vk::ShaderStageFlags stageFlags, uint32_t descriptorCount) {
     s.bindings.emplace_back(binding, descriptorType, descriptorCount, stageFlags, nullptr);
+    return *this;
   }
 
-  void image(uint32_t binding, vk::DescriptorType descriptorType, vk::ShaderStageFlags stageFlags, uint32_t descriptorCount) {
+  DescriptorSetLayoutMaker& image(uint32_t binding, vk::DescriptorType descriptorType, vk::ShaderStageFlags stageFlags, uint32_t descriptorCount) {
     s.bindings.emplace_back(binding, descriptorType, descriptorCount, stageFlags, nullptr);
+    return *this;
   }
 
-  void samplers(uint32_t binding, vk::DescriptorType descriptorType, vk::ShaderStageFlags stageFlags, const std::vector<vk::Sampler> immutableSamplers) {
+  DescriptorSetLayoutMaker& samplers(uint32_t binding, vk::DescriptorType descriptorType, vk::ShaderStageFlags stageFlags, const std::vector<vk::Sampler> immutableSamplers) {
     s.samplers.push_back(immutableSamplers);
     auto pImmutableSamplers = s.samplers.back().data();
     s.bindings.emplace_back(binding, descriptorType, (uint32_t)immutableSamplers.size(), stageFlags, pImmutableSamplers);
+    return *this;
   }
 
-  void bufferView(uint32_t binding, vk::DescriptorType descriptorType, vk::ShaderStageFlags stageFlags, uint32_t descriptorCount) {
+  DescriptorSetLayoutMaker& bufferView(uint32_t binding, vk::DescriptorType descriptorType, vk::ShaderStageFlags stageFlags, uint32_t descriptorCount) {
     s.bindings.emplace_back(binding, descriptorType, descriptorCount, stageFlags, nullptr);
+    return *this;
   }
 
   /// Create a self-deleting descriptor set object.
