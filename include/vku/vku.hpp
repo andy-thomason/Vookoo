@@ -1515,8 +1515,9 @@ public:
   }
 
   /// Add another layout describing a descriptor set.
-  void layout(vk::DescriptorSetLayout layout) {
+  DescriptorSetMaker &layout(vk::DescriptorSetLayout layout) {
     s.layouts.push_back(layout);
+    return *this;
   }
 
   /// Allocate a vector of non-self-deleting descriptor sets
@@ -1654,6 +1655,7 @@ public:
     imageMemoryBarriers.subresourceRange = {aspectMask, 0, s.info.mipLevels, 0, s.info.arrayLayers};
 
     // Put barrier on top
+    // https://www.khronos.org/registry/vulkan/specs/1.2/html/chap7.html#synchronization-access-types-supported
     vk::PipelineStageFlags srcStageMask{vk::PipelineStageFlagBits::eTopOfPipe};
     vk::PipelineStageFlags dstStageMask{vk::PipelineStageFlagBits::eTopOfPipe};
     vk::DependencyFlags dependencyFlags{};
@@ -1666,27 +1668,27 @@ public:
     // Is it me, or are these the same?
     switch (oldLayout) {
       case il::eUndefined: break;
-      case il::eGeneral: srcMask = afb::eTransferWrite; break;
-      case il::eColorAttachmentOptimal: srcMask = afb::eColorAttachmentWrite; break;
-      case il::eDepthStencilAttachmentOptimal: srcMask = afb::eDepthStencilAttachmentWrite; break;
-      case il::eDepthStencilReadOnlyOptimal: srcMask = afb::eDepthStencilAttachmentRead; break;
-      case il::eShaderReadOnlyOptimal: srcMask = afb::eShaderRead; break;
-      case il::eTransferSrcOptimal: srcMask = afb::eTransferRead; break;
-      case il::eTransferDstOptimal: srcMask = afb::eTransferWrite; break;
-      case il::ePreinitialized: srcMask = afb::eTransferWrite|afb::eHostWrite; break;
+      case il::eGeneral: srcMask = afb::eTransferWrite; srcStageMask=vk::PipelineStageFlagBits::eTransfer; break;
+      case il::eColorAttachmentOptimal: srcMask = afb::eColorAttachmentWrite; srcStageMask=vk::PipelineStageFlagBits::eColorAttachmentOutput; break;
+      case il::eDepthStencilAttachmentOptimal: srcMask = afb::eDepthStencilAttachmentWrite; srcStageMask=vk::PipelineStageFlagBits::eEarlyFragmentTests; break;
+      case il::eDepthStencilReadOnlyOptimal: srcMask = afb::eDepthStencilAttachmentRead; srcStageMask=vk::PipelineStageFlagBits::eEarlyFragmentTests; break;
+      case il::eShaderReadOnlyOptimal: srcMask = afb::eShaderRead; srcStageMask=vk::PipelineStageFlagBits::eVertexShader; break;
+      case il::eTransferSrcOptimal: srcMask = afb::eTransferRead; srcStageMask=vk::PipelineStageFlagBits::eTransfer; break;
+      case il::eTransferDstOptimal: srcMask = afb::eTransferWrite; srcStageMask=vk::PipelineStageFlagBits::eTransfer; break;
+      case il::ePreinitialized: srcMask = afb::eTransferWrite|afb::eHostWrite; srcStageMask=vk::PipelineStageFlagBits::eTransfer|vk::PipelineStageFlagBits::eHost; break;
       case il::ePresentSrcKHR: srcMask = afb::eMemoryRead; break;
     }
 
     switch (newLayout) {
       case il::eUndefined: break;
-      case il::eGeneral: dstMask = afb::eTransferWrite; break;
-      case il::eColorAttachmentOptimal: dstMask = afb::eColorAttachmentWrite; break;
-      case il::eDepthStencilAttachmentOptimal: dstMask = afb::eDepthStencilAttachmentWrite; break;
-      case il::eDepthStencilReadOnlyOptimal: dstMask = afb::eDepthStencilAttachmentRead; break;
-      case il::eShaderReadOnlyOptimal: dstMask = afb::eShaderRead; break;
-      case il::eTransferSrcOptimal: dstMask = afb::eTransferRead; break;
-      case il::eTransferDstOptimal: dstMask = afb::eTransferWrite; break;
-      case il::ePreinitialized: dstMask = afb::eTransferWrite; break;
+      case il::eGeneral: dstMask = afb::eTransferWrite; dstStageMask=vk::PipelineStageFlagBits::eTransfer; break;
+      case il::eColorAttachmentOptimal: dstMask = afb::eColorAttachmentWrite; dstStageMask=vk::PipelineStageFlagBits::eColorAttachmentOutput; break;
+      case il::eDepthStencilAttachmentOptimal: dstMask = afb::eDepthStencilAttachmentWrite; dstStageMask=vk::PipelineStageFlagBits::eEarlyFragmentTests; break;
+      case il::eDepthStencilReadOnlyOptimal: dstMask = afb::eDepthStencilAttachmentRead; dstStageMask=vk::PipelineStageFlagBits::eEarlyFragmentTests; break;
+      case il::eShaderReadOnlyOptimal: dstMask = afb::eShaderRead; dstStageMask=vk::PipelineStageFlagBits::eVertexShader; break;
+      case il::eTransferSrcOptimal: dstMask = afb::eTransferRead; dstStageMask=vk::PipelineStageFlagBits::eTransfer; break;
+      case il::eTransferDstOptimal: dstMask = afb::eTransferWrite; dstStageMask=vk::PipelineStageFlagBits::eTransfer; break;
+      case il::ePreinitialized: dstMask = afb::eTransferWrite; dstStageMask=vk::PipelineStageFlagBits::eTransfer; break;
       case il::ePresentSrcKHR: dstMask = afb::eMemoryRead; break;
     }
 //printf("%08x %08x\n", (VkFlags)srcMask, (VkFlags)dstMask);
