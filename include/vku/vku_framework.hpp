@@ -323,6 +323,20 @@ public:
       cb.end();
     }
 
+    // Create a set of fences to protect the dynamic command buffers from re-writing.
+    for (int i = 0; i != dynamicDrawBuffers_.size(); ++i) {
+      vk::FenceCreateInfo fci;
+      fci.flags = vk::FenceCreateFlagBits::eSignaled;
+      dynamicCommandBufferFences_.emplace_back(device.createFence(fci));
+    }
+
+    for (int i = 0; i != dynamicDrawBuffers_.size(); ++i) {
+      vk::CommandBuffer cb = *dynamicDrawBuffers_[i];
+      vk::CommandBufferBeginInfo bi{};
+      cb.begin(bi);
+      cb.end();
+    }
+
     ok_ = true;
   }
 
@@ -363,10 +377,9 @@ public:
       for (int i = 0; i != staticDrawBuffers_.size(); ++i) {
         vk::CommandBuffer cb = *staticDrawBuffers_[i];
 
-        std::array<float, 4> clearColorValue{0.75f, 0.75f, 0.75f, 1};
         vk::ClearDepthStencilValue clearDepthValue{1.0f, 0};
         std::array<vk::ClearValue, 2> clearColours{
-            vk::ClearValue{clearColorValue}, clearDepthValue};
+            vk::ClearValue{clearColorValue()}, clearDepthValue};
         vk::RenderPassBeginInfo rpbi;
         rpbi.renderPass = *renderPass_;
         rpbi.framebuffer = *framebuffers_[i];
@@ -403,9 +416,11 @@ public:
     vk::CommandBuffer cb = *staticDrawBuffers_[imageIndex];
     vk::CommandBuffer pscb = *dynamicDrawBuffers_[imageIndex];
 
-    vk::Fence cbFence = commandBufferFences_[imageIndex];
-    device.waitForFences(cbFence, 1, umax);
-    device.resetFences(cbFence);
+
+    vk::Fence rpcbFence = dynamicCommandBufferFences_[imageIndex];
+    device.waitForFences(rpcbFence, 1, umax);
+    device.resetFences(rpcbFence);
+
 
     vk::ClearDepthStencilValue clearDepthValue{ 1.0f, 0 };
     std::array<vk::ClearValue, 2> clearColours{vk::ClearValue{clearColorValue()}, clearDepthValue};
@@ -425,7 +440,13 @@ public:
     submit.pCommandBuffers = &pscb;
     submit.signalSemaphoreCount = 1;
     submit.pSignalSemaphores = &psSema;
-    graphicsQueue.submit(1, &submit, vk::Fence{});
+    graphicsQueue.submit(1, &submit, rpcbFence);
+
+
+    vk::Fence cbFence = commandBufferFences_[imageIndex];
+    device.waitForFences(cbFence, 1, umax);
+    device.resetFences(cbFence);
+
 
     submit.waitSemaphoreCount = 1;
     submit.pWaitSemaphores = &psSema;
@@ -473,6 +494,9 @@ public:
     for (auto &f : commandBufferFences_) {
       device_.destroyFence(f);
     }
+    for (auto &f : dynamicCommandBufferFences_) {
+      device_.destroyFence(f);
+    }
     swapchain_ = vk::UniqueSwapchainKHR{};
   }
 
@@ -504,6 +528,9 @@ public:
 
   /// Return the fences used to control the static buffers.
   const std::vector<vk::Fence> &commandBufferFences() const { return commandBufferFences_; }
+
+  /// Return the fences used to control the dynamic buffers.
+  const std::vector<vk::Fence> &dynamicCommandBufferFences() const { return dynamicCommandBufferFences_; }
 
   /// Return the semaphore signalled when an image is acquired.
   vk::Semaphore imageAcquireSemaphore() const { return *imageAcquireSemaphore_; }
@@ -629,6 +656,7 @@ public:
   void recreate() {
     device_.waitForFences(commandBufferFences_, VK_TRUE,
                           std::numeric_limits<uint64_t>::max());
+
     createSwapchain();
 
     createImages();
@@ -659,6 +687,7 @@ private:
   std::vector<vk::ImageView> imageViews_;
   std::vector<vk::Image> images_;
   std::vector<vk::Fence> commandBufferFences_;
+  std::vector<vk::Fence> dynamicCommandBufferFences_;
   std::vector<vk::UniqueFramebuffer> framebuffers_;
   std::vector<vk::UniqueCommandBuffer> staticDrawBuffers_;
   std::vector<vk::UniqueCommandBuffer> dynamicDrawBuffers_;
