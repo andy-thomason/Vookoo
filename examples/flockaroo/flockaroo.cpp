@@ -222,9 +222,9 @@ int main() {
      .cullMode( vk::CullModeFlagBits::eBack )
      .frontFace( vk::FrontFace::eClockwise );
 
-  // Build the renderpass 
-  vku::RenderpassMaker rpm;
-  rpm
+  // Build the renderpass writing to iChannelPing 
+  vku::RenderpassMaker rpmPing;
+  vk::UniqueRenderPass advectionRenderPassPing = rpmPing
       // The only colour attachment.
      .attachmentBegin(iChannelPing.format())
      .attachmentSamples(vk::SampleCountFlagBits::e1)
@@ -296,14 +296,13 @@ int main() {
      //VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT
      .dependencyDstAccessMask(vk::AccessFlagBits::eInputAttachmentRead)
      .dependencyDstStageMask(vk::PipelineStageFlagBits::eFragmentShader)
-     .dependencyDependencyFlags(vk::DependencyFlagBits::eByRegion);
+     .dependencyDependencyFlags(vk::DependencyFlagBits::eByRegion)
+     // Finally use the maker method to construct this renderpass
+     .createUnique(device);
 
-  // Use the maker object to construct the renderpass
-  vk::UniqueRenderPass advectionRenderPassPing = rpm.createUnique(device);
-
-  // Build the renderpass 
-  vku::RenderpassMaker rpm1;
-  rpm1
+  // Build the renderpass writing to iChannelPong 
+  vku::RenderpassMaker rpmPong;
+  vk::UniqueRenderPass advectionRenderPassPong = rpmPong
       // The only colour attachment.
      .attachmentBegin(iChannelPong.format())
      .attachmentSamples(vk::SampleCountFlagBits::e1)
@@ -375,10 +374,9 @@ int main() {
      //VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT
      .dependencyDstAccessMask(vk::AccessFlagBits::eInputAttachmentRead)
      .dependencyDstStageMask(vk::PipelineStageFlagBits::eFragmentShader)
-     .dependencyDependencyFlags(vk::DependencyFlagBits::eByRegion);
-
-  // Use the maker object to construct the renderpass
-  vk::UniqueRenderPass advectionRenderPassPong = rpm.createUnique(device);
+     .dependencyDependencyFlags(vk::DependencyFlagBits::eByRegion)
+     // Finally use the maker method to construct this renderpass
+     .createUnique(device);
 
   // Build the pipeline for this renderpass.
   vk::UniquePipeline advectionPipeline[] = {
@@ -468,7 +466,7 @@ int main() {
         
     );
 
-    std::this_thread::sleep_for(std::chrono::milliseconds(16));
+    //std::this_thread::sleep_for(std::chrono::milliseconds(16)); // unnecessary with swapchain present mode being "Fifo" which is V-SYNC limited.
     iFrame++;
   }
 
