@@ -618,7 +618,7 @@ public:
   /// Construct a shader module from a file
   ShaderModule(const vk::Device &device, const std::string &filename) {
     auto file = std::ifstream(filename, std::ios::binary);
-    if (file.bad()) {
+    if (!file.good()) {
       return;
     }
 
