@@ -1,17 +1,17 @@
-#version 450
+#version 460
 
-// Get a value in through push constants, for example.
+// Get a value in through push constants
 layout (push_constant) uniform Uniform {
   float value;
 } u;
 
-// Write values out through a storage buffer, for example. 
+// Write values out through a storage buffer 
 layout(std430, binding=0) buffer Buffer {
   float values[];
 } b;
 
 void main() {
-  // This number is 0..N-1
+  // id is 0..N-1
   uint id = gl_GlobalInvocationID.x;
 
   // Store the value in the output buffer.

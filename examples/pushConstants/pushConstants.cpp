@@ -24,133 +24,142 @@ int main() {
 
   // Make a window
   const char *title = "pushConstants";
-  bool fullScreen = false;
-  int width = 800;
-  int height = 800;
-  GLFWmonitor *monitor = nullptr;
-  auto glfwwindow = glfwCreateWindow(width, height, title, monitor, nullptr);
+  auto glfwwindow = glfwCreateWindow(800, 800, title,  nullptr, nullptr);
 
-  {
-    // Initialise the Vookoo demo framework.
-    vku::Framework fw{title};
-    if (!fw.ok()) {
-      std::cout << "Framework creation failed" << std::endl;
-      exit(1);
-    }
-
-    // Get a device from the demo framework.
-    vk::Device device = fw.device();
-
-    // Create a window to draw into
-    vku::Window window{fw.instance(), device, fw.physicalDevice(), fw.graphicsQueueFamilyIndex(), glfwwindow};
-    if (!window.ok()) {
-      std::cout << "Window creation failed" << std::endl;
-      exit(1);
-    }
-
-    // Create two shaders, vertex and fragment. See the files pushConstants.vert
-    // and pushConstants.frag for details.
-    vku::ShaderModule vert_{device, BINARY_DIR "pushConstants.vert.spv"};
-    vku::ShaderModule frag_{device, BINARY_DIR "pushConstants.frag.spv"};
-
-    // These are the parameters we are passing to the shaders
-    // Note! be very careful when using vec3, vec2, float and vec4 together
-    // as there are alignment rules you must follow.
-    struct Uniform {
-      glm::vec4 colour;
-      glm::mat4 rotation;
-    };
-
-    // Make a default pipeline layout. This shows how pointers
-    // to resources are layed out.
-    // 
-    vku::PipelineLayoutMaker plm{};
-    plm.pushConstantRange(vk::ShaderStageFlagBits::eAll, 0, sizeof(Uniform));
-    auto pipelineLayout_ = plm.createUnique(device);
-
-    // We will use this simple vertex description.
-    // It has a 2D location (x, y) and a colour (r, g, b)
-    struct Vertex { glm::vec2 pos; glm::vec3 colour; };
-
-    // This is our triangle.
-    const std::vector<Vertex> vertices = {
-      {{0.0f, -0.5f}, {1.0f, 0.0f, 0.0f}},
-      {{0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}},
-      {{-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}}
-    };
-    vku::HostVertexBuffer buffer(device, fw.memprops(), vertices);
-
-    auto buildPipeline = [&]() {
-      // Make a pipeline to use the vertex format and shaders.
-      vku::PipelineMaker pm{window.width(), window.height()};
-      pm.shader(vk::ShaderStageFlagBits::eVertex, vert_);
-      pm.shader(vk::ShaderStageFlagBits::eFragment, frag_);
-      pm.vertexBinding(0, (uint32_t)sizeof(Vertex));
-      pm.vertexAttribute(0, 0, vk::Format::eR32G32Sfloat,
-                         (uint32_t)offsetof(Vertex, pos));
-      pm.vertexAttribute(1, 0, vk::Format::eR32G32B32Sfloat,
-                         (uint32_t)offsetof(Vertex, colour));
-
-      // Create a pipeline using a renderPass built for our window.
-      auto renderPass = window.renderPass();
-      auto cache = fw.pipelineCache();
-      return pm.createUnique(device, cache, *pipelineLayout_, renderPass);
-    };
-    auto pipeline = buildPipeline();
-
-    Uniform u;
-    u.colour = glm::vec4{1, 1, 1, 1};
-    u.rotation = glm::mat4{1};
-    int frame = 0;
-
-    // Loop waiting for the window to close.
-    while (!glfwWindowShouldClose(glfwwindow)) {
-      glfwPollEvents();
-
-      u.rotation = glm::rotate(u.rotation, glm::radians(1.0f), glm::vec3(0, 0, 1));
-      u.colour.r = std::sin(frame * 0.01f);
-      u.colour.g = std::cos(frame * 0.01f);
-      frame++;
-
-      // draw one triangle.
-      // Unlike helloTriangle, we generate the command buffer dynamicly
-      // because it will contain different values on each frame.
-      window.draw(
-        device, fw.graphicsQueue(),
-        [&](vk::CommandBuffer cb, int imageIndex, vk::RenderPassBeginInfo &rpbi) {
-          static auto ww = window.width();
-          static auto wh = window.height();
-          if (ww != window.width() || wh != window.height()) {
-            ww = window.width();
-            wh = window.height();
-            pipeline = buildPipeline();
-          }
-          vk::CommandBufferBeginInfo bi{};
-          cb.begin(bi);
-          cb.pushConstants(
-            *pipelineLayout_, vk::ShaderStageFlagBits::eAll, 0, sizeof(u), (const void*)&u
-          );
-          cb.beginRenderPass(rpbi, vk::SubpassContents::eInline);
-          cb.bindPipeline(vk::PipelineBindPoint::eGraphics, *pipeline);
-          cb.bindVertexBuffers(0, buffer.buffer(), vk::DeviceSize(0));
-          cb.draw(3, 1, 0, 0);
-          cb.endRenderPass();
-          cb.end();
-        }
-      );
-
-      // Very crude method to prevent your GPU from overheating.
-      std::this_thread::sleep_for(std::chrono::milliseconds(16));
-    }
-
-    // Wait until all drawing is done and then kill the window.
-
-    device.waitIdle();
-    // The Framework and Window objects will be destroyed here.
+  // Initialise the Vookoo demo framework.
+  vku::Framework fw{title};
+  if (!fw.ok()) {
+    std::cout << "Framework creation failed" << std::endl;
+    exit(1);
   }
+
+  // Get a device from the demo framework.
+  vk::Device device = fw.device();
+
+  // Create a window to draw into
+  vku::Window window{
+    .instance = fw.instance(),
+    .device = device,
+    .physicalDevice = fw.physicalDevice(),
+    .graphicsQueueFamilyIndex = fw.graphicsQueueFamilyIndex(),
+    .window = glfwwindow
+  };
+  if (!window.ok()) {
+    std::cout << "Window creation failed" << std::endl;
+    exit(1);
+  }
+
+  // Create two shaders, vertex and fragment. See the files pushConstants.vert
+  // and pushConstants.frag for details.
+  vku::ShaderModule vert{device, BINARY_DIR "pushConstants.vert.spv"};
+  vku::ShaderModule frag{device, BINARY_DIR "pushConstants.frag.spv"};
+
+  // These are the parameters we are passing to the shaders
+  // Note! be very careful when using vec3, vec2, float and vec4 together
+  // as there are alignment rules you must follow.
+  struct PushConstant {
+    glm::vec4 colour;
+    glm::mat4 rotation;
+  };
+
+  std::vector<PushConstant> P = { 
+    {.colour = glm::vec4{1, 1, 1, 1}, .rotation = glm::scale(glm::mat4{1}, glm::vec3(2.0f,2.0f,2.0f))},
+    {.colour = glm::vec4{1, 1, 1, 1}, .rotation = glm::mat4{1}},
+  };
+
+  // We will use this simple vertex description.
+  // It has a 2D location (x, y) and a colour (r, g, b)
+  struct Vertex { 
+    glm::vec2 pos;
+    glm::vec3 colour;
+  };
+
+  // This is our triangle.
+  const std::vector<Vertex> vertices = {
+    {.pos={ 0.0f,-0.5f}, .colour={1.0f, 0.0f, 0.0f}},
+    {.pos={ 0.5f, 0.5f}, .colour={0.0f, 1.0f, 0.0f}},
+    {.pos={-0.5f, 0.5f}, .colour={0.0f, 0.0f, 1.0f}},
+  };
+  vku::HostVertexBuffer buffer(device, fw.memprops(), vertices);
+
+  // Make a default pipeline layout. This shows how pointers
+  // to resources are layed out.
+  // 
+  vku::PipelineLayoutMaker plm{};
+  plm.pushConstantRange(vk::ShaderStageFlagBits::eAll, 0, sizeof(PushConstant));
+  auto pipelineLayout = plm.createUnique(device);
+
+  auto buildPipeline = [&]() {
+    // Make a pipeline to use the vertex format and shaders.
+    vku::PipelineMaker pm{ window.width(), window.height() };
+    return pm
+      .shader(vk::ShaderStageFlagBits::eVertex, vert)
+      .shader(vk::ShaderStageFlagBits::eFragment, frag)
+      .vertexBinding(0, sizeof(Vertex))
+      .vertexAttribute(0, 0, vk::Format::eR32G32Sfloat, offsetof(Vertex, pos))
+      .vertexAttribute(1, 0, vk::Format::eR32G32B32Sfloat, offsetof(Vertex, colour))
+      .createUnique(device, fw.pipelineCache(), *pipelineLayout, window.renderPass());
+  };
+  auto pipeline = buildPipeline();
+
+  int frame = 0;
+
+  // Loop waiting for the window to close.
+  while (!glfwWindowShouldClose(glfwwindow)) {
+    glfwPollEvents();
+
+    P.back().rotation = glm::rotate(P.back().rotation, glm::radians(1.0f), glm::vec3(0, 0, 1));
+    P.back().colour.r = (std::sin(frame * 0.01f) + 1.0f) / 2.0f;
+    P.back().colour.g = (std::cos(frame * 0.01f) + 1.0f) / 2.0f;
+
+    // Unlike helloTriangle, we generate the command buffer dynamically
+    // because it will contain different values on each frame.
+    window.draw(
+      device, fw.graphicsQueue(),
+      [&](vk::CommandBuffer cb, int imageIndex, vk::RenderPassBeginInfo &rpbi) {
+        static auto ww = window.width();
+        static auto wh = window.height();
+        if (ww != window.width() || wh != window.height()) {
+          ww = window.width();
+          wh = window.height();
+          pipeline = buildPipeline();
+        }
+        vk::CommandBufferBeginInfo cbbi{};
+        cb.begin(cbbi);
+        cb.beginRenderPass(rpbi, vk::SubpassContents::eInline);
+        cb.bindPipeline(vk::PipelineBindPoint::eGraphics, *pipeline);
+        cb.bindVertexBuffers(0, buffer.buffer(), vk::DeviceSize(0));
+
+        // draw multiple triangles with different push constants.
+        for (const PushConstant &p : P) {
+          // Instead of updateBuffer() we use pushConstants()
+          // This has an effective max of only about 128 bytes.
+          // This takes a copy of the push constant at the time 
+          // we create this command buffer.
+          cb.pushConstants(
+            *pipelineLayout, vk::ShaderStageFlagBits::eAll, 0, sizeof(PushConstant), (const void*)&p
+          );
+          cb.draw(vertices.size(), 1, 0, 0);
+        };
+
+        cb.endRenderPass();
+        cb.end();
+      }
+    );
+
+    // Very crude method to prevent your GPU from overheating.
+    std::this_thread::sleep_for(std::chrono::milliseconds(16));
+
+    ++frame;
+  }
+
+  // Wait until all drawing is done and then kill the window.
+  device.waitIdle();
 
   glfwDestroyWindow(glfwwindow);
   glfwTerminate();
+
+  // The Framework and Window objects will be destroyed here.
 
   return 0;
 }

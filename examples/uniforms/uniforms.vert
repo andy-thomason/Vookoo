@@ -1,4 +1,4 @@
-#version 450
+#version 460
 
 layout(location = 0) in vec2 inPosition;
 layout(location = 1) in vec3 inColour;
@@ -8,7 +8,12 @@ layout(location = 0) out vec3 fragColour;
 layout (binding = 0) uniform Uniform {
   vec4 colour;
   mat4 rotation;
+  vec4 filler[3];
 } u;
+
+out gl_PerVertex {
+    vec4 gl_Position;
+};
 
 void main() {
   // Rotate and copy 2D position to 3D + depth

@@ -24,11 +24,7 @@ int main() {
 
   // Make a window
   const char *title = "uniforms";
-  bool fullScreen = false;
-  int width = 800;
-  int height = 800;
-  GLFWmonitor *monitor = nullptr;
-  auto glfwwindow = glfwCreateWindow(width, height, title, monitor, nullptr);
+  auto glfwwindow = glfwCreateWindow(800, 800, title, nullptr, nullptr);
 
   {
     // Initialise the Vookoo demo framework.
@@ -42,7 +38,13 @@ int main() {
     vk::Device device = fw.device();
 
     // Create a window to draw into
-    vku::Window window{fw.instance(), device, fw.physicalDevice(), fw.graphicsQueueFamilyIndex(), glfwwindow};
+    vku::Window window{
+      .instance = fw.instance(),
+      .device = device,
+      .physicalDevice = fw.physicalDevice(),
+      .graphicsQueueFamilyIndex = fw.graphicsQueueFamilyIndex(),
+      .window = glfwwindow
+    };
     if (!window.ok()) {
       std::cout << "Window creation failed" << std::endl;
       exit(1);
@@ -50,8 +52,8 @@ int main() {
 
     // Create two shaders, vertex and fragment. See the files uniforms.vert
     // and uniforms.frag for details.
-    vku::ShaderModule vert_{device, BINARY_DIR "uniforms.vert.spv"};
-    vku::ShaderModule frag_{device, BINARY_DIR "uniforms.frag.spv"};
+    vku::ShaderModule vert{device, BINARY_DIR "uniforms.vert.spv"};
+    vku::ShaderModule frag{device, BINARY_DIR "uniforms.frag.spv"};
 
     // These are the parameters we are passing to the shaders
     // Note! be very careful when using vec3, vec2, float and vec4 together
@@ -59,93 +61,100 @@ int main() {
     struct Uniform {
       glm::vec4 colour;
       glm::mat4 rotation;
+      glm::vec4 filler[3]; // filler to get overall size to required multiple of minUniformBufferOffsetAlignment (64bytes on my PC)
     };
 
+    std::vector<Uniform> U = { 
+      {.colour = glm::vec4{1, 1, 1, 1}, .rotation = glm::scale(glm::mat4{1}, glm::vec3(2.0f,2.0f,2.0f))},
+      {.colour = glm::vec4{1, 1, 1, 1}, .rotation = glm::mat4{1}},
+    };
+    // Read the pushConstants example first.
+    // 
+    // Create a uniform buffer capable of N=U.size() "struct Uniform"s.
+    // We cannot update these buffers with normal memory writes
+    // because reading the buffer may happen at any time.
+    auto ubo = vku::UniformBuffer{device, fw.memprops(), sizeof(Uniform)*U.size()};
+  
+    // We will use this simple vertex description.
+    // It has a 2D location (x, y) and a colour (r, g, b)
+    struct Vertex { 
+      glm::vec2 pos;
+      glm::vec3 colour;
+    };
+  
+    // This is our triangle.
+    const std::vector<Vertex> vertices = {
+      {.pos={ 0.0f,-0.5f}, .colour={1.0f, 0.0f, 0.0f}},
+      {.pos={ 0.5f, 0.5f}, .colour={0.0f, 1.0f, 0.0f}},
+      {.pos={-0.5f, 0.5f}, .colour={0.0f, 0.0f, 1.0f}},
+    };
+    auto buffer = vku::HostVertexBuffer{device, fw.memprops(), vertices};
+  
     // Build a template for descriptor sets that use these shaders.
     vku::DescriptorSetLayoutMaker dslm{};
-    dslm.buffer(0, vk::DescriptorType::eUniformBuffer, vk::ShaderStageFlagBits::eAll, 1);
-    auto descriptorSetLayout = dslm.createUnique(device);
-
+    auto descriptorSetLayout = dslm
+      .buffer(0, vk::DescriptorType::eUniformBuffer, vk::ShaderStageFlagBits::eAll, 1)
+      .createUnique(device);
+  
+    // We need to create a descriptor set to tell the shader where
+    // our buffers are.
+    vku::DescriptorSetMaker dsm{};
+    auto descriptorSets = dsm
+      .layout(*descriptorSetLayout) // for U[0]
+      .layout(*descriptorSetLayout) // for U[1]
+      .create(device, fw.descriptorPool());
+  
+    // Next we need to update the descriptor set with the uniform buffer.
+    vku::DescriptorSetUpdater update;
+    update
+      // U[0]
+      .beginDescriptorSet(descriptorSets[0])
+      .beginBuffers(0, 0, vk::DescriptorType::eUniformBuffer)
+      .buffer(ubo.buffer(), 0*sizeof(Uniform), sizeof(Uniform))
+      // U[1]
+      .beginDescriptorSet(descriptorSets[1])
+      .beginBuffers(0, 0, vk::DescriptorType::eUniformBuffer)
+      .buffer(ubo.buffer(), 1*sizeof(Uniform), sizeof(Uniform))
+      // 
+      .update(device);
+  
     // Make a default pipeline layout. This shows how pointers
     // to resources are layed out.
     // 
     vku::PipelineLayoutMaker plm{};
-    plm.descriptorSetLayout(*descriptorSetLayout);
-    auto pipelineLayout_ = plm.createUnique(device);
-
-    // We will use this simple vertex description.
-    // It has a 2D location (x, y) and a colour (r, g, b)
-    struct Vertex { glm::vec2 pos; glm::vec3 colour; };
-
-    // This is our triangle.
-    const std::vector<Vertex> vertices = {
-      {{0.0f, -0.5f}, {1.0f, 0.0f, 0.0f}},
-      {{0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}},
-      {{-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}}
-    };
-    vku::HostVertexBuffer buffer(device, fw.memprops(), vertices);
-
+    auto pipelineLayout = plm
+      .descriptorSetLayout(*descriptorSetLayout)
+      .createUnique(device);
+  
     auto buildPipeline = [&]() {
       // Make a pipeline to use the vertex format and shaders.
-      vku::PipelineMaker pm{window.width(), window.height()};
-      pm.shader(vk::ShaderStageFlagBits::eVertex, vert_);
-      pm.shader(vk::ShaderStageFlagBits::eFragment, frag_);
-      pm.vertexBinding(0, (uint32_t)sizeof(Vertex));
-      pm.vertexAttribute(0, 0, vk::Format::eR32G32Sfloat,
-                         (uint32_t)offsetof(Vertex, pos));
-      pm.vertexAttribute(1, 0, vk::Format::eR32G32B32Sfloat,
-                         (uint32_t)offsetof(Vertex, colour));
-
-      // Create a pipeline using a renderPass built for our window.
-      auto renderPass = window.renderPass();
-      auto cache = fw.pipelineCache();
-      return pm.createUnique(device, cache, *pipelineLayout_, renderPass);
+      vku::PipelineMaker pm{ window.width(), window.height() };
+      return pm
+        .shader(vk::ShaderStageFlagBits::eVertex, vert)
+        .shader(vk::ShaderStageFlagBits::eFragment, frag)
+        .vertexBinding(0, sizeof(Vertex))
+        .vertexAttribute(0, 0, vk::Format::eR32G32Sfloat, offsetof(Vertex, pos))
+        .vertexAttribute(1, 0, vk::Format::eR32G32B32Sfloat, offsetof(Vertex, colour))
+        .createUnique(device, fw.pipelineCache(), *pipelineLayout, window.renderPass());
     };
     auto pipeline = buildPipeline();
-
-    // Read the pushConstants example first.
-    // 
-    Uniform u;
-    u.colour = glm::vec4{1, 1, 1, 1};
-    u.rotation = glm::mat4{1};
+  
     int frame = 0;
-
-    // Create a single entry uniform buffer.
-    // We cannot update this buffers with normal memory writes
-    // because reading the buffer may happen at any time.
-    auto ubo = vku::UniformBuffer{device, fw.memprops(), sizeof(Uniform)};
-    int qfi = fw.graphicsQueueFamilyIndex();
-
-    // We need to create a descriptor set to tell the shader where
-    // our buffers are.
-    vku::DescriptorSetMaker dsm{};
-    dsm.layout(*descriptorSetLayout);
-    auto sets = dsm.create(device, fw.descriptorPool());
-
-    // Next we need to update the descriptor set with the uniform buffer.
-    vku::DescriptorSetUpdater update;
-    update.beginDescriptorSet(sets[0]);
-
-    // Point the descriptor set at the storage buffer.
-    update.beginBuffers(0, 0, vk::DescriptorType::eUniformBuffer);
-    update.buffer(ubo.buffer(), 0, sizeof(Uniform));
-    update.update(device);
-
+  
     // Loop waiting for the window to close.
     while (!glfwWindowShouldClose(glfwwindow)) {
       glfwPollEvents();
-
-      u.rotation = glm::rotate(u.rotation, glm::radians(1.0f), glm::vec3(0, 0, 1));
-      u.colour.r = std::sin(frame * 0.01f);
-      u.colour.g = std::cos(frame * 0.01f);
-      frame++;
-
-      // draw one triangle.
-      // Unlike helloTriangle, we generate the command buffer dynamicly
+  
+      U.back().rotation = glm::rotate(U.back().rotation, glm::radians(1.0f), glm::vec3(0, 0, 1));
+      U.back().colour.r = (std::sin(frame * 0.01f) + 1.0f) / 2.0f;
+      U.back().colour.g = (std::cos(frame * 0.01f) + 1.0f) / 2.0f;
+  
+      // Unlike helloTriangle, we generate the command buffer dynamically
       // because it will contain different values on each frame.
       window.draw(
         device, fw.graphicsQueue(),
         [&](vk::CommandBuffer cb, int imageIndex, vk::RenderPassBeginInfo &rpbi) {
+          // deal with resizing of window
           static auto ww = window.width();
           static auto wh = window.height();
           if (ww != window.width() || wh != window.height()) {
@@ -153,44 +162,63 @@ int main() {
             wh = window.height();
             pipeline = buildPipeline();
           }
-          vk::CommandBufferBeginInfo bi{};
-          cb.begin(bi);
-          // Instead of pushConstants() we use updateBuffer()
-          // This has an effective max of about 64k.
+
+          vk::CommandBufferBeginInfo cbbi{};
+          cb.begin(cbbi);
+
+          // Instead of pushConstants() we use updateBuffer(). This has a max of 64k.
           // Like pushConstants(), this takes a copy of the uniform buffer
           // at the time we create this command buffer.
+          // Unlike push constant update, uniform buffer must be updated
+          // _OUTSIDE_ of the (beginRenderPass ... endRenderPass)
           cb.updateBuffer(
-            ubo.buffer(), 0, sizeof(u), (const void*)&u
+            ubo.buffer(), 0, sizeof(Uniform)*U.size(), (const void*)&U[0]
           );
+
           // We may or may not need this barrier. It is probably a good precaution.
           ubo.barrier(
-            cb, vk::PipelineStageFlagBits::eHost, vk::PipelineStageFlagBits::eTopOfPipe,
-            vk::DependencyFlagBits::eByRegion,
-            vk::AccessFlagBits::eHostWrite, vk::AccessFlagBits::eShaderRead, qfi, qfi
+            cb,
+            vk::PipelineStageFlagBits::eHost, //srcStageMask
+            vk::PipelineStageFlagBits::eFragmentShader, //dstStageMask
+            vk::DependencyFlagBits::eByRegion, //dependencyFlags
+            vk::AccessFlagBits::eHostWrite, //srcAccessMask
+            vk::AccessFlagBits::eShaderRead, //dstAccessMask
+            fw.graphicsQueueFamilyIndex(), //srcQueueFamilyIndex
+            fw.graphicsQueueFamilyIndex() //dstQueueFamilyIndex
           );
-          // Unlike in the pushConstants example, we need to bind descriptor sets
-          // to tell the shader where to find our buffer.
-          cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *pipelineLayout_, 0, sets[0], nullptr);
 
-          cb.beginRenderPass(rpbi, vk::SubpassContents::eInline);
           cb.bindPipeline(vk::PipelineBindPoint::eGraphics, *pipeline);
-
           cb.bindVertexBuffers(0, buffer.buffer(), vk::DeviceSize(0));
-          cb.draw(3, 1, 0, 0);
+  
+          cb.beginRenderPass(rpbi, vk::SubpassContents::eInline);
+
+          // draw multiple triangles with different Uniforms.
+          for (auto descriptorSet : descriptorSets) {
+            // Unlike in the pushConstants example, we need to bind descriptor sets
+            // to tell the shader where to find our buffer.
+            cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *pipelineLayout, 0, descriptorSet, nullptr);
+            cb.draw(vertices.size(), 1, 0, 0);
+          };
+
           cb.endRenderPass();
+  
           cb.end();
         }
       );
 
       // Very crude method to prevent your GPU from overheating.
-      std::this_thread::sleep_for(std::chrono::milliseconds(16));
+      //std::this_thread::sleep_for(std::chrono::milliseconds(16));
+  
+      ++frame;
     }
 
     // Wait until all drawing is done and then kill the window.
     device.waitIdle();
     // The Framework and Window objects will be destroyed here.
   }
+
   glfwDestroyWindow(glfwwindow);
   glfwTerminate();
+
   return 0;
 }
