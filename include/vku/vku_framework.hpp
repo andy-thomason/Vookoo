@@ -64,6 +64,7 @@ public:
   Framework(const std::string &name, const int deviceId=0) {
     vku::InstanceMaker im{};
     im.defaultLayers();
+    im.extension(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME); // added for multiview extension
     instance_ = im.createUnique();
 
     callback_ = DebugCallback(*instance_);
@@ -107,6 +108,7 @@ public:
     vku::DeviceMaker dm{};
     dm.defaultLayers();
     dm.queue(graphicsQueueFamilyIndex_);
+    dm.extension(VK_KHR_MULTIVIEW_EXTENSION_NAME); // added for multiview extension
     if (computeQueueFamilyIndex_ != graphicsQueueFamilyIndex_) dm.queue(computeQueueFamilyIndex_);
     device_ = dm.createUnique(physical_device_);
 

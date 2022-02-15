@@ -9,6 +9,7 @@
 #define VKU_NO_GLFW
 #include <vku/vku.hpp>
 #include <vku/vku_framework.hpp>
+#include <algorithm>
 
 int main() {
   vku::Framework fw{"Hello compute"};
@@ -23,75 +24,109 @@ int main() {
   auto descriptorPool = fw.descriptorPool();
   auto memprops = fw.memprops();
 
-  typedef vk::CommandPoolCreateFlagBits ccbits;
-  vk::CommandPoolCreateInfo cpci{ ccbits::eTransient|ccbits::eResetCommandBuffer, fw.computeQueueFamilyIndex() };
-  auto commandPool = device.createCommandPoolUnique(cpci);
-
-  static constexpr int N = 128;
-
+  ////////////////////////////////////////
+  //
+  // Create Push Constant Buffer
   // Up to 256 bytes of immediate data.
   struct PushConstants {
     float value;   // The shader just adds this to the buffer.
     float pad[3];  // Buffers are usually 16 byte aligned.
   };
 
-  // Descriptor set layout.
+  ////////////////////////////////////////
+  //
+  // Create a buffer to store the results in.
+  // Note: this won't work for everyone. With some devices you
+  // may need to explictly upload and download data.
+  static constexpr int N = 128;
+  auto mybuf = vku::GenericBuffer(
+      device, 
+      memprops, 
+      vk::BufferUsageFlagBits::eStorageBuffer, 
+      N * sizeof(float), 
+      vk::MemoryPropertyFlagBits::eHostVisible
+  );
+
+  ////////////////////////////////////////
+  //
+  // Build the descriptor sets
   // Shader has access to a single storage buffer.
   vku::DescriptorSetLayoutMaker dsetlm{};
   dsetlm.buffer(0U, vk::DescriptorType::eStorageBuffer, vk::ShaderStageFlagBits::eCompute, 1);
+
   auto dsetLayout = dsetlm.createUnique(device);
 
   // The descriptor set itself.
   vku::DescriptorSetMaker dsm{};
   dsm.layout(*dsetLayout);
+
   auto dsets = dsm.create(device, descriptorPool);
   auto descriptorSet = dsets[0];
 
   // Pipeline layout.
   // Shader has one descriptor set and some push constants.
   vku::PipelineLayoutMaker plm{};
-  plm.descriptorSetLayout(*dsetLayout);
-  plm.pushConstantRange(vk::ShaderStageFlagBits::eCompute, 0, sizeof(PushConstants));
+  plm.descriptorSetLayout(*dsetLayout)
+     .pushConstantRange(vk::ShaderStageFlagBits::eCompute, 0, sizeof(PushConstants));
+
   auto pipelineLayout = plm.createUnique(device);
  
-  // The pipeline itself. 
+  ////////////////////////////////////////
+  //
+  // Build the final pipeline 
   auto shader = vku::ShaderModule{device, BINARY_DIR "helloCompute.comp.spv"};
+
   vku::ComputePipelineMaker cpm{};
   cpm.shader(vk::ShaderStageFlagBits::eCompute, shader);
+
   auto pipeline = cpm.createUnique(device, cache, *pipelineLayout);
 
-  // A buffer to store the results in.
-  // Note: this won't work for everyone. With some devices you
-  // may need to explictly upload and download data.
-  using bflags = vk::BufferUsageFlagBits;
-  using mflags = vk::MemoryPropertyFlagBits;
-  auto mybuf = vku::GenericBuffer(device, memprops, bflags::eStorageBuffer, N * sizeof(float), mflags::eHostVisible);
-
+  ////////////////////////////////////////
+  //
+  // Update the descriptor sets for the shader uniforms.
   vku::DescriptorSetUpdater update;
-  update.beginDescriptorSet(descriptorSet);
-  update.beginBuffers(0, 0, vk::DescriptorType::eStorageBuffer);
-  update.buffer(mybuf.buffer(), 0, N * sizeof(float));
-  update.update(device); // this only copies the pointer, not any data.
+  update.beginDescriptorSet(descriptorSet)
+        .beginBuffers(0, 0, vk::DescriptorType::eStorageBuffer)
+        .buffer(mybuf.buffer(), 0, N * sizeof(float))
+        .update(device); // this only copies the pointer, not any data.
 
-  // Run some code on the GPU.
-  vku::executeImmediately(device, *commandPool, fw.computeQueue(), [&](vk::CommandBuffer cb) {
-    PushConstants cu = {2.0f};
-    cb.pushConstants(*pipelineLayout, vk::ShaderStageFlagBits::eCompute, 0, sizeof(PushConstants), &cu);
+  ////////////////////////////////////////
+  //
+  // Create Command Pool
+  //
+  vk::CommandPoolCreateInfo cpci{ 
+    .flags = vk::CommandPoolCreateFlagBits::eTransient 
+           | vk::CommandPoolCreateFlagBits::eResetCommandBuffer, 
+    .queueFamilyIndex = fw.computeQueueFamilyIndex()
+  };
+  auto commandPool = device.createCommandPoolUnique(cpci);
 
-    cb.bindDescriptorSets(vk::PipelineBindPoint::eCompute, *pipelineLayout, 0, descriptorSet, nullptr);
-    cb.bindPipeline(vk::PipelineBindPoint::eCompute, *pipeline);
-    cb.dispatch(N, 1, 1);
-  });
+  ////////////////////////////////////////
+  //
+  // Run compute shader on the GPU.
+  vku::executeImmediately(device, *commandPool, fw.computeQueue(), 
+    [&](vk::CommandBuffer cb) {
+      PushConstants cu{
+        .value = 2.0f,
+        .pad = {0.0f, 0.0f, 0.0f}
+      };
+      cb.pushConstants(*pipelineLayout, vk::ShaderStageFlagBits::eCompute, 0, sizeof(PushConstants), &cu);
+
+      cb.bindDescriptorSets(vk::PipelineBindPoint::eCompute, *pipelineLayout, 0, descriptorSet, nullptr);
+      cb.bindPipeline(vk::PipelineBindPoint::eCompute, *pipeline);
+      cb.dispatch(N, 1, 1);
+    }
+  );
 
   device.waitIdle();
 
-  // Print the result (2.0f + 0..127)
-  float * p = (float*)mybuf.map(device);
-  for (int i = 0; i != N; ++i) {
-    printf("%f ", p[i]);
-  }
-  printf("\n");
+  ////////////////////////////////////////
+  //
+  // Show result of compute shader -> (2.0f + 0..127)
+  float *values = static_cast<float*>( mybuf.map(device) );
+  std::for_each(values, values+N, [](float &value){ 
+    std::cout << value << " "; 
+  });
+  std::cout << std::endl;
   mybuf.unmap(device);
 }
-
-

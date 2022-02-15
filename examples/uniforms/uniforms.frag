@@ -1,12 +1,13 @@
-#version 450
+#version 460
 
 layout(location = 0) in vec3 fragColour;
 layout(location = 0) out vec4 outColour;
 
-// Instead of push_constant we use a binding.
+// Instead of push_constant we use a binding
 layout (binding = 0) uniform Uniform {
   vec4 colour;
   mat4 rotation;
+  vec4 filler[3];
 } u;
 
 void main() {

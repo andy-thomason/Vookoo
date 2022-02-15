@@ -395,6 +395,9 @@ public:
   DeviceMaker &defaultLayers() {
     layers_.push_back("VK_LAYER_LUNARG_standard_validation");
     device_extensions_.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
+    // VK_KHR_MAINTENANCE1 is required for using negative viewport heights
+    // Note: This is core as of Vulkan 1.1. So if you target 1.1 you don't have to explicitly enable this
+    device_extensions_.push_back(VK_KHR_MAINTENANCE1_EXTENSION_NAME);
     return *this;
   }
 
@@ -425,10 +428,25 @@ public:
 
   /// Create a new logical device.
   vk::UniqueDevice createUnique(vk::PhysicalDevice physical_device) {
-    return physical_device.createDeviceUnique(vk::DeviceCreateInfo{
-        {}, (uint32_t)qci_.size(), qci_.data(),
-        (uint32_t)layers_.size(), layers_.data(),
-        (uint32_t)device_extensions_.size(), device_extensions_.data()});
+    auto dci = vk::DeviceCreateInfo{
+      {},
+      (uint32_t)qci_.size(), qci_.data(),
+      (uint32_t)layers_.size(), layers_.data(),
+      (uint32_t)device_extensions_.size(), device_extensions_.data()
+    };
+
+    //
+    vk::PhysicalDeviceFeatures pdfs;
+    pdfs.setGeometryShader(true); // required to enable and use geometry shader
+    pdfs.setTessellationShader(true); // required to enable and use tesselation shaders
+    dci.setPEnabledFeatures(&pdfs);
+
+    // required to enable and use multiview
+    vk::PhysicalDeviceMultiviewFeatures physicalDeviceMultiviewFeatures;
+    physicalDeviceMultiviewFeatures.setMultiview(true);
+    dci.pNext = &physicalDeviceMultiviewFeatures;
+
+    return physical_device.createDeviceUnique(dci);
   }
 private:
   std::vector<const char *> layers_;
@@ -512,7 +530,7 @@ public:
   }
 
   RenderpassMaker& attachmentFlags(vk::AttachmentDescriptionFlags value) { s.attachmentDescriptions.back().flags = value; return *this;};
-  RenderpassMaker&attachmentFormat(vk::Format value) { s.attachmentDescriptions.back().format = value; return *this;};
+  RenderpassMaker& attachmentFormat(vk::Format value) { s.attachmentDescriptions.back().format = value; return *this;};
   RenderpassMaker& attachmentSamples(vk::SampleCountFlagBits value) { s.attachmentDescriptions.back().samples = value; return *this;};
   RenderpassMaker& attachmentLoadOp(vk::AttachmentLoadOp value) { s.attachmentDescriptions.back().loadOp = value; return *this;};
   RenderpassMaker& attachmentStoreOp(vk::AttachmentStoreOp value) { s.attachmentDescriptions.back().storeOp = value;  return *this; };
@@ -904,6 +922,7 @@ public:
     pipelineInfo.renderPass = renderPass;
     pipelineInfo.pDynamicState = dynamicState_.empty() ? nullptr : &dynState;
     pipelineInfo.subpass = subpass_;
+    pipelineInfo.pTessellationState = &tessellationState_;
 
     return device.createGraphicsPipelineUnique(pipelineCache, pipelineInfo);
   }
@@ -1021,6 +1040,10 @@ public:
   /// Usually this is a triangle list, but points and lines are possible too.
   PipelineMaker &topology( vk::PrimitiveTopology topology ) { inputAssemblyState_.topology = topology; return *this; }
 
+  /// Specify patch count.
+  /// Applies when (inputAssemblyState_.topology == vk::PrimitiveTopology::ePatchList).
+  PipelineMaker &setPatchControlPoints( uint32_t patchControlPoints ) { tessellationState_.setPatchControlPoints(patchControlPoints); return *this; }
+
   /// Enable or disable primitive restart.
   /// If using triangle strips, for example, this allows a special index value (0xffff or 0xffffffff) to start a new strip.
   PipelineMaker &primitiveRestartEnable( vk::Bool32 primitiveRestartEnable ) { inputAssemblyState_.primitiveRestartEnable = primitiveRestartEnable; return *this; }
@@ -1091,6 +1114,7 @@ private:
   vk::PipelineMultisampleStateCreateInfo multisampleState_;
   vk::PipelineDepthStencilStateCreateInfo depthStencilState_;
   vk::PipelineColorBlendStateCreateInfo colorBlendState_;
+  vk::PipelineTessellationStateCreateInfo tessellationState_;
   std::vector<vk::PipelineColorBlendAttachmentState> colorBlendAttachments_;
   std::vector<vk::PipelineShaderStageCreateInfo> modules_;
   std::vector<std::unique_ptr<SpecData>> moduleSpecializations_;
@@ -1618,7 +1642,7 @@ public:
     cb.copyBufferToImage(buffer, *s.image, vk::ImageLayout::eTransferDstOptimal, region);
   }
 
-  void upload(vk::Device device, std::vector<uint8_t> &bytes, vk::CommandPool commandPool, vk::PhysicalDeviceMemoryProperties memprops, vk::Queue queue) {
+  void upload(vk::Device device, std::vector<uint8_t> &bytes, vk::CommandPool commandPool, vk::PhysicalDeviceMemoryProperties memprops, vk::Queue queue, vk::ImageLayout finalLayout=vk::ImageLayout::eShaderReadOnlyOptimal) {
     vku::GenericBuffer stagingBuffer(device, memprops, (vk::BufferUsageFlags)vk::BufferUsageFlagBits::eTransferSrc, (vk::DeviceSize)bytes.size(), vk::MemoryPropertyFlagBits::eHostVisible);
     stagingBuffer.updateLocal(device, (const void*)bytes.data(), bytes.size());
 
@@ -1636,7 +1660,7 @@ public:
           offset += ((bp.bytesPerBlock + 3) & ~3) * (width * height);
         }
       }
-      setLayout(cb, vk::ImageLayout::eShaderReadOnlyOptimal);
+      setLayout(cb, finalLayout);
     });
   }
 
@@ -1795,12 +1819,12 @@ public:
     info.arrayLayers = 6;
     info.samples = vk::SampleCountFlagBits::e1;
     info.tiling = hostImage ? vk::ImageTiling::eLinear : vk::ImageTiling::eOptimal;
-    info.usage = vk::ImageUsageFlagBits::eSampled|vk::ImageUsageFlagBits::eTransferSrc|vk::ImageUsageFlagBits::eTransferDst;
+    info.usage = vk::ImageUsageFlagBits::eColorAttachment|vk::ImageUsageFlagBits::eSampled|vk::ImageUsageFlagBits::eTransferSrc|vk::ImageUsageFlagBits::eTransferDst;
     info.sharingMode = vk::SharingMode::eExclusive;
     info.queueFamilyIndexCount = 0;
     info.pQueueFamilyIndices = nullptr;
-    //info.initialLayout = hostImage ? vk::ImageLayout::ePreinitialized : vk::ImageLayout::eUndefined;
-    info.initialLayout = vk::ImageLayout::ePreinitialized;
+    info.initialLayout = hostImage ? vk::ImageLayout::ePreinitialized : vk::ImageLayout::eUndefined;
+    //info.initialLayout = vk::ImageLayout::ePreinitialized;
     create(device, memprops, info, vk::ImageViewType::eCube, vk::ImageAspectFlagBits::eColor, hostImage);
   }
 private:
@@ -1851,7 +1875,7 @@ public:
     info.arrayLayers = 1;
     info.samples = vk::SampleCountFlagBits::e1;
     info.tiling = vk::ImageTiling::eOptimal;
-    info.usage = vk::ImageUsageFlagBits::eColorAttachment|vk::ImageUsageFlagBits::eTransferSrc|vk::ImageUsageFlagBits::eSampled;
+    info.usage = vk::ImageUsageFlagBits::eColorAttachment|vk::ImageUsageFlagBits::eTransferSrc|vk::ImageUsageFlagBits::eTransferDst|vk::ImageUsageFlagBits::eSampled;
     info.sharingMode = vk::SharingMode::eExclusive;
     info.queueFamilyIndexCount = 0;
     info.pQueueFamilyIndices = nullptr;

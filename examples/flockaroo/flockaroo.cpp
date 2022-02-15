@@ -115,77 +115,76 @@ int main() {
   vku::ColorAttachmentImage iChannelPong{device, fw.memprops(), advectionSize, advectionSize, vk::Format::eR32G32B32A32Sfloat};
   vku::TextureImage2D iChannel1{device, fw.memprops(), advectionSize, advectionSize, 1, vk::Format::eR8G8B8A8Unorm};
 
-  //iChannelPing.upload(device, pixels0, window.commandPool(), fw.memprops(), fw.graphicsQueue());
-  //iChannelPong.upload(device, pixels0, window.commandPool(), fw.memprops(), fw.graphicsQueue());
+  iChannelPing.upload(device, pixels0, window.commandPool(), fw.memprops(), fw.graphicsQueue(), vk::ImageLayout::eGeneral);
+  iChannelPong.upload(device, pixels0, window.commandPool(), fw.memprops(), fw.graphicsQueue(), vk::ImageLayout::eGeneral);
   iChannel1.upload(device, pixels1, window.commandPool(), fw.memprops(), fw.graphicsQueue());
+
+  // Create linearSampler
+  vku::SamplerMaker sm{};
+  auto linearSampler = sm
+    .magFilter( vk::Filter::eLinear )
+    .minFilter( vk::Filter::eLinear )
+    .mipmapMode( vk::SamplerMipmapMode::eNearest )
+    .createUnique(device);
 
   ////////////////////////////////////////
   //
   // Build the descriptor sets
 
   vku::DescriptorSetLayoutMaker dslm{};
-  dslm.buffer(0, vk::DescriptorType::eUniformBuffer, vk::ShaderStageFlagBits::eVertex|vk::ShaderStageFlagBits::eFragment, 1)
-      .image(1, vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eFragment, 1)
-      .image(2, vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eFragment, 1);
-
-  auto descriptorSetLayout = dslm.createUnique(device);
-
-  vku::DescriptorSetMaker dsm{};
-  dsm.layout(*descriptorSetLayout);
-  dsm.layout(*descriptorSetLayout);
-
-  auto descriptorSets = dsm.create(device, fw.descriptorPool());
-
-  // This pipeline layout is shared amongst several pipelines.
-  vku::PipelineLayoutMaker plm{};
-  plm.descriptorSetLayout(*descriptorSetLayout);
-
-  auto pipelineLayout = plm.createUnique(device);
+  auto descriptorSetLayout = dslm
+    .buffer(0, vk::DescriptorType::eUniformBuffer, vk::ShaderStageFlagBits::eVertex|vk::ShaderStageFlagBits::eFragment, 1)
+    .image(1, vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eFragment, 1)
+    .image(2, vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eFragment, 1)
+    .createUnique(device);
 
   ////////////////////////////////////////
   //
-  // Update the descriptor sets for the shader uniforms.
+  // This pipeline layout is shared amongst several pipelines.
 
-  // Create linearSampler
-  vku::SamplerMaker sm{};
-  sm.magFilter( vk::Filter::eLinear )
-    .minFilter( vk::Filter::eLinear )
-    .mipmapMode( vk::SamplerMipmapMode::eNearest );
-  vk::UniqueSampler linearSampler = sm.createUnique(device);
+  vku::PipelineLayoutMaker plm{};
+  auto pipelineLayout = plm
+    .descriptorSetLayout(*descriptorSetLayout)
+    .createUnique(device);
 
-  // Create nearestSampler
-  vku::SamplerMaker ssm{};
-  ssm.magFilter( vk::Filter::eNearest )
-     .minFilter( vk::Filter::eNearest )
-     .mipmapMode( vk::SamplerMipmapMode::eNearest );
-  vk::UniqueSampler nearestSampler = ssm.createUnique(device);
+  ////////////////////////////////////////
+  //
+  // Define the particular descriptor sets for the shader uniforms.
+
+  vku::DescriptorSetMaker dsm{};
+  auto descriptorSets = dsm
+    .layout(*descriptorSetLayout) // ping: index=0 for input "uniform sampler2D iChannel0" being iChannelPing
+    .layout(*descriptorSetLayout) // pong: index=1 for input "uniform sampler2D iChannel0" being iChannelPong
+    .create(device, fw.descriptorPool());
 
   vku::DescriptorSetUpdater dsu;
-  dsu.beginDescriptorSet(descriptorSets[0])
-     // Set initial uniform buffer value
-     .beginBuffers(0, 0, vk::DescriptorType::eUniformBuffer)
-     .buffer(ubo.buffer(), 0, sizeof(Uniform))
-     // Set initial linearSampler value
-     .beginImages(1, 0, vk::DescriptorType::eCombinedImageSampler)
-     .image(*linearSampler, iChannelPing.imageView(), vk::ImageLayout::eGeneral)
-     // Set initial linearSampler value
-     .beginImages(2, 0, vk::DescriptorType::eCombinedImageSampler)
-     .image(*linearSampler, iChannel1.imageView(), vk::ImageLayout::eShaderReadOnlyOptimal)
-     // update the descriptor sets with their pointers (but not data).
-     .update(device);
+  dsu
+    //-- descriptorSets[0]
+    .beginDescriptorSet(descriptorSets[0])
+    // layout (binding = 0) uniform Uniform
+    .beginBuffers(0, 0, vk::DescriptorType::eUniformBuffer)
+    .buffer(ubo.buffer(), 0, sizeof(Uniform))
+    // layout (binding = 1) uniform sampler2D iChannel0
+    .beginImages(1, 0, vk::DescriptorType::eCombinedImageSampler)
+    .image(*linearSampler, iChannelPing.imageView(), vk::ImageLayout::eGeneral)
+    // layout (binding = 2) uniform sampler2D iChannel1
+    .beginImages(2, 0, vk::DescriptorType::eCombinedImageSampler)
+    .image(*linearSampler, iChannel1.imageView(), vk::ImageLayout::eShaderReadOnlyOptimal)
 
-  dsu.beginDescriptorSet(descriptorSets[1])
-     // Set initial uniform buffer value
-     .beginBuffers(0, 0, vk::DescriptorType::eUniformBuffer)
-     .buffer(ubo.buffer(), 0, sizeof(Uniform))
-     // Set initial linearSampler value
-     .beginImages(1, 0, vk::DescriptorType::eCombinedImageSampler)
-     .image(*linearSampler, iChannelPong.imageView(), vk::ImageLayout::eGeneral)
-     // Set initial linearSampler value
-     .beginImages(2, 0, vk::DescriptorType::eCombinedImageSampler)
-     .image(*linearSampler, iChannel1.imageView(), vk::ImageLayout::eShaderReadOnlyOptimal)
-     // update the descriptor sets with their pointers (but not data).
-     .update(device);
+    //-- descriptorSets[1]
+    .beginDescriptorSet(descriptorSets[1])
+    // layout (binding = 0) uniform Uniform
+    .beginBuffers(0, 0, vk::DescriptorType::eUniformBuffer)
+    .buffer(ubo.buffer(), 0, sizeof(Uniform))
+    // layout (binding = 1) uniform sampler2D iChannel0
+    .beginImages(1, 0, vk::DescriptorType::eCombinedImageSampler)
+    .image(*linearSampler, iChannelPong.imageView(), vk::ImageLayout::eGeneral)
+    // layout (binding = 2) uniform sampler2D iChannel1
+    .beginImages(2, 0, vk::DescriptorType::eCombinedImageSampler)
+    .image(*linearSampler, iChannel1.imageView(), vk::ImageLayout::eShaderReadOnlyOptimal)
+
+    //-- update the descriptor sets with their pointers (but not data).
+    .update(device);
 
   ////////////////////////////////////////
   //
@@ -195,223 +194,164 @@ int main() {
   vku::ShaderModule final_frag{device, BINARY_DIR "flockaroo.frag.spv"};
 
   vku::PipelineMaker pm{window.width(), window.height()};
-  pm.shader(vk::ShaderStageFlagBits::eVertex, final_vert)
+  auto finalPipeline = pm
+    .shader(vk::ShaderStageFlagBits::eVertex, final_vert)
     .shader(vk::ShaderStageFlagBits::eFragment, final_frag)
     .vertexBinding(0, sizeof(Vertex))
     .vertexAttribute(0, 0, vk::Format::eR32G32B32Sfloat, offsetof(Vertex, pos))
     .depthTestEnable(VK_TRUE)
     .cullMode(vk::CullModeFlagBits::eBack)
     .frontFace(vk::FrontFace::eClockwise)
-    .viewport(viewport);
-
-  auto finalPipeline = pm.createUnique(device, fw.pipelineCache(), *pipelineLayout, window.renderPass());
+    .viewport(viewport)
+    .createUnique(device, fw.pipelineCache(), *pipelineLayout, window.renderPass());
 
   ////////////////////////////////////////
   //
   // Build the advection pipeline
-  //
+  // (added effort required to construct ping&pong output framebuffers) 
 
   vku::ShaderModule advection_vert{device, BINARY_DIR "flockaroo.vert.spv"};
   vku::ShaderModule advection_frag{device, BINARY_DIR "advection.frag.spv"};
 
+  ////////////////////////////////////////
+  //
+  // Helper for building shared Advection render passes
+  // that only differ by particular output attachment iChannelX.format() 
+  //
+  auto RenderPassAdvection = [&device](vk::Format iChannelXformat)->vk::UniqueRenderPass {
+    // Build the renderpass writing to iChannelX 
+    vku::RenderpassMaker rpm;
+    return rpm
+      // The only colour attachment.
+     .attachmentBegin(iChannelXformat)
+     .attachmentSamples(vk::SampleCountFlagBits::e1)
+     .attachmentLoadOp(vk::AttachmentLoadOp::eDontCare)
+     .attachmentStoreOp(vk::AttachmentStoreOp::eStore)
+     .attachmentStencilLoadOp(vk::AttachmentLoadOp::eDontCare)
+     .attachmentStencilStoreOp(vk::AttachmentStoreOp::eDontCare)
+     .attachmentInitialLayout(vk::ImageLayout::eUndefined)
+     .attachmentFinalLayout(vk::ImageLayout::eGeneral)
+      // A subpass to render using the above attachment(s).
+     .subpassBegin(vk::PipelineBindPoint::eGraphics)
+     .subpassColorAttachment(vk::ImageLayout::eGeneral, 0)
+      // Define dependencies, https://gpuopen.com/vulkan-barriers-explained/
+      //
+      //  [ ]TOP_OF_PIPE -------------------------------------------------
+      //  [ ]DRAW_INDIRECT
+      //  [ ]VERTEX_INPUT
+      //  [ ]VERTEX_SHADER
+      //  [ ]TESSELLATION_CONTROL_SHADER
+      //  [ ]TESSELLATION_EVALUATION_SHADER  [ ]COMPUTE_SHADER  [ ]TRANSFER
+      //  [ ]GEOMETRY_SHADER
+      //  [ ]EARLY_FRAGMENT_TESTS
+      //  [S]FRAGMENT_SHADER
+      //  [ ]LATE_FRAGMENT_TESTS
+      //  [ ]COLOR_ATTACHMENT_OUTPUT
+      //  [ ]BOTTOM_OF_PIPE ----------------------------------------------
+      //
+      //  [ ]TOP_OF_PIPE -------------------------------------------------
+      //  [ ]DRAW_INDIRECT
+      //  [ ]VERTEX_INPUT
+      //  [ ]VERTEX_SHADER
+      //  [ ]TESSELLATION_CONTROL_SHADER
+      //  [ ]TESSELLATION_EVALUATION_SHADER  [ ]COMPUTE_SHADER  [ ]TRANSFER
+      //  [ ]GEOMETRY_SHADER
+      //  [ ]EARLY_FRAGMENT_TESTS
+      //  [ ]FRAGMENT_SHADER
+      //  [ ]LATE_FRAGMENT_TESTS
+      //  [D]COLOR_ATTACHMENT_OUTPUT
+      //  [ ]BOTTOM_OF_PIPE ----------------------------------------------
+      //
+      // The special value VK_SUBPASS_EXTERNAL refers to the 
+      // implicit subpass before or after the render pass depending on 
+      // whether it is specified in srcSubpass or dstSubpass.
+      //
+      // dependency: If srcSubpass is equal to VK_SUBPASS_EXTERNAL, 
+      // the first synchronization scope includes commands that occur earlier
+      // in submission order than the vkCmdBeginRenderPass used to begin the
+      // render pass instance.` 
+     .dependencyBegin(VK_SUBPASS_EXTERNAL, 0)
+     //VK_ACCESS_INPUT_ATTACHMENT_READ_BIT
+     //VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT
+     .dependencySrcAccessMask(vk::AccessFlagBits::eInputAttachmentRead)
+     .dependencySrcStageMask(vk::PipelineStageFlagBits::eFragmentShader)
+     //VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT
+     //VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
+     .dependencyDstAccessMask(vk::AccessFlagBits::eColorAttachmentWrite)
+     .dependencyDstStageMask(vk::PipelineStageFlagBits::eColorAttachmentOutput)
+     .dependencyDependencyFlags(vk::DependencyFlagBits::eByRegion)
+     // dependency: If dstSubpass is equal to VK_SUBPASS_EXTERNAL, 
+     // the second synchronization scope includes commands that occur later
+     // in submission order than the vkCmdEndRenderPass used to end the 
+     // render pass instance.
+     .dependencyBegin(0, VK_SUBPASS_EXTERNAL)
+     //VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT
+     //VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
+     .dependencySrcAccessMask(vk::AccessFlagBits::eColorAttachmentWrite)
+     .dependencySrcStageMask(vk::PipelineStageFlagBits::eColorAttachmentOutput)
+     //VK_ACCESS_INPUT_ATTACHMENT_READ_BIT
+     //VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT
+     .dependencyDstAccessMask(vk::AccessFlagBits::eInputAttachmentRead)
+     .dependencyDstStageMask(vk::PipelineStageFlagBits::eFragmentShader)
+     .dependencyDependencyFlags(vk::DependencyFlagBits::eByRegion)
+     // Finally use the maker method to construct this renderpass
+     .createUnique(device);
+  };
+
+  // Build the Advection renderpass able to write to either iChannelPing or iChannelPong (depends on image format of both being identical)
+  assert(vk::Format::eR32G32B32A32Sfloat == iChannelPing.format() && iChannelPing.format()==iChannelPong.format());
+  vk::UniqueRenderPass advectionRenderPass = RenderPassAdvection(vk::Format::eR32G32B32A32Sfloat); 
+
+  // Build the shared pipeline (ping&pong) for Advection renderpass.
   vku::PipelineMaker spm{advectionSize, advectionSize};
-  spm.shader(vk::ShaderStageFlagBits::eVertex, advection_vert)
-     .shader(vk::ShaderStageFlagBits::eFragment, advection_frag)
-     .vertexBinding(0, sizeof(Vertex))
-     .vertexAttribute(0, 0, vk::Format::eR32G32B32Sfloat, offsetof(Vertex, pos))
-     .cullMode( vk::CullModeFlagBits::eBack )
-     .frontFace( vk::FrontFace::eClockwise );
+  auto advectionPipeline = spm
+    .shader(vk::ShaderStageFlagBits::eVertex, advection_vert)
+    .shader(vk::ShaderStageFlagBits::eFragment, advection_frag)
+    .vertexBinding(0, sizeof(Vertex))
+    .vertexAttribute(0, 0, vk::Format::eR32G32B32Sfloat, offsetof(Vertex, pos))
+    .cullMode( vk::CullModeFlagBits::eBack )
+    .frontFace( vk::FrontFace::eClockwise )
+    .createUnique(device, fw.pipelineCache(), *pipelineLayout, *advectionRenderPass);
 
-  // Build the renderpass writing to iChannelPing 
-  vku::RenderpassMaker rpmPing;
-  vk::UniqueRenderPass advectionRenderPassPing = rpmPing
-      // The only colour attachment.
-     .attachmentBegin(iChannelPing.format())
-     .attachmentSamples(vk::SampleCountFlagBits::e1)
-     .attachmentLoadOp(vk::AttachmentLoadOp::eDontCare)
-     .attachmentStoreOp(vk::AttachmentStoreOp::eStore)
-     .attachmentStencilLoadOp(vk::AttachmentLoadOp::eDontCare)
-     .attachmentStencilStoreOp(vk::AttachmentStoreOp::eDontCare)
-     .attachmentInitialLayout(vk::ImageLayout::eUndefined)
-     .attachmentFinalLayout(vk::ImageLayout::eGeneral)
-      // A subpass to render using the above attachment(s).
-     .subpassBegin(vk::PipelineBindPoint::eGraphics)
-     .subpassColorAttachment(vk::ImageLayout::eGeneral, 0)
-      // Define dependencies, https://gpuopen.com/vulkan-barriers-explained/
-      //
-      //  [ ]TOP_OF_PIPE -------------------------------------------------
-      //  [ ]DRAW_INDIRECT
-      //  [ ]VERTEX_INPUT
-      //  [ ]VERTEX_SHADER
-      //  [ ]TESSELLATION_CONTROL_SHADER
-      //  [ ]TESSELLATION_EVALUATION_SHADER  [ ]COMPUTE_SHADER  [ ]TRANSFER
-      //  [ ]GEOMETRY_SHADER
-      //  [ ]EARLY_FRAGMENT_TESTS
-      //  [S]FRAGMENT_SHADER
-      //  [ ]LATE_FRAGMENT_TESTS
-      //  [ ]COLOR_ATTACHMENT_OUTPUT
-      //  [ ]BOTTOM_OF_PIPE ----------------------------------------------
-      //
-      //  [ ]TOP_OF_PIPE -------------------------------------------------
-      //  [ ]DRAW_INDIRECT
-      //  [ ]VERTEX_INPUT
-      //  [ ]VERTEX_SHADER
-      //  [ ]TESSELLATION_CONTROL_SHADER
-      //  [ ]TESSELLATION_EVALUATION_SHADER  [ ]COMPUTE_SHADER  [ ]TRANSFER
-      //  [ ]GEOMETRY_SHADER
-      //  [ ]EARLY_FRAGMENT_TESTS
-      //  [ ]FRAGMENT_SHADER
-      //  [ ]LATE_FRAGMENT_TESTS
-      //  [D]COLOR_ATTACHMENT_OUTPUT
-      //  [ ]BOTTOM_OF_PIPE ----------------------------------------------
-      //
-      // The special value VK_SUBPASS_EXTERNAL refers to the 
-      // implicit subpass before or after the render pass depending on 
-      // whether it is specified in srcSubpass or dstSubpass.
-      //
-      // dependency: If srcSubpass is equal to VK_SUBPASS_EXTERNAL, 
-      // the first synchronization scope includes commands that occur earlier
-      // in submission order than the vkCmdBeginRenderPass used to begin the
-      // render pass instance.` 
-     .dependencyBegin(VK_SUBPASS_EXTERNAL, 0)
-     //VK_ACCESS_INPUT_ATTACHMENT_READ_BIT
-     //VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT
-     .dependencySrcAccessMask(vk::AccessFlagBits::eInputAttachmentRead)
-     .dependencySrcStageMask(vk::PipelineStageFlagBits::eFragmentShader)
-     //VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT
-     //VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
-     .dependencyDstAccessMask(vk::AccessFlagBits::eColorAttachmentWrite)
-     .dependencyDstStageMask(vk::PipelineStageFlagBits::eColorAttachmentOutput)
-     .dependencyDependencyFlags(vk::DependencyFlagBits::eByRegion)
-      // dependency: If dstSubpass is equal to VK_SUBPASS_EXTERNAL, 
-      // the second synchronization scope includes commands that occur later
-      // in submission order than the vkCmdEndRenderPass used to end the 
-      // render pass instance.
-     .dependencyBegin(0, VK_SUBPASS_EXTERNAL)
-     //VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT
-     //VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
-     .dependencySrcAccessMask(vk::AccessFlagBits::eColorAttachmentWrite)
-     .dependencySrcStageMask(vk::PipelineStageFlagBits::eColorAttachmentOutput)
-     //VK_ACCESS_INPUT_ATTACHMENT_READ_BIT
-     //VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT
-     .dependencyDstAccessMask(vk::AccessFlagBits::eInputAttachmentRead)
-     .dependencyDstStageMask(vk::PipelineStageFlagBits::eFragmentShader)
-     .dependencyDependencyFlags(vk::DependencyFlagBits::eByRegion)
-     // Finally use the maker method to construct this renderpass
-     .createUnique(device);
+  ////////////////////////////////////////
+  //
+  // Build UniqueFramebuffers for Advection's ping&pong passes
+  //
+  // Render passes operate in conjunction with framebuffers. 
+  // Framebuffers represent a collection of specific memory attachments that a render pass instance uses.
 
-  // Build the renderpass writing to iChannelPong 
-  vku::RenderpassMaker rpmPong;
-  vk::UniqueRenderPass advectionRenderPassPong = rpmPong
-      // The only colour attachment.
-     .attachmentBegin(iChannelPong.format())
-     .attachmentSamples(vk::SampleCountFlagBits::e1)
-     .attachmentLoadOp(vk::AttachmentLoadOp::eDontCare)
-     .attachmentStoreOp(vk::AttachmentStoreOp::eStore)
-     .attachmentStencilLoadOp(vk::AttachmentLoadOp::eDontCare)
-     .attachmentStencilStoreOp(vk::AttachmentStoreOp::eDontCare)
-     .attachmentInitialLayout(vk::ImageLayout::eUndefined)
-     .attachmentFinalLayout(vk::ImageLayout::eGeneral)
-      // A subpass to render using the above attachment(s).
-     .subpassBegin(vk::PipelineBindPoint::eGraphics)
-     .subpassColorAttachment(vk::ImageLayout::eGeneral, 0)
-      // Define dependencies, https://gpuopen.com/vulkan-barriers-explained/
-      //
-      //  [ ]TOP_OF_PIPE -------------------------------------------------
-      //  [ ]DRAW_INDIRECT
-      //  [ ]VERTEX_INPUT
-      //  [ ]VERTEX_SHADER
-      //  [ ]TESSELLATION_CONTROL_SHADER
-      //  [ ]TESSELLATION_EVALUATION_SHADER  [ ]COMPUTE_SHADER  [ ]TRANSFER
-      //  [ ]GEOMETRY_SHADER
-      //  [ ]EARLY_FRAGMENT_TESTS
-      //  [S]FRAGMENT_SHADER
-      //  [ ]LATE_FRAGMENT_TESTS
-      //  [ ]COLOR_ATTACHMENT_OUTPUT
-      //  [ ]BOTTOM_OF_PIPE ----------------------------------------------
-      //
-      //  [ ]TOP_OF_PIPE -------------------------------------------------
-      //  [ ]DRAW_INDIRECT
-      //  [ ]VERTEX_INPUT
-      //  [ ]VERTEX_SHADER
-      //  [ ]TESSELLATION_CONTROL_SHADER
-      //  [ ]TESSELLATION_EVALUATION_SHADER  [ ]COMPUTE_SHADER  [ ]TRANSFER
-      //  [ ]GEOMETRY_SHADER
-      //  [ ]EARLY_FRAGMENT_TESTS
-      //  [ ]FRAGMENT_SHADER
-      //  [ ]LATE_FRAGMENT_TESTS
-      //  [D]COLOR_ATTACHMENT_OUTPUT
-      //  [ ]BOTTOM_OF_PIPE ----------------------------------------------
-      //
-      // The special value VK_SUBPASS_EXTERNAL refers to the 
-      // implicit subpass before or after the render pass depending on 
-      // whether it is specified in srcSubpass or dstSubpass.
-      //
-      // dependency: If srcSubpass is equal to VK_SUBPASS_EXTERNAL, 
-      // the first synchronization scope includes commands that occur earlier
-      // in submission order than the vkCmdBeginRenderPass used to begin the
-      // render pass instance.` 
-     .dependencyBegin(VK_SUBPASS_EXTERNAL, 0)
-     //VK_ACCESS_INPUT_ATTACHMENT_READ_BIT
-     //VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT
-     .dependencySrcAccessMask(vk::AccessFlagBits::eInputAttachmentRead)
-     .dependencySrcStageMask(vk::PipelineStageFlagBits::eFragmentShader)
-     //VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT
-     //VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
-     .dependencyDstAccessMask(vk::AccessFlagBits::eColorAttachmentWrite)
-     .dependencyDstStageMask(vk::PipelineStageFlagBits::eColorAttachmentOutput)
-     .dependencyDependencyFlags(vk::DependencyFlagBits::eByRegion)
-      // dependency: If dstSubpass is equal to VK_SUBPASS_EXTERNAL, 
-      // the second synchronization scope includes commands that occur later
-      // in submission order than the vkCmdEndRenderPass used to end the 
-      // render pass instance.
-     .dependencyBegin(0, VK_SUBPASS_EXTERNAL)
-     //VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT
-     //VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
-     .dependencySrcAccessMask(vk::AccessFlagBits::eColorAttachmentWrite)
-     .dependencySrcStageMask(vk::PipelineStageFlagBits::eColorAttachmentOutput)
-     //VK_ACCESS_INPUT_ATTACHMENT_READ_BIT
-     //VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT
-     .dependencyDstAccessMask(vk::AccessFlagBits::eInputAttachmentRead)
-     .dependencyDstStageMask(vk::PipelineStageFlagBits::eFragmentShader)
-     .dependencyDependencyFlags(vk::DependencyFlagBits::eByRegion)
-     // Finally use the maker method to construct this renderpass
-     .createUnique(device);
-
-  // Build the pipeline for this renderpass.
-  vk::UniquePipeline advectionPipeline[] = {
-    spm.createUnique(device, fw.pipelineCache(), *pipelineLayout, *advectionRenderPassPing),
-    spm.createUnique(device, fw.pipelineCache(), *pipelineLayout, *advectionRenderPassPong)};
+  auto UniqueFramebuffers = [&device, &advectionSize](vk::UniqueRenderPass &RenderPassX, vku::ColorAttachmentImage &iChannelX) -> vk::UniqueFramebuffer {
+    // RenderPassX writes to output iChannelX
+    vk::ImageView attachmentsPassX[] = {iChannelX.imageView()};
+    vk::FramebufferCreateInfo fbciPassX{{}, *RenderPassX, sizeof(attachmentsPassX)/sizeof(vk::ImageView), attachmentsPassX, advectionSize, advectionSize, 1 };
+    vk::UniqueFramebuffer FrameBufferPassX = device.createFramebufferUnique(fbciPassX);
+    return FrameBufferPassX;
+  };
+  vk::UniqueFramebuffer advectionFrameBufferPing = UniqueFramebuffers( advectionRenderPass, iChannelPing );
+  vk::UniqueFramebuffer advectionFrameBufferPong = UniqueFramebuffers( advectionRenderPass, iChannelPong );
 
   ////////////////////////////////////////
   //
   // Build a RenderPassBeginInfo for advection
   //
 
-  // Build the framebuffer.
+  // Match in order of attachments to clear the image.
+  // kludge: Is there a better way to get really what's needed; sizeof(attachmentsP?ng)/sizeof(vk::ImageView)?
   vk::ImageView attachmentsPing[] = {iChannelPong.imageView()};
-  vk::FramebufferCreateInfo fbciPing{{}, *advectionRenderPassPing, sizeof(attachmentsPing)/sizeof(vk::ImageView), attachmentsPing, advectionSize, advectionSize, 1 };
-  vk::UniqueFramebuffer advectionFrameBufferPing = device.createFramebufferUnique(fbciPing);
-
-  vk::ImageView attachmentsPong[] = {iChannelPing.imageView()};
-  vk::FramebufferCreateInfo fbciPong{{}, *advectionRenderPassPong, sizeof(attachmentsPong)/sizeof(vk::ImageView), attachmentsPong, advectionSize, advectionSize, 1 };
-  vk::UniqueFramebuffer advectionFrameBufferPong = device.createFramebufferUnique(fbciPong);
-
-  // Match in order of attachments to clear; the image.
   std::array<vk::ClearValue, sizeof(attachmentsPing)/sizeof(vk::ImageView)> clearColours{
     vk::ClearColorValue{}
   };
 
-  // Begin rendering using the framebuffer and renderpass
+  // when index=0 write to iChannelPong, when index=1 write to iChannelPing   
   vk::RenderPassBeginInfo advectionRpbi[]={{
-    .renderPass = *advectionRenderPassPing,
-    .framebuffer = *advectionFrameBufferPing,
+    .renderPass = *advectionRenderPass,
+    .framebuffer = *advectionFrameBufferPong,
     .renderArea = vk::Rect2D{{0, 0}, {advectionSize, advectionSize}},
     .clearValueCount = (uint32_t) clearColours.size(),
     .pClearValues = clearColours.data()
   },{
-    .renderPass = *advectionRenderPassPong,
-    .framebuffer = *advectionFrameBufferPong,
+    .renderPass = *advectionRenderPass,
+    .framebuffer = *advectionFrameBufferPing,
     .renderArea = vk::Rect2D{{0, 0}, {advectionSize, advectionSize}},
     .clearValueCount = (uint32_t) clearColours.size(),
     .pClearValues = clearColours.data()
@@ -443,21 +383,21 @@ int main() {
         // inline and so we can discard "unform" afterwards)
         cb.updateBuffer(ubo.buffer(), 0, sizeof(Uniform), &uniform);
 
-        // First renderpass. Compute advection.
-        cb.beginRenderPass(advectionRpbi[iFrame%2], vk::SubpassContents::eInline);
+        // vertex attributes common/shared by following render passes
         cb.bindVertexBuffers(0, vbo.buffer(), vk::DeviceSize(0));
         cb.bindIndexBuffer(ibo.buffer(), vk::DeviceSize(0), vk::IndexType::eUint32);
-        cb.bindPipeline(vk::PipelineBindPoint::eGraphics, *advectionPipeline[iFrame%2]);
-        cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *pipelineLayout, 0, descriptorSets[iFrame%2], nullptr);
+
+        // First renderpass. Compute advection.
+        cb.beginRenderPass(advectionRpbi[iFrame%2], vk::SubpassContents::eInline);
+        cb.bindPipeline(vk::PipelineBindPoint::eGraphics, *advectionPipeline);
+        cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *pipelineLayout, 0, {descriptorSets[iFrame%2]}, {});
         cb.drawIndexed(indices.size(), 1, 0, 0, 0);
         cb.endRenderPass();
 
         // Second renderpass. Draw the final image.
         cb.beginRenderPass(rpbi, vk::SubpassContents::eInline);
-        cb.bindVertexBuffers(0, vbo.buffer(), vk::DeviceSize(0));
-        cb.bindIndexBuffer(ibo.buffer(), vk::DeviceSize(0), vk::IndexType::eUint32);
         cb.bindPipeline(vk::PipelineBindPoint::eGraphics, *finalPipeline);
-        cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *pipelineLayout, 0, descriptorSets[(iFrame+1)%2], nullptr);
+        cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *pipelineLayout, 0, {descriptorSets[(iFrame+1)%2]}, {});
         cb.drawIndexed(indices.size(), 1, 0, 0, 0);
         cb.endRenderPass();
 
