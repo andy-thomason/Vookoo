@@ -24,11 +24,11 @@ int main() {
   vk::Device device = fw.device();
 
   vku::Window window{
-    .instance = fw.instance(),
-    .device = device,
-    .physicalDevice = fw.physicalDevice(),
-    .graphicsQueueFamilyIndex = fw.graphicsQueueFamilyIndex(),
-    .window = glfwwindow
+    fw.instance(),
+    device,
+    fw.physicalDevice(),
+    fw.graphicsQueueFamilyIndex(),
+    glfwwindow
   };
   if (!window.ok()) {
     std::cout << "Window creation failed" << std::endl;
@@ -37,12 +37,12 @@ int main() {
   window.dumpCaps(std::cout, fw.physicalDevice());
 
   auto viewport = vk::Viewport{
-    .x = 0.0f, 
-    .y = 0.0f,
-    .width = (float)window.width(),
-    .height = (float)window.height(),
-    .minDepth = 0.0f,
-    .maxDepth = 1.0f
+    0.0f, 
+    0.0f,
+    (float)window.width(),
+    (float)window.height(),
+    0.0f,
+    1.0f
   };
 
   ////////////////////////////////////////
@@ -344,17 +344,17 @@ int main() {
 
   // when index=0 write to iChannelPong, when index=1 write to iChannelPing   
   vk::RenderPassBeginInfo advectionRpbi[]={{
-    .renderPass = *advectionRenderPass,
-    .framebuffer = *advectionFrameBufferPong,
-    .renderArea = vk::Rect2D{{0, 0}, {advectionSize, advectionSize}},
-    .clearValueCount = (uint32_t) clearColours.size(),
-    .pClearValues = clearColours.data()
+    *advectionRenderPass,
+    *advectionFrameBufferPong,
+    vk::Rect2D{{0, 0}, {advectionSize, advectionSize}},
+    (uint32_t) clearColours.size(),
+    clearColours.data()
   },{
-    .renderPass = *advectionRenderPass,
-    .framebuffer = *advectionFrameBufferPing,
-    .renderArea = vk::Rect2D{{0, 0}, {advectionSize, advectionSize}},
-    .clearValueCount = (uint32_t) clearColours.size(),
-    .pClearValues = clearColours.data()
+    *advectionRenderPass,
+    *advectionFrameBufferPing,
+    vk::Rect2D{{0, 0}, {advectionSize, advectionSize}},
+    (uint32_t) clearColours.size(),
+    clearColours.data()
   }};
 
   int iFrame = 0;

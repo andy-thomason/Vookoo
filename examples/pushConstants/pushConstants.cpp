@@ -38,11 +38,11 @@ int main() {
 
   // Create a window to draw into
   vku::Window window{
-    .instance = fw.instance(),
-    .device = device,
-    .physicalDevice = fw.physicalDevice(),
-    .graphicsQueueFamilyIndex = fw.graphicsQueueFamilyIndex(),
-    .window = glfwwindow
+    fw.instance(),
+    device,
+    fw.physicalDevice(),
+    fw.graphicsQueueFamilyIndex(),
+    glfwwindow
   };
   if (!window.ok()) {
     std::cout << "Window creation failed" << std::endl;

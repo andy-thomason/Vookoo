@@ -73,12 +73,12 @@ int main() {
   // flip viewport to match opengl ( +x > Right, +y ^ UP, +z towards viewer from screen ), instead of vulkan default
   // also requires pipeline set with cullMode:BACK and frontFace:CounterClockWise
   auto viewport = vk::Viewport{
-    .x = 0.0f,                                     //Vulkan default:0
-    .y = static_cast<float>(window.height()),      //Vulkan default:0
-    .width = static_cast<float>(window.width()),   //Vulkan default:width
-    .height = -static_cast<float>(window.height()),//Vulkan default:height
-    .minDepth = 0.5f,                              //Vulkan default:0
-    .maxDepth = 1.0f                               //Vulkan default:1
+    0.0f,                                     //Vulkan default:0
+    static_cast<float>(window.height()),      //Vulkan default:0
+    static_cast<float>(window.width()),   //Vulkan default:width
+    -static_cast<float>(window.height()),//Vulkan default:height
+    0.5f,                              //Vulkan default:0
+    1.0f                               //Vulkan default:1
   };
 
   // Vulkan clip space has inverted Y and half Z compared to OpenGL
@@ -391,11 +391,11 @@ int main() {
   
     // Begin rendering using the framebuffer and renderpass
     TriangleRpbi = vk::RenderPassBeginInfo{
-      .renderPass = *TriangleRenderPass,
-      .framebuffer = *TriangleFrameBuffer,
-      .renderArea = vk::Rect2D{{0, 0}, {window.width(), window.height()}},
-      .clearValueCount = (uint32_t) clearColors.size(),
-      .pClearValues = clearColors.data()
+      *TriangleRenderPass,
+      *TriangleFrameBuffer,
+      vk::Rect2D{{0, 0}, {window.width(), window.height()}},
+      (uint32_t) clearColors.size(),
+      clearColors.data()
     };
 
   }
