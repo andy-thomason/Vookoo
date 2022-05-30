@@ -307,17 +307,38 @@ public:
   InstanceMaker() {
   }
 
+  InstanceMaker &extensionMultiview ()
+  {
+	extension(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME); // added for multiview extension
+	return *this;
+  }
+
+  InstanceMaker &extensionValidation ()
+  {
+	layers_.push_back("VK_LAYER_KHRONOS_validation");
+	return *this;
+  }
+
   /// Set the default layers and extensions.
-  InstanceMaker &defaultLayers() {
-    layers_.push_back("VK_LAYER_KHRONOS_validation");
+  InstanceMaker &defaultLayers(int core=0)
+  {
     instance_extensions_.push_back(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);
-    #ifdef VKU_SURFACE
+
+#ifdef VKU_SURFACE
       instance_extensions_.push_back(VKU_SURFACE);
-    #endif
-    instance_extensions_.push_back("VK_KHR_surface");
+#endif
+
+    instance_extensions_.push_back(VK_KHR_SURFACE_EXTENSION_NAME);
+
 #if defined( __APPLE__ ) && defined(VK_EXT_METAL_SURFACE_EXTENSION_NAME)
-    instance_extensions_.push_back(VK_EXT_METAL_SURFACE_EXTENSION_NAME);
+		instance_extensions_.push_back(VK_EXT_METAL_SURFACE_EXTENSION_NAME);
 #endif //__APPLE__
+
+	if (core > 0)
+	{
+
+	}
+	
     return *this;
   }
 
@@ -391,13 +412,29 @@ public:
   DeviceMaker() {
   }
 
+  DeviceMaker &extensionMultiview ()
+  {
+      extension(VK_KHR_MULTIVIEW_EXTENSION_NAME); // added for multiview extension
+      return *this;
+  }
+  
+  DeviceMaker &extensionValidation ()
+  {
+	layers_.push_back("VK_LAYER_LUNARG_standard_validation");
+	return *this;
+  }
+
   /// Set the default layers and extensions.
-  DeviceMaker &defaultLayers() {
-    layers_.push_back("VK_LAYER_LUNARG_standard_validation");
-    device_extensions_.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
-    // VK_KHR_MAINTENANCE1 is required for using negative viewport heights
-    // Note: This is core as of Vulkan 1.1. So if you target 1.1 you don't have to explicitly enable this
-    device_extensions_.push_back(VK_KHR_MAINTENANCE1_EXTENSION_NAME);
+  DeviceMaker &defaultLayers(int core=0)
+  {
+	device_extensions_.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
+
+    if (core > 0)
+    {
+ 		// VK_KHR_MAINTENANCE1 is required for using negative viewport heights
+		// Note: This is core as of Vulkan 1.1. So if you target 1.1 you don't have to explicitly enable this
+		device_extensions_.push_back(VK_KHR_MAINTENANCE1_EXTENSION_NAME);
+	}
     return *this;
   }
 
@@ -426,6 +463,39 @@ public:
     return *this;
   }
 
+  DeviceMaker &physicalDeviceFeatures(const vk::PhysicalDeviceFeatures &v = {})
+  {
+	pdfs_.push_back(v);
+	return *this;
+  }
+  
+  DeviceMaker &enableGeometryShader ()
+  {
+	// assert !pdfs_.empty()
+	pdfs_.back().setGeometryShader(true);
+	return *this;
+  }
+  
+  DeviceMaker &enableTessellationShader ()
+  {
+	// assert !pdfs_.empty()
+	pdfs_.back().setTessellationShader(true);
+	return *this;
+  }
+  
+  DeviceMaker &multiviewFeatures (const vk::PhysicalDeviceMultiviewFeatures &v = {})
+  {
+	mvfs_.push_back(v);
+	return *this;
+  }
+  
+  DeviceMaker &enableMultiview ()
+  {
+	// assert !mvfs_.empty()
+	mvfs_.back().setMultiview(true);
+	return *this;
+  }
+
   /// Create a new logical device.
   vk::UniqueDevice createUnique(vk::PhysicalDevice physical_device) {
     auto dci = vk::DeviceCreateInfo{
@@ -436,15 +506,12 @@ public:
     };
 
     //
-    vk::PhysicalDeviceFeatures pdfs;
-    pdfs.setGeometryShader(true); // required to enable and use geometry shader
-    pdfs.setTessellationShader(true); // required to enable and use tesselation shaders
-    dci.setPEnabledFeatures(&pdfs);
+    if (!pdfs_.empty())
+		dci.setPEnabledFeatures(&pdfs_.front());
 
     // required to enable and use multiview
-    vk::PhysicalDeviceMultiviewFeatures physicalDeviceMultiviewFeatures;
-    physicalDeviceMultiviewFeatures.setMultiview(true);
-    dci.pNext = &physicalDeviceMultiviewFeatures;
+    if (!mvfs_.empty())
+		dci.pNext = &mvfs_.front();
 
     return physical_device.createDeviceUnique(dci);
   }
@@ -453,6 +520,9 @@ private:
   std::vector<const char *> device_extensions_;
   std::vector<std::vector<float> > queue_priorities_;
   std::vector<vk::DeviceQueueCreateInfo> qci_;
+  std::vector<vk::PhysicalDeviceFeatures> pdfs_;
+  std::vector<vk::PhysicalDeviceMultiviewFeatures> mvfs_;
+
   vk::ApplicationInfo app_info_;
 };
 
@@ -855,13 +925,12 @@ public:
     SpecData &operator=(const SpecData &) = delete;
   };
 public:
-  PipelineMaker(uint32_t width, uint32_t height) {
+  void init ()
+  {
     inputAssemblyState_.topology = vk::PrimitiveTopology::eTriangleList;
-    viewport_ = vk::Viewport{0.0f, 0.0f, (float)width, (float)height, 0.0f, 1.0f};
-    scissor_ = vk::Rect2D{{0, 0}, {width, height}};
     rasterizationState_.lineWidth = 1.0f;
 
-    // Set up depth test, but do not enable it.
+     // Set up depth test, but do not enable it.
     depthStencilState_.depthTestEnable = VK_FALSE;
     depthStencilState_.depthWriteEnable = VK_TRUE;
     depthStencilState_.depthCompareOp = vk::CompareOp::eLessOrEqual;
@@ -873,6 +942,17 @@ public:
     depthStencilState_.front = depthStencilState_.back;
   }
 
+  PipelineMaker() {
+	init();
+  }
+
+  PipelineMaker(uint32_t width, uint32_t height) {
+    viewport(vk::Viewport{0.0f, 0.0f, (float)width, (float)height, 0.0f, 1.0f});
+	scissor(vk::Rect2D{{0, 0}, {width, height}});
+	
+	init();
+  }
+  
   vk::UniquePipeline createUnique(const vk::Device &device,
                             const vk::PipelineCache &pipelineCache,
                             const vk::PipelineLayout &pipelineLayout,
@@ -898,7 +978,7 @@ public:
     colorBlendState_.pAttachments = count ? colorBlendAttachments_.data() : nullptr;
 
     vk::PipelineViewportStateCreateInfo viewportState{
-        {}, 1, &viewport_, 1, &scissor_};
+        {}, (uint32_t)viewport_.size(), viewport_.data(), (uint32_t)scissor_.size(), scissor_.data()};
 
     vk::PipelineVertexInputStateCreateInfo vertexInputState;
     vertexInputState.vertexAttributeDescriptionCount = (uint32_t)vertexAttributeDescriptions_.size();
@@ -1054,11 +1134,11 @@ public:
 
   /// Set the viewport value.
   /// Usually there is only one viewport, but you can have multiple viewports active for rendering cubemaps or VR stereo pair
-  PipelineMaker &viewport(const vk::Viewport &value) { viewport_ = value; return *this; }
+  PipelineMaker &viewport(const vk::Viewport &value) { viewport_.push_back(value); return *this; }
 
   /// Set the scissor value.
   /// This defines the area that the fragment shaders can write to. For example, if you are rendering a portal or a mirror.
-  PipelineMaker &scissor(const vk::Rect2D &value) { scissor_ = value; return *this; }
+  PipelineMaker &scissor(const vk::Rect2D &value) { scissor_.push_back(value); return *this; }
 
   /// Set a whole rasterization state.
   /// Note you can set individual values with their own call
@@ -1108,8 +1188,8 @@ public:
   PipelineMaker &dynamicState(vk::DynamicState value) { dynamicState_.push_back(value); return *this; }
 private:
   vk::PipelineInputAssemblyStateCreateInfo inputAssemblyState_;
-  vk::Viewport viewport_;
-  vk::Rect2D scissor_;
+  std::vector<vk::Viewport> viewport_;
+  std::vector<vk::Rect2D> scissor_;
   vk::PipelineRasterizationStateCreateInfo rasterizationState_;
   vk::PipelineMultisampleStateCreateInfo multisampleState_;
   vk::PipelineDepthStencilStateCreateInfo depthStencilState_;
@@ -1643,8 +1723,12 @@ public:
   }
 
   void upload(vk::Device device, std::vector<uint8_t> &bytes, vk::CommandPool commandPool, vk::PhysicalDeviceMemoryProperties memprops, vk::Queue queue, vk::ImageLayout finalLayout=vk::ImageLayout::eShaderReadOnlyOptimal) {
-    vku::GenericBuffer stagingBuffer(device, memprops, (vk::BufferUsageFlags)vk::BufferUsageFlagBits::eTransferSrc, (vk::DeviceSize)bytes.size(), vk::MemoryPropertyFlagBits::eHostVisible);
-    stagingBuffer.updateLocal(device, (const void*)bytes.data(), bytes.size());
+	return upload(device, bytes.data(), bytes.size(), commandPool, memprops, queue, finalLayout);
+  }
+
+  void upload(vk::Device device, const uint8_t *bytes, size_t bytesSize, vk::CommandPool commandPool, vk::PhysicalDeviceMemoryProperties memprops, vk::Queue queue, vk::ImageLayout finalLayout=vk::ImageLayout::eShaderReadOnlyOptimal) {
+    vku::GenericBuffer stagingBuffer(device, memprops, (vk::BufferUsageFlags)vk::BufferUsageFlagBits::eTransferSrc, (vk::DeviceSize)bytesSize, vk::MemoryPropertyFlagBits::eHostVisible);
+    stagingBuffer.updateLocal(device, (const void*)bytes, bytesSize);
 
     // Copy the staging buffer to the GPU texture and set the layout.
     vku::executeImmediately(device, commandPool, queue, [&](vk::CommandBuffer cb) {

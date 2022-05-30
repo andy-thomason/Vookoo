@@ -47,9 +47,15 @@
 #include <cstddef>
 
 #include <vulkan/vulkan.hpp>
-#include <vku/vku.hpp>
+#include "vku.hpp"
 
 namespace vku {
+
+struct FrameworkOptions
+{
+	int deviceID = 0;
+	bool useCompute = true;
+} ;
 
 /// This class provides an optional interface to the vulkan instance, devices and queues.
 /// It is not used by any of the other classes directly and so can be safely ignored if Vookoo
@@ -57,25 +63,29 @@ namespace vku {
 /// See https://vulkan-tutorial.com for details of many operations here.
 class Framework {
 public:
+  FrameworkOptions options;
+
   Framework() {
   }
 
   // Construct a framework containing the instance, a device and one or more queues.
-  Framework(const std::string &name, const int deviceId=0) {
-    vku::InstanceMaker im{};
-    im.defaultLayers();
-    im.extension(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME); // added for multiview extension
+  Framework(vku::InstanceMaker &im, vku::DeviceMaker &dm, const FrameworkOptions &options_ = FrameworkOptions{}) :
+	options(options_)
+  {
     instance_ = im.createUnique();
 
     callback_ = DebugCallback(*instance_);
 
     auto pds = instance_->enumeratePhysicalDevices();
-    physical_device_ = pds[deviceId];
+    physical_device_ = pds[options.deviceID];
     auto qprops = physical_device_.getQueueFamilyProperties();
     const auto badQueue = ~(uint32_t)0;
     graphicsQueueFamilyIndex_ = badQueue;
     computeQueueFamilyIndex_ = badQueue;
-    vk::QueueFlags search = vk::QueueFlagBits::eGraphics|vk::QueueFlagBits::eCompute;
+    
+    vk::QueueFlags search = vk::QueueFlagBits::eGraphics;
+    if (options.useCompute)
+		search |= vk::QueueFlagBits::eCompute;
 
     // Look for an omnipurpose queue family first
     // It is better if we can schedule operations without barriers and semaphores.
@@ -89,13 +99,21 @@ public:
       auto &qprop = qprops[qi];
       std::cout << vk::to_string(qprop.queueFlags) << "\n";
       if ((qprop.queueFlags & search) == search) {
+      
         graphicsQueueFamilyIndex_ = qi;
-        computeQueueFamilyIndex_ = qi;
+        if (options.useCompute)
+			computeQueueFamilyIndex_ = qi;
+
         break;
       }
     }
 
-    if (graphicsQueueFamilyIndex_ == badQueue || computeQueueFamilyIndex_ == badQueue) {
+    if (graphicsQueueFamilyIndex_ == badQueue) {
+      std::cout << "oops, missing a queue\n";
+      return;
+    }
+
+    if (options.useCompute && computeQueueFamilyIndex_ == badQueue) {
       std::cout << "oops, missing a queue\n";
       return;
     }
@@ -105,11 +123,12 @@ public:
     // todo: find optimal texture format
     // auto rgbaprops = physical_device_.getFormatProperties(vk::Format::eR8G8B8A8Unorm);
 
-    vku::DeviceMaker dm{};
-    dm.defaultLayers();
     dm.queue(graphicsQueueFamilyIndex_);
-    dm.extension(VK_KHR_MULTIVIEW_EXTENSION_NAME); // added for multiview extension
-    if (computeQueueFamilyIndex_ != graphicsQueueFamilyIndex_) dm.queue(computeQueueFamilyIndex_);
+    
+	if (options.useCompute)
+		if (computeQueueFamilyIndex_ != graphicsQueueFamilyIndex_)
+			dm.queue(computeQueueFamilyIndex_);
+
     device_ = dm.createUnique(physical_device_);
 
     vk::PipelineCacheCreateInfo pipelineCacheInfo{};
