@@ -95,9 +95,9 @@ int main() {
   // Create Command Pool
   //
   vk::CommandPoolCreateInfo cpci{ 
-    .flags = vk::CommandPoolCreateFlagBits::eTransient 
+    vk::CommandPoolCreateFlagBits::eTransient 
            | vk::CommandPoolCreateFlagBits::eResetCommandBuffer, 
-    .queueFamilyIndex = fw.computeQueueFamilyIndex()
+    fw.computeQueueFamilyIndex()
   };
   auto commandPool = device.createCommandPoolUnique(cpci);
 

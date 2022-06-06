@@ -22,11 +22,11 @@ int main() {
   vk::Device device = fw.device();
 
   vku::Window window{
-    .instance = fw.instance(),
-    .device = device,
-    .physicalDevice = fw.physicalDevice(),
-    .graphicsQueueFamilyIndex = fw.graphicsQueueFamilyIndex(),
-    .window = glfwwindow
+    fw.instance(),
+    device,
+    fw.physicalDevice(),
+    fw.graphicsQueueFamilyIndex(),
+    glfwwindow
   };
   if (!window.ok()) {
     std::cout << "Window creation failed" << std::endl;
@@ -35,12 +35,12 @@ int main() {
   window.dumpCaps(std::cout, fw.physicalDevice());
 
   auto viewport = vk::Viewport{
-    .x = 0.0f, 
-    .y = 0.0f,
-    .width = (float)window.width(),
-    .height = (float)window.height(),
-    .minDepth = 0.0f,
-    .maxDepth = 1.0f
+    0.0f, 
+    0.0f,
+    (float)window.width(),
+    (float)window.height(),
+    0.0f,
+    1.0f
   };
 
   ////////////////////////////////////////
@@ -425,17 +425,17 @@ int main() {
 
   // Begin rendering using the framebuffer and renderpass
   vk::RenderPassBeginInfo pass0Rpbi[]={{
-    .renderPass = *RenderPass0Ping,
-    .framebuffer = *FrameBufferPass0Ping,
-    .renderArea = vk::Rect2D{{0, 0}, {fdtdDomainSize, fdtdDomainSize}},
-    .clearValueCount = (uint32_t) clearColours.size(),
-    .pClearValues = clearColours.data()
+    *RenderPass0Ping,
+    *FrameBufferPass0Ping,
+    vk::Rect2D{{0, 0}, {fdtdDomainSize, fdtdDomainSize}},
+    (uint32_t) clearColours.size(),
+    clearColours.data()
   },{
-    .renderPass = *RenderPass0Pong,
-    .framebuffer = *FrameBufferPass0Pong,
-    .renderArea = vk::Rect2D{{0, 0}, {fdtdDomainSize, fdtdDomainSize}},
-    .clearValueCount = (uint32_t) clearColours.size(),
-    .pClearValues = clearColours.data()
+    *RenderPass0Pong,
+    *FrameBufferPass0Pong,
+    vk::Rect2D{{0, 0}, {fdtdDomainSize, fdtdDomainSize}},
+    (uint32_t) clearColours.size(),
+    clearColours.data()
   }};
 
   ////////////////////////////////////////
@@ -444,17 +444,17 @@ int main() {
   // sets the framebuffer and renderpass
  
   vk::RenderPassBeginInfo pass1Rpbi[]={{
-    .renderPass = *RenderPass1Ping,
-    .framebuffer = *FrameBufferPass1Ping,
-    .renderArea = vk::Rect2D{{0, 0}, {fdtdDomainSize, fdtdDomainSize}},
-    .clearValueCount = (uint32_t) clearColours.size(),
-    .pClearValues = clearColours.data()
+    *RenderPass1Ping,
+    *FrameBufferPass1Ping,
+    vk::Rect2D{{0, 0}, {fdtdDomainSize, fdtdDomainSize}},
+    (uint32_t) clearColours.size(),
+    clearColours.data()
   },{
-    .renderPass = *RenderPass1Pong,
-    .framebuffer = *FrameBufferPass1Pong,
-    .renderArea = vk::Rect2D{{0, 0}, {fdtdDomainSize, fdtdDomainSize}},
-    .clearValueCount = (uint32_t) clearColours.size(),
-    .pClearValues = clearColours.data()
+    *RenderPass1Pong,
+    *FrameBufferPass1Pong,
+    vk::Rect2D{{0, 0}, {fdtdDomainSize, fdtdDomainSize}},
+    (uint32_t) clearColours.size(),
+    clearColours.data()
   }};
 
   int iFrame = 0;

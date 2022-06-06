@@ -29,11 +29,11 @@ int main() {
   auto device = fw.device();
 
   vku::Window window{
-    .instance = fw.instance(),
-    .device = device,
-    .physicalDevice = fw.physicalDevice(),
-    .graphicsQueueFamilyIndex = fw.graphicsQueueFamilyIndex(),
-    .window = glfwwindow
+    fw.instance(),
+    device,
+    fw.physicalDevice(),
+    fw.graphicsQueueFamilyIndex(),
+    glfwwindow
   };
   if (!window.ok()) {
     std::cout << "Window creation failed" << std::endl;
@@ -125,12 +125,12 @@ int main() {
     // flip viewport to match opengl ( +x > Right, +y ^ UP, +z towards viewer from screen ), instead of vulkan default
     // also requires pipeline set with cullMode:BACK and frontFace:CounterClockWise
     auto viewport = vk::Viewport{
-      .x = 0.0f,                                     //Vulkan default:0
-      .y = static_cast<float>(window.height()),      //Vulkan default:0
-      .width = static_cast<float>(window.width()),   //Vulkan default:width
-      .height = -static_cast<float>(window.height()),//Vulkan default:height
-      .minDepth = 0.5f,                              //Vulkan default:0
-      .maxDepth = 1.0f                               //Vulkan default:1
+      0.0f,                                     //Vulkan default:0
+      static_cast<float>(window.height()),      //Vulkan default:0
+      static_cast<float>(window.width()),   //Vulkan default:width
+      -static_cast<float>(window.height()),//Vulkan default:height
+      0.5f,                              //Vulkan default:0
+      1.0f                               //Vulkan default:1
     };
   
     vku::PipelineMaker pm{window.width(), window.height()};
