@@ -953,7 +953,7 @@ public:
 	init();
   }
   
-  vk::UniquePipeline createUnique(const vk::Device &device,
+  auto createUnique(const vk::Device &device,
                             const vk::PipelineCache &pipelineCache,
                             const vk::PipelineLayout &pipelineLayout,
                             const vk::RenderPass &renderPass, bool defaultBlend=true) {
@@ -1288,7 +1288,7 @@ public:
   }
 
   /// Create a managed handle to a compute shader.
-  vk::UniquePipeline createUnique(vk::Device device, const vk::PipelineCache &pipelineCache, const vk::PipelineLayout &pipelineLayout) {
+  auto createUnique(vk::Device device, const vk::PipelineCache &pipelineCache, const vk::PipelineLayout &pipelineLayout) {
     vk::ComputePipelineCreateInfo pipelineInfo{};
 
     pipelineInfo.stage = stage_;
