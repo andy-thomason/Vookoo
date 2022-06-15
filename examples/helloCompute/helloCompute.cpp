@@ -12,7 +12,13 @@
 #include <algorithm>
 
 int main() {
-  vku::Framework fw{"Hello compute"};
+
+  vku::InstanceMaker im{};
+  im.defaultLayers();
+  vku::DeviceMaker dm{};
+  dm.defaultLayers();
+
+  vku::Framework fw{im, dm};
   if (!fw.ok()) {
     std::cout << "Framework creation failed" << std::endl;
     exit(1);

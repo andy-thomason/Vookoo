@@ -21,8 +21,14 @@ int main() {
   auto *title = "helloInstancing";
   auto glfwwindow = glfwCreateWindow(800, 800, title, nullptr, nullptr);
 
+  // Initialize makers
+  vku::InstanceMaker im{};
+  im.defaultLayers();
+  vku::DeviceMaker dm{};
+  dm.defaultLayers();
+
   // Initialise the Vookoo demo framework.
-  vku::Framework fw{title};
+  vku::Framework fw{im, dm};
   if (!fw.ok()) {
     std::cout << "Framework creation failed" << std::endl;
     exit(1);
