@@ -953,7 +953,7 @@ public:
 	init();
   }
   
-  auto createUnique(const vk::Device &device,
+  vk::UniquePipeline createUnique(const vk::Device &device,
                             const vk::PipelineCache &pipelineCache,
                             const vk::PipelineLayout &pipelineLayout,
                             const vk::RenderPass &renderPass, bool defaultBlend=true) {
@@ -1004,7 +1004,9 @@ public:
     pipelineInfo.subpass = subpass_;
     pipelineInfo.pTessellationState = &tessellationState_;
 
-    return device.createGraphicsPipelineUnique(pipelineCache, pipelineInfo);
+    auto [result, pipeline] = device.createGraphicsPipelineUnique(pipelineCache, pipelineInfo);
+    // TODO check result for vk::Result::ePipelineCompileRequiredEXT
+    return std::move(pipeline);
   }
 
   /// Add a shader module to the pipeline.
@@ -1288,13 +1290,15 @@ public:
   }
 
   /// Create a managed handle to a compute shader.
-  auto createUnique(vk::Device device, const vk::PipelineCache &pipelineCache, const vk::PipelineLayout &pipelineLayout) {
+  vk::UniquePipeline createUnique(vk::Device device, const vk::PipelineCache &pipelineCache, const vk::PipelineLayout &pipelineLayout) {
     vk::ComputePipelineCreateInfo pipelineInfo{};
 
     pipelineInfo.stage = stage_;
     pipelineInfo.layout = pipelineLayout;
 
-    return device.createComputePipelineUnique(pipelineCache, pipelineInfo);
+    auto [ result, pipeline ] = device.createComputePipelineUnique(pipelineCache, pipelineInfo);
+    // TODO check result for vk::Result::ePipelineCompileRequiredEXT
+    return std::move(pipeline);
   }
 private:
   vk::PipelineShaderStageCreateInfo stage_;
