@@ -55,7 +55,13 @@ int main() {
 
   glfwSetCursorPosCallback(glfwwindow, mouse_callback);
 
-  vku::Framework fw{title};
+  // Initialize makers
+  vku::InstanceMaker im{};
+  im.defaultLayers();
+  vku::DeviceMaker dm{};
+  dm.defaultLayers();
+
+  vku::Framework fw{im, dm};
   if (!fw.ok()) {
     std::cout << "Framework creation failed" << std::endl;
     exit(1);

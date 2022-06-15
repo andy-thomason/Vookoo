@@ -19,7 +19,13 @@ int main() {
   auto *title = "CyberTruck";
   auto glfwwindow = glfwCreateWindow(1280, 720, title, nullptr, nullptr);
 
-  vku::Framework fw{title};
+  // Initialize makers
+  vku::InstanceMaker im{};
+  im.defaultLayers();
+  vku::DeviceMaker dm{};
+  dm.defaultLayers();
+
+  vku::Framework fw{im, dm};
   if (!fw.ok()) {
     std::cout << "Framework creation failed" << std::endl;
     exit(1);

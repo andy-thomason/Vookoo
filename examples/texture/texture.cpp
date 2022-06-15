@@ -11,7 +11,13 @@ int main() {
   const char *title = "texture";
   auto glfwwindow = glfwCreateWindow(800, 600, title, nullptr, nullptr);
 
-  vku::Framework fw{title};
+  // Initialize makers
+  vku::InstanceMaker im{};
+  im.defaultLayers();
+  vku::DeviceMaker dm{};
+  dm.defaultLayers();
+
+  vku::Framework fw{im, dm};
   if (!fw.ok()) {
     std::cout << "Framework creation failed" << std::endl;
     exit(1);
