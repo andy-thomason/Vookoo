@@ -43,7 +43,11 @@
 #include <tbb/tbb.h>
 
 #ifndef NDEBUG
-#define BREAK_ON_VALIDATION_ERROR 0  // set to 1 to enable debug break on vulkan validation errors. callstack can be used to find source of error.
+//#define BREAK_ON_VALIDATION_ERROR 1  // set to 1 to enable debug break on vulkan validation errors. callstack can be used to find source of error.
+#endif
+
+#ifndef NDEBUG
+//#define SYNC_VALIDATION_ONLY 1
 #endif
 
 // workaround, so volk gets used instead. note that vulkan is not staically linked using this method
@@ -65,6 +69,7 @@
 // #####################################################################################################################
 
 #include <fmt/fmt.h>
+#include <Utility/stringconv.h>
 
 #define VULKAN_API_VERSION_USED VK_API_VERSION_1_2
 
@@ -74,9 +79,7 @@
 #define VMA_VULKAN_VERSION 1002000 // Vulkan 1.2
 #define VMA_DEDICATED_ALLOCATION 1
 #define VMA_MEMORY_BUDGET 1
-#define VMA_SIMPLIFY_OPTIMIZE 1		// Enables these option for default pool:
-									// VMA_POOL_CREATE_IGNORE_BUFFER_IMAGE_GRANULARITY_BIT
-									// VMA_POOL_CREATE_LINEAR_ALGORITHM_BIT
+
 #ifndef NDEBUG 
 #ifdef VKU_VMA_DEBUG_ENABLED 
 #define VMA_DEBUG_MARGIN 32
@@ -105,6 +108,13 @@ namespace vku {
 	extern VmaAllocator vma_;		//singleton - further initialized by vku_framework after device creation
 	extern tbb::concurrent_unordered_map<VkCommandPool, vku::CommandBufferContainer<1>> pool_;
 
+	enum eMappedAccess
+	{
+		Disabled = 0,
+		Sequential = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT,
+		Random = VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT
+	};
+	
 /// Printf-style formatting function.
 template <class ... Args>
 std::string format(const char *fmt, Args... args) {
@@ -158,6 +168,12 @@ static inline void executeImmediately(vk::Device const& __restrict device, vk::C
 	if constexpr (!bAsync) {
 		queue.waitIdle();
 	}
+}
+
+// memory barrier helper
+static inline void memory_barrier(vk::CommandBuffer& cb, vk::PipelineStageFlags const srcStageMask, vk::PipelineStageFlags const dstStageMask, vk::AccessFlags const srcAccessMask, vk::AccessFlags const dstAccessMask) {
+	vk::MemoryBarrier mb(srcAccessMask, dstAccessMask);
+	cb.pipelineBarrier(srcStageMask, dstStageMask, vk::DependencyFlagBits::eByRegion, mb, nullptr, nullptr);
 }
 
 /// Scale a value by mip level, but do not reduce to zero.
@@ -394,7 +410,13 @@ public:
   /// Set the default layers and extensions.
   InstanceMaker &defaultLayers() {
 #ifndef NDEBUG
+	
+#if defined(SYNC_VALIDATION_ONLY) && SYNC_VALIDATION_ONLY
+	layer("VK_LAYER_KHRONOS_synchronization2");
+#else
 	layer("VK_LAYER_KHRONOS_validation");
+#endif
+	
 	extension(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
 #endif
     
@@ -511,9 +533,16 @@ public:
 
   /// Set the default layers and extensions.
   DeviceMaker &defaultLayers() {
+	  
 #ifndef NDEBUG
+		
+#if defined(SYNC_VALIDATION_ONLY) && SYNC_VALIDATION_ONLY
+	//layer("VK_LAYER_KHRONOS_synchronization2");
+#else
 	layer("VK_LAYER_LUNARG_standard_validation");
 	layer("VK_LAYER_LUNARG_assistant_layer");
+#endif
+	
 #endif
 	extension(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
     return *this;
@@ -701,7 +730,8 @@ private:
 
 #if defined(BREAK_ON_VALIDATION_ERROR)
 #if BREAK_ON_VALIDATION_ERROR
-	  DebugBreak();
+		  DebugBreak();
+		  quick_exit(1);
 #endif
 #endif
 
@@ -712,7 +742,7 @@ private:
   
   public:
 	  static inline vk::Device device_;
-	  static inline PFN_vkSetDebugUtilsObjectNameEXT pfn_vkSetDebugUtilsObjectNameEXT = nullptr;
+	  static inline PFN_vkSetDebugUtilsObjectNameEXT pfn_vkSetDebugUtilsObjectNameEXT = nullptr; 
 	  static inline PFN_vkCmdInsertDebugUtilsLabelEXT pfn_vkCmdInsertDebugUtilsLabelEXT = nullptr;
 };
 
@@ -974,6 +1004,10 @@ public:
 		  ci.pCode = opcodes.data();
 		  s.module_ = device.createShaderModuleUnique(ci).value;
 
+		  std::string const shaderFile(stringconv::ws2s(filename.substr(filename.find_last_of('/') + 1, filename.size())));
+		
+		  VKU_SET_OBJECT_NAME(vk::ObjectType::eShaderModule, (VkShaderModule)(*s.module_), shaderFile.c_str());
+		
 		  file.close();
 	  }
 	if (constants_ && !constants_->empty()) {
@@ -1441,7 +1475,7 @@ public:
 	constexpr GenericBuffer() {} // every member is zero initialized (see below) - constexpr of the default ctor allows constinit optimization for private voxel data in cVoxelWorld.cpp file.
   
 
-  GenericBuffer(vk::BufferUsageFlags const usage, vk::DeviceSize const size, vk::MemoryPropertyFlags const memflags = vk::MemoryPropertyFlagBits::eDeviceLocal, VmaMemoryUsage const gpu_usage = VMA_MEMORY_USAGE_UNKNOWN, bool const bDedicatedMemory = false, bool const bPersistantMapping = false) {
+  GenericBuffer(vk::BufferUsageFlags const usage, vk::DeviceSize const size, vk::MemoryPropertyFlags const memflags = vk::MemoryPropertyFlagBits::eDeviceLocal, VmaMemoryUsage const gpu_usage = VMA_MEMORY_USAGE_UNKNOWN, uint32_t const mapped_access = (uint32_t)eMappedAccess::Disabled, bool const bDedicatedMemory = false, bool const bPersistantMapping = false) {
 	  
 	  vk::BufferCreateInfo ci{};
 	  ci.size = maxsizebytes_ = size;
@@ -1449,12 +1483,24 @@ public:
 	  ci.sharingMode = vk::SharingMode::eExclusive;
 	 
 	  VmaAllocationCreateInfo allocInfo{};
-	  allocInfo.usage = gpu_usage ? gpu_usage : VMA_MEMORY_USAGE_GPU_ONLY;  // default to gpu only if 0/unknown is passed in
+	  allocInfo.usage = gpu_usage ? gpu_usage : VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;  // default to gpu only if 0/unknown is passed in
 	  allocInfo.requiredFlags = (VkMemoryPropertyFlags)memflags;
-	  //allocInfo.preferredFlags = VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_CACHED_BIT;
+	  allocInfo.preferredFlags = allocInfo.requiredFlags;
 	  allocInfo.flags = (bDedicatedMemory ? VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT : (VmaAllocationCreateFlags)0)
 					  | (bPersistantMapping ? VMA_ALLOCATION_CREATE_MAPPED_BIT : (VmaAllocationCreateFlags)0);
 
+	  if ((uint32_t)eMappedAccess::Disabled == mapped_access) { // only if not provided
+		
+		  if (bPersistantMapping) { // only if known to be mapped
+			  // default to sequential access (important if forgotten)
+			  allocInfo.flags |= (uint32_t)eMappedAccess::Sequential;
+		  }
+	  }
+	  else {
+
+		  allocInfo.flags |= mapped_access;
+	  }
+	
 	  vmaCreateBuffer(vma_, (VkBufferCreateInfo const* const)&ci, &allocInfo, (VkBuffer*)&buffer_, &allocation_, &mem_);
   }
 
@@ -1525,11 +1571,11 @@ public:
 	  using pfb = vk::MemoryPropertyFlagBits;
 
 	  if (0 == maxsizebytes()) { // only allocate once
-		  *this = vku::GenericBuffer(bits | buf::eTransferDst, maxsize); // device local, gpu only buffer
+		  *this = vku::GenericBuffer(bits | buf::eTransferDst, maxsize); // device local, gpu only buffer - here default params get a device allocated buffer (gpu), with *no* mapping capability - can be initialized or set at any time with a staging buffer and upload to this buffer only.
 		  activesizebytes_ = maxsizebytes();
 
 		  // upload temporary staging buffer to clear
-		  vku::GenericBuffer tmp(buf::eTransferSrc, maxsize, pfb::eHostCoherent | pfb::eHostVisible, VMA_MEMORY_USAGE_CPU_ONLY, false, false);
+		  vku::GenericBuffer tmp(buf::eTransferSrc, maxsize, pfb::eHostCoherent | pfb::eHostVisible, VMA_MEMORY_USAGE_AUTO_PREFER_HOST, (uint32_t)vku::eMappedAccess::Sequential, false, false);
 		  tmp.clearLocal();
 
 		  vku::executeImmediately<false>(device, commandPool, queue, [&](vk::CommandBuffer cb) {
@@ -1539,26 +1585,26 @@ public:
 	  }
   }
   
-  void createAsCPUToGPUBuffer(vk::DeviceSize const maxsize, bool const bDedicatedMemory = false, bool const bPersistantMapping = false)
+  void createAsCPUToGPUBuffer(vk::DeviceSize const maxsize, uint32_t const mapped_access = (uint32_t)vku::eMappedAccess::Disabled, bool const bDedicatedMemory = false, bool const bPersistantMapping = false)
   {
 	  if (maxsize == 0) return;
 	  using buf = vk::BufferUsageFlagBits;
 	  using pfb = vk::MemoryPropertyFlagBits;
 
 	  if (0 == maxsizebytes()) { // only allocate once
-		  *this = vku::GenericBuffer(buf::eTransferSrc, maxsize, pfb::eHostVisible, VMA_MEMORY_USAGE_CPU_TO_GPU, bDedicatedMemory, bPersistantMapping);
+		  *this = vku::GenericBuffer(buf::eTransferSrc, maxsize, pfb::eHostCoherent | pfb::eHostVisible, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, mapped_access, bDedicatedMemory, bPersistantMapping);
 		  activesizebytes_ = maxsizebytes();
 		  clearLocal();
 	  }
   }
-  void createAsStagingBuffer(vk::DeviceSize const maxsize, bool const bDedicatedMemory = false, bool const bPersistantMapping = false)
+  void createAsStagingBuffer(vk::DeviceSize const maxsize, uint32_t const mapped_access = (uint32_t)vku::eMappedAccess::Disabled, bool const bDedicatedMemory = false, bool const bPersistantMapping = false)
   {
 	  if (maxsize == 0) return;
 	  using buf = vk::BufferUsageFlagBits;
 	  using pfb = vk::MemoryPropertyFlagBits;
 
 	  if (0 == maxsizebytes()) { // only allocate once
-		  *this = vku::GenericBuffer(buf::eTransferSrc, maxsize, pfb::eHostCoherent | pfb::eHostVisible, VMA_MEMORY_USAGE_CPU_ONLY, bDedicatedMemory, bPersistantMapping);
+		  *this = vku::GenericBuffer(buf::eTransferSrc, maxsize, pfb::eHostCoherent | pfb::eHostVisible, VMA_MEMORY_USAGE_AUTO_PREFER_HOST, mapped_access, bDedicatedMemory, bPersistantMapping);
 		  activesizebytes_ = maxsizebytes();
 		  clearLocal();
 	  }
@@ -1572,7 +1618,7 @@ public:
 	  using pfb = vk::MemoryPropertyFlagBits;
 
 	  if (0 == stagingBuffer.maxsizebytes()) { // only allocate once
-		  stagingBuffer = vku::GenericBuffer(buf::eTransferSrc, maxsize, pfb::eHostCoherent | pfb::eHostVisible, VMA_MEMORY_USAGE_CPU_ONLY, false, true); // *bugfix - hidden options not exposed thru this path, default to persistant mapping.
+		  stagingBuffer = vku::GenericBuffer(buf::eTransferSrc, maxsize, pfb::eHostCoherent | pfb::eHostVisible, VMA_MEMORY_USAGE_AUTO_PREFER_HOST, vku::eMappedAccess::Sequential, false, true); // *bugfix - hidden options not exposed thru this path, default to persistant mapping.
 	  }
 	  stagingBuffer.updateLocal(value, size);
 	  bActiveDelta = (activesizebytes_ != size);
@@ -1633,7 +1679,7 @@ public:
     if (size == 0) return;
     using buf = vk::BufferUsageFlagBits;
     using pfb = vk::MemoryPropertyFlagBits;
-    auto tmp = vku::GenericBuffer(buf::eTransferSrc, size, pfb::eHostCoherent | pfb::eHostVisible, VMA_MEMORY_USAGE_CPU_ONLY);
+    auto tmp = vku::GenericBuffer(buf::eTransferSrc, size, pfb::eHostCoherent | pfb::eHostVisible, VMA_MEMORY_USAGE_AUTO_PREFER_HOST, eMappedAccess::Sequential);
 	maxsizebytes_ = tmp.maxsizebytes_;
 
 	tmp.updateLocal(value, size);
@@ -1797,7 +1843,7 @@ public:
   VertexBuffer() {
   }
 
-  VertexBuffer(size_t const size, bool const bDedicatedMemory = false) : GenericBuffer(vk::BufferUsageFlagBits::eVertexBuffer | vk::BufferUsageFlagBits::eTransferDst, size, vk::MemoryPropertyFlagBits::eDeviceLocal, VMA_MEMORY_USAGE_GPU_ONLY, bDedicatedMemory) {
+  VertexBuffer(size_t const size, bool const bDedicatedMemory = false) : GenericBuffer(vk::BufferUsageFlagBits::eVertexBuffer | vk::BufferUsageFlagBits::eTransferDst, size, vk::MemoryPropertyFlagBits::eDeviceLocal, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, bDedicatedMemory) {
   }
 
   VertexBuffer(VertexBuffer&& relegate)
@@ -1828,7 +1874,7 @@ public:
 
 	DynamicVertexBuffer(size_t size, bool const bDedicatedMemory = false)
 		: partition_(nullptr), GenericBuffer(
-			vk::BufferUsageFlagBits::eVertexBuffer | vk::BufferUsageFlagBits::eTransferDst, size, vk::MemoryPropertyFlagBits::eDeviceLocal, VMA_MEMORY_USAGE_GPU_ONLY, bDedicatedMemory) {
+			vk::BufferUsageFlagBits::eVertexBuffer | vk::BufferUsageFlagBits::eTransferDst, size, vk::MemoryPropertyFlagBits::eDeviceLocal, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, bDedicatedMemory) {
 	}
 
 	~DynamicVertexBuffer()
@@ -1892,7 +1938,7 @@ public:
   IndexBuffer() {
   }
 
-  IndexBuffer(vk::DeviceSize const size) : GenericBuffer(vk::BufferUsageFlagBits::eIndexBuffer | vk::BufferUsageFlagBits::eTransferDst, size, vk::MemoryPropertyFlagBits::eDeviceLocal, VMA_MEMORY_USAGE_GPU_ONLY) {
+  IndexBuffer(vk::DeviceSize const size) : GenericBuffer(vk::BufferUsageFlagBits::eIndexBuffer | vk::BufferUsageFlagBits::eTransferDst, size, vk::MemoryPropertyFlagBits::eDeviceLocal, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE) {
   }
 
   IndexBuffer(IndexBuffer&& relegate)
@@ -1916,7 +1962,7 @@ public:
 
 	DynamicIndexBuffer(vk::DeviceSize const size)
 		: GenericBuffer(
-			vk::BufferUsageFlagBits::eIndexBuffer | vk::BufferUsageFlagBits::eTransferDst, size, vk::MemoryPropertyFlagBits::eDeviceLocal, VMA_MEMORY_USAGE_GPU_ONLY) {
+			vk::BufferUsageFlagBits::eIndexBuffer | vk::BufferUsageFlagBits::eTransferDst, size, vk::MemoryPropertyFlagBits::eDeviceLocal, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE) {
 	}
 
 	DynamicIndexBuffer(DynamicIndexBuffer&& relegate)
@@ -1953,7 +1999,7 @@ public:
   }
 
   /// Device local uniform buffer.
-  UniformBuffer(size_t const size) : GenericBuffer(vk::BufferUsageFlagBits::eUniformBuffer|vk::BufferUsageFlagBits::eTransferDst, (vk::DeviceSize)size, vk::MemoryPropertyFlagBits::eDeviceLocal, VMA_MEMORY_USAGE_GPU_ONLY) {
+  UniformBuffer(size_t const size) : GenericBuffer(vk::BufferUsageFlagBits::eUniformBuffer|vk::BufferUsageFlagBits::eTransferDst, (vk::DeviceSize)size, vk::MemoryPropertyFlagBits::eDeviceLocal, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE) {
   }
 
   UniformBuffer(UniformBuffer&& relegate)
@@ -1978,7 +2024,7 @@ public:
 	}
 
 	/// Device local uniform buffer.
-	UniformTexelBuffer(vk::Device const& __restrict device, size_t const size, vk::Format const image_format, bool const bDedicatedMemory = false, bool const bPersistantMapping = false) : GenericBuffer(vk::BufferUsageFlagBits::eUniformTexelBuffer | vk::BufferUsageFlagBits::eTransferDst, (vk::DeviceSize)size, vk::MemoryPropertyFlagBits::eDeviceLocal, VMA_MEMORY_USAGE_GPU_ONLY, bDedicatedMemory, bPersistantMapping) {
+	UniformTexelBuffer(vk::Device const& __restrict device, size_t const size, vk::Format const image_format, bool const bDedicatedMemory = false, bool const bPersistantMapping = false) : GenericBuffer(vk::BufferUsageFlagBits::eUniformTexelBuffer | vk::BufferUsageFlagBits::eTransferDst, (vk::DeviceSize)size, vk::MemoryPropertyFlagBits::eDeviceLocal, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, bDedicatedMemory, bPersistantMapping) {
 
 		vk::BufferViewCreateInfo viewInfo{};
 		viewInfo.buffer = buffer();
@@ -2019,7 +2065,7 @@ public:
 	}
 
     // additionalFlags : vk::BufferUsageFlagBits::eTransferDst, vk::BufferUsageFlagBits::eTransferSrc
-    StorageBuffer(size_t const size, bool const bDedicatedMemory = false, vk::BufferUsageFlags const additionalFlags = {}) : GenericBuffer(vk::BufferUsageFlagBits::eStorageBuffer | additionalFlags, size, vk::MemoryPropertyFlagBits::eDeviceLocal, VMA_MEMORY_USAGE_GPU_ONLY, bDedicatedMemory) {
+    StorageBuffer(size_t const size, bool const bDedicatedMemory = false, vk::BufferUsageFlags const additionalFlags = {}) : GenericBuffer(vk::BufferUsageFlagBits::eStorageBuffer | additionalFlags, size, vk::MemoryPropertyFlagBits::eDeviceLocal, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, bDedicatedMemory) {
 	}
 
 	StorageBuffer(StorageBuffer&& relegate)
@@ -2058,7 +2104,7 @@ public:
 	}
 
 	IndirectBuffer(size_t const size, bool const bDedicatedMemory = false)
-		: GenericBuffer(vk::BufferUsageFlagBits::eIndirectBuffer | vk::BufferUsageFlagBits::eTransferDst, size, vk::MemoryPropertyFlagBits::eDeviceLocal, VMA_MEMORY_USAGE_GPU_ONLY, bDedicatedMemory) {
+		: GenericBuffer(vk::BufferUsageFlagBits::eIndirectBuffer | vk::BufferUsageFlagBits::eTransferDst, size, vk::MemoryPropertyFlagBits::eDeviceLocal, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, bDedicatedMemory) {
 	}
 
 	IndirectBuffer(IndirectBuffer&& relegate)
@@ -2378,7 +2424,7 @@ public:
   // for a single layer upload, mipmapping levels not supported - only the source size for a layer of n bytes is considered. the target texture for upload must not have mipmaps, and should also enough layers (total layers > targetLayer)
   template< bool const DoSetFinalLayout = true, vk::ImageLayout const FinalLayout = vk::ImageLayout::eShaderReadOnlyOptimal, typename T >
   void upload(vk::Device device, T const* const __restrict bytes, size_t const sizeLayer, uint32_t const targetLayer, vk::CommandPool const& __restrict commandPool, vk::Queue const& __restrict queue) {
-	  vku::GenericBuffer stagingBuffer((vk::BufferUsageFlags)vk::BufferUsageFlagBits::eTransferSrc, (vk::DeviceSize)sizeLayer, vk::MemoryPropertyFlagBits::eHostCoherent | vk::MemoryPropertyFlagBits::eHostVisible, VMA_MEMORY_USAGE_CPU_ONLY);
+	  vku::GenericBuffer stagingBuffer((vk::BufferUsageFlags)vk::BufferUsageFlagBits::eTransferSrc, (vk::DeviceSize)sizeLayer, vk::MemoryPropertyFlagBits::eHostCoherent | vk::MemoryPropertyFlagBits::eHostVisible, VMA_MEMORY_USAGE_AUTO_PREFER_HOST, vku::eMappedAccess::Sequential);
 	  stagingBuffer.updateLocal<T>(bytes, sizeLayer);
 
 	  // Copy the staging buffer to the GPU texture and set the layout.
@@ -2423,7 +2469,7 @@ public:
 
   template< bool const DoSetFinalLayout = true, vk::ImageLayout const FinalLayout = vk::ImageLayout::eShaderReadOnlyOptimal, typename T >
   void upload(vk::Device device, T const* const __restrict bytes, size_t const size, vk::CommandPool const& __restrict commandPool, vk::Queue const& __restrict queue) {
-	  vku::GenericBuffer stagingBuffer((vk::BufferUsageFlags)vk::BufferUsageFlagBits::eTransferSrc, (vk::DeviceSize)size, vk::MemoryPropertyFlagBits::eHostCoherent | vk::MemoryPropertyFlagBits::eHostVisible, VMA_MEMORY_USAGE_CPU_ONLY);
+	  vku::GenericBuffer stagingBuffer((vk::BufferUsageFlags)vk::BufferUsageFlagBits::eTransferSrc, (vk::DeviceSize)size, vk::MemoryPropertyFlagBits::eHostCoherent | vk::MemoryPropertyFlagBits::eHostVisible, VMA_MEMORY_USAGE_AUTO_PREFER_HOST, vku::eMappedAccess::Sequential);
 	  stagingBuffer.updateLocal<T>(bytes, size);
 
 	  // Copy the staging buffer to the GPU texture and set the layout.
@@ -3003,9 +3049,9 @@ protected:
 #endif
 
 	VmaAllocationCreateInfo allocInfo{};
-	allocInfo.usage = (hostImage ? VMA_MEMORY_USAGE_CPU_ONLY : VMA_MEMORY_USAGE_GPU_ONLY);  // default to gpu only if 0/unknown is passed in
+	allocInfo.usage = (hostImage ? VMA_MEMORY_USAGE_AUTO_PREFER_HOST : VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE);  // default to gpu only if 0/unknown is passed in
 	allocInfo.requiredFlags = (VkMemoryPropertyFlags)(hostImage ? (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT|VK_MEMORY_PROPERTY_HOST_COHERENT_BIT) : VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-	//allocInfo.preferredFlags = VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_CACHED_BIT;
+	allocInfo.preferredFlags = allocInfo.requiredFlags;
 	allocInfo.flags = (bDedicatedMemory ? VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT : (VmaAllocationCreateFlags)0);
 
 	VmaAllocationInfo image_alloc_info{};
@@ -3758,7 +3804,7 @@ public:
 	  // with the rest being zeroed out.
 	  vk::DeviceSize const alignedSize(std::max(image.size(), (vk::DeviceSize)totalActualSize));
 
-	vku::GenericBuffer stagingBuffer((vk::BufferUsageFlags)vk::BufferUsageFlagBits::eTransferSrc, alignedSize, vk::MemoryPropertyFlagBits::eHostCoherent | vk::MemoryPropertyFlagBits::eHostVisible, VMA_MEMORY_USAGE_CPU_ONLY);
+	vku::GenericBuffer stagingBuffer((vk::BufferUsageFlags)vk::BufferUsageFlagBits::eTransferSrc, alignedSize, vk::MemoryPropertyFlagBits::eHostCoherent | vk::MemoryPropertyFlagBits::eHostVisible, VMA_MEMORY_USAGE_AUTO_PREFER_HOST, vku::eMappedAccess::Sequential);
     
 	uint32_t const baseOffset = offset(0, 0, 0);
 	stagingBuffer.updateLocal(pFileBegin + baseOffset, totalActualSize);

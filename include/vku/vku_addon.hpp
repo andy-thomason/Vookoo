@@ -202,18 +202,19 @@ namespace vku {
 		
 	} clear_renderpass;
 	typedef void(* const clear_renderpass_function)(clear_renderpass&& __restrict);
-	typedef void(*clear_renderpass_function_unconst)(clear_renderpass&& __restrict);
 	
 	typedef struct {
 				
 		vk::CommandBuffer cb;
 		uint32_t resource_index;
 
-		vk::RenderPassBeginInfo&& __restrict rpbi;
-
+		vk::RenderPassBeginInfo&& __restrict rpbi_postAA0;
+		vk::RenderPassBeginInfo&& __restrict rpbi_postAA1;
+		vk::RenderPassBeginInfo&& __restrict rpbi_postAA2;
+		vk::RenderPassBeginInfo&& __restrict rpbi_final;
+		
 	} present_renderpass;
 	typedef void(*const present_renderpass_function)(present_renderpass&& __restrict);
-	typedef void(*present_renderpass_function_unconst)(present_renderpass&& __restrict);
 	
 	typedef void(* const gpu_readback_function)(vk::CommandBuffer&, uint32_t const);
 }
