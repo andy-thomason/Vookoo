@@ -2,7 +2,7 @@
 //
 /// Vookoo high level C++ Vulkan interface.
 //
-/// (C) Vookoo Contributors, MIT License
+/// (C) Andy Thomason 2017 MIT License
 //
 /// This is a utility set alongside the vkcpp C++ interface to Vulkan which makes
 /// constructing Vulkan pipelines and resources very easy for beginners.
@@ -15,65 +15,165 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+// Additions & Fixes -
+// Jason Tully
+// 2022
+// (supports minimum spec Radeon 290, Hvidia GTX 970)
+
+#pragma once
 #ifndef VKU_HPP
 #define VKU_HPP
 
-#include <utility>
+#include <Utility/mem.h>
+#pragma intrinsic(memcpy)
+#pragma intrinsic(memset)
+
+#define VK_NO_PROTOTYPES
+#include "volk/volk.h"
+
 #include <array>
 #include <fstream>
-#include <iostream>
-#include <unordered_map>
 #include <vector>
 #include <thread>
 #include <chrono>
 #include <functional>
 #include <cstddef>
+#include <optional>
+#include <variant>
+#include <tbb/tbb.h>
 
-#ifdef VOOKOO_SPIRV_SUPPORT
-  #include <unified1/spirv.hpp11>
+#ifndef NDEBUG
+//#define BREAK_ON_VALIDATION_ERROR 1  // set to 1 to enable debug break on vulkan validation errors. callstack can be used to find source of error.
 #endif
 
-#include <vulkan/vulkan.hpp>
+#ifndef NDEBUG
+//#define SYNC_VALIDATION_ONLY 1
+#endif
+
+// workaround, so volk gets used instead. note that vulkan is not staically linked using this method
+// all vulkan function calls route properly through volk
+// modify Vulkan->hpp (line 756)
+// #if defined(VK_NO_PROTOTYPES)            // was: #if !defined(VK_NO_PROTOTYPES)
+// class DispatchLoaderStatic
+#define VULKAN_HPP_ENABLE_DYNAMIC_LOADER_TOOL 0 // disabled - using volk instead
+#define VULKAN_HPP_DISPATCH_LOADER_DYNAMIC 0 // disabled - using volk instead
+#define VULKAN_HPP_NO_NODISCARD_WARNINGS
+#define VULKAN_HPP_NO_EXCEPTIONS 
+#define VULKAN_HPP_ASSERT (void)
+
+// ####################################################################################################################
+#pragma component(browser, off, references) // warning BK4504 workaround
+#include <spirv-headers/spirv.hpp11>
+#include <vulkan/Vulkan.hpp>		// this is the one and only place Vulkan->hpp can be included, use cVulkan->h (prefer)
+#pragma component(browser, on, references) // warning BK4504 workaround
+// #####################################################################################################################
+
+#include <fmt/fmt.h>
+#include <Utility/stringconv.h>
+
+#define VULKAN_API_VERSION_USED VK_API_VERSION_1_2
+
+#include <vku/vku_addon.hpp>
+
+#define VMA_STATIC_VULKAN_FUNCTIONS 1 // route to volk
+#define VMA_VULKAN_VERSION 1002000 // Vulkan 1.2
+#define VMA_DEDICATED_ALLOCATION 1
+#define VMA_MEMORY_BUDGET 1
+
+#ifndef NDEBUG 
+#ifdef VKU_VMA_DEBUG_ENABLED 
+#define VMA_DEBUG_MARGIN 32
+#define VMA_DEBUG_DETECT_CORRUPTION 1
+#define VMA_RECORDING_ENABLED 0
+#define VMA_STATS_STRING_ENABLED 1
+#define VMA_DEBUG_LOG(message, ...) { (fmt::printf("[VMA] " INVERSE_ANSI message INVERSE_ANSI_OFF "\n", __VA_ARGS__)); }
+#endif
+#define VMA_ASSERT(expr) assert_print(expr, "VMA Memory FAIL");
+#else
+#define VMA_DEBUG_MARGIN 0
+#define VMA_DEBUG_DETECT_CORRUPTION 0
+#define VMA_RECORDING_ENABLED 0
+#define VMA_STATS_STRING_ENABLED 0
+#define VMA_DEBUG_LOG(format, ...) (void)format;
+#define VMA_ASSERT(expr) ((void)0)
+#endif
+#ifndef VULKAN_H_
+#define VULKAN_H_ // sanity check prevent vma from additional inclusion of Vulkan->h which is covered by volk ONLY
+#endif
+
+#include <vku/vma/vk_mem_alloc.h>
 
 namespace vku {
 
+	extern VmaAllocator vma_;		//singleton - further initialized by vku_framework after device creation
+	extern tbb::concurrent_unordered_map<VkCommandPool, vku::CommandBufferContainer<1>> pool_;
+
+	enum eMappedAccess
+	{
+		Disabled = 0,
+		Sequential = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT,
+		Random = VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT
+	};
+	
 /// Printf-style formatting function.
 template <class ... Args>
 std::string format(const char *fmt, Args... args) {
-  int n = snprintf(nullptr, 0, fmt, args...);
-  std::string result(n, '\0');
-  snprintf(&*result.begin(), n+1, fmt, args...);
-  return result;
+  //int n = (snprintf(nullptr, 0, fmt, args...);
+  //std::string result(n, '\0');
+  //snprintf(&*result.begin(), n+1, fmt, args...);
+  return(fmt::format(fmt, args));
 }
 
-/// Utility function for finding memory types for uniforms and images.
-inline int findMemoryTypeIndex(const vk::PhysicalDeviceMemoryProperties &memprops, uint32_t memoryTypeBits, vk::MemoryPropertyFlags search) {
-  for (int i = 0; i != memprops.memoryTypeCount; ++i, memoryTypeBits >>= 1) {
-    if (memoryTypeBits & 1) {
-      if ((memprops.memoryTypes[i].propertyFlags & search) == search) {
-        return i;
-      }
-    }
-  }
-  return -1;
+template<bool const bAsync = true>
+static inline void executeImmediately(vk::Device const& __restrict device, vk::CommandPool const& __restrict commandPool, vk::Queue const& __restrict queue, std::function<void(vk::CommandBuffer cb)> const func) { // const std::function<void (vk::CommandBuffer cb)> 
+    
+	static constexpr uint64_t const umax = nanoseconds(milliseconds(500)).count();
+
+	using pool_map = tbb::concurrent_unordered_map<VkCommandPool, vku::CommandBufferContainer<1>>;
+
+	pool_map::const_iterator container(pool_.find(commandPool));
+
+	if (pool_.cend() == container) {
+		vk::CommandBufferAllocateInfo const cbai{ commandPool, vk::CommandBufferLevel::ePrimary, 2 }; // always allocating 2 command buffers on this command pools first usage
+
+		auto const [iter, success] = pool_.emplace(commandPool, CommandBufferContainer<1>(device, cbai));
+#ifndef NDEBUG
+		assert_print(success, "Could not allocate command buffer! FAIL");
+#endif
+		container = iter;
+	}
+
+	// try first command buffer, no waiting (fast path)
+	vk::CommandBuffer cb(*container->second.cb[0][0]);
+	vk::Fence cbFence(container->second.fence[0][0]);
+	
+	if (vk::Result::eTimeout == device.waitForFences(cbFence, VK_FALSE, 0)) {
+		// try second command buffer, waiting if neccessary
+		cb = *container->second.cb[0][1];
+		cbFence = container->second.fence[0][1];
+		device.waitForFences(cbFence, VK_TRUE, umax);
+	}
+
+	cb.begin(vk::CommandBufferBeginInfo{ vk::CommandBufferUsageFlagBits::eOneTimeSubmit });
+	func(cb);
+	cb.end();
+
+	vk::SubmitInfo submit{};
+	submit.commandBufferCount = 1;
+	submit.pCommandBuffers = &cb;
+
+	device.resetFences(cbFence);
+	queue.submit(submit, cbFence);
+	
+	if constexpr (!bAsync) {
+		queue.waitIdle();
+	}
 }
 
-/// Execute commands immediately and wait for the device to finish.
-inline void executeImmediately(vk::Device device, vk::CommandPool commandPool, vk::Queue queue, const std::function<void (vk::CommandBuffer cb)> &func) {
-  vk::CommandBufferAllocateInfo cbai{ commandPool, vk::CommandBufferLevel::ePrimary, 1 };
-
-  auto cbs = device.allocateCommandBuffers(cbai);
-  cbs[0].begin(vk::CommandBufferBeginInfo{});
-  func(cbs[0]);
-  cbs[0].end();
-
-  vk::SubmitInfo submit;
-  submit.commandBufferCount = (uint32_t)cbs.size();
-  submit.pCommandBuffers = cbs.data();
-  queue.submit(submit, vk::Fence{});
-  device.waitIdle();
-
-  device.freeCommandBuffers(commandPool, cbs);
+// memory barrier helper
+static inline void memory_barrier(vk::CommandBuffer& cb, vk::PipelineStageFlags const srcStageMask, vk::PipelineStageFlags const dstStageMask, vk::AccessFlags const srcAccessMask, vk::AccessFlags const dstAccessMask) {
+	vk::MemoryBarrier mb(srcAccessMask, dstAccessMask);
+	cb.pipelineBarrier(srcStageMask, dstStageMask, vk::DependencyFlagBits::eByRegion, mb, nullptr, nullptr);
 }
 
 /// Scale a value by mip level, but do not reduce to zero.
@@ -307,50 +407,36 @@ public:
   InstanceMaker() {
   }
 
-  InstanceMaker &extensionMultiview ()
-  {
-	extension(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME); // added for multiview extension
-	return *this;
-  }
-
-  InstanceMaker &extensionValidation ()
-  {
-	layers_.push_back("VK_LAYER_KHRONOS_validation");
-	return *this;
-  }
-
   /// Set the default layers and extensions.
-  InstanceMaker &defaultLayers(int core=0)
-  {
-    instance_extensions_.push_back(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);
-
-#ifdef VKU_SURFACE
-      instance_extensions_.push_back(VKU_SURFACE);
-#endif
-
-    instance_extensions_.push_back(VK_KHR_SURFACE_EXTENSION_NAME);
-
-#if defined( __APPLE__ ) && defined(VK_EXT_METAL_SURFACE_EXTENSION_NAME)
-		instance_extensions_.push_back(VK_EXT_METAL_SURFACE_EXTENSION_NAME);
-#endif //__APPLE__
-
-	if (core > 0)
-	{
-
-	}
+  InstanceMaker &defaultLayers() {
+#ifndef NDEBUG
 	
+#if defined(SYNC_VALIDATION_ONLY) && SYNC_VALIDATION_ONLY
+	layer("VK_LAYER_KHRONOS_synchronization2");
+#else
+	layer("VK_LAYER_KHRONOS_validation");
+#endif
+	
+	extension(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+#endif
+    
+#ifdef VKU_SURFACE
+	extension(VKU_SURFACE);
+#endif
+	extension(VK_KHR_SURFACE_EXTENSION_NAME);
+	extension(VK_KHR_GET_SURFACE_CAPABILITIES_2_EXTENSION_NAME);
     return *this;
   }
 
-  /// Add a layer. eg. "VK_LAYER_KHRONOS_validation"
+  /// Add a layer. eg. "VK_LAYER_LUNARG_standard_validation"
   InstanceMaker &layer(const char *layer) {
     layers_.push_back(layer);
     return *this;
   }
 
-  /// Add an extension. eg. VK_EXT_DEBUG_REPORT_EXTENSION_NAME
-  InstanceMaker &extension(const char *layer) {
-    instance_extensions_.push_back(layer);
+  /// Add an extension. eg. VK_EXT_DEBUG_UTILS_EXTENSION_NAME
+  InstanceMaker &extension(const char * extension) {
+    instance_extensions_.push_back(extension);
     return *this;
   }
 
@@ -391,13 +477,46 @@ public:
 
   /// Create a self-deleting (unique) instance.
   vk::UniqueInstance createUnique() {
-    return vk::createInstanceUnique(
-      vk::InstanceCreateInfo{
-        {}, &app_info_, (uint32_t)layers_.size(),
-        layers_.data(), (uint32_t)instance_extensions_.size(),
-        instance_extensions_.data()
-      }
-    );
+
+	  // common to both release and debug builds //
+	  vk::UniqueInstance instance;
+
+	  vk::InstanceCreateInfo instanceInfo{
+		  {}, &app_info_, (uint32_t)layers_.size(),
+		  layers_.data(), (uint32_t)instance_extensions_.size(),
+		  instance_extensions_.data()
+	  };
+
+#ifndef NDEBUG
+	  // *******Debug - enable extra validation here (performance warnings galore)
+	  //vk::ValidationFeatureEnableEXT const enabledValidation[]{ /*vk::ValidationFeatureEnableEXT::eGpuAssisted, vk::ValidationFeatureEnableEXT::eGpuAssistedReserveBindingSlot,*/ vk::ValidationFeatureEnableEXT::eBestPractices};
+	  //vk::ValidationFeaturesEXT enabledValidationFeatures(_countof(enabledValidation), enabledValidation);
+	  
+	  // pNext linked list chain start:
+	  //enabledValidationFeatures.pNext = instanceInfo.pNext;
+	  //instanceInfo.pNext = &enabledValidationFeatures;
+
+#else // *******Release
+	  // ensure validation is disabled on release builds //
+	  vk::ValidationFeatureDisableEXT const disabledValidation[]{ vk::ValidationFeatureDisableEXT::eAll };
+	  vk::ValidationFeaturesEXT disabledValidationFeatures({}, 0, _countof(disabledValidation), disabledValidation);
+
+	  vk::ValidationCheckEXT const disableValidation[]{ vk::ValidationCheckEXT::eAll };
+	  vk::ValidationFlagsEXT disabledValidationFlags{ _countof(disableValidation), disableValidation };
+
+	  // pNext linked list chain start:
+	  disabledValidationFeatures.pNext = instanceInfo.pNext;
+	  disabledValidationFlags.pNext = &disabledValidationFeatures;
+	  instanceInfo.pNext = &disabledValidationFlags;
+
+#endif
+
+	  // instance creation //
+	  instance = vk::createInstanceUnique(instanceInfo).value;
+	
+	  volkLoadInstanceOnly(*instance); // volk
+
+	return(instance);
   }
 private:
   std::vector<const char *> layers_;
@@ -412,29 +531,20 @@ public:
   DeviceMaker() {
   }
 
-  DeviceMaker &extensionMultiview ()
-  {
-      extension(VK_KHR_MULTIVIEW_EXTENSION_NAME); // added for multiview extension
-      return *this;
-  }
-  
-  DeviceMaker &extensionValidation ()
-  {
-	layers_.push_back("VK_LAYER_LUNARG_standard_validation");
-	return *this;
-  }
-
   /// Set the default layers and extensions.
-  DeviceMaker &defaultLayers(int core=0)
-  {
-	device_extensions_.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
-
-    if (core > 0)
-    {
- 		// VK_KHR_MAINTENANCE1 is required for using negative viewport heights
-		// Note: This is core as of Vulkan 1.1. So if you target 1.1 you don't have to explicitly enable this
-		device_extensions_.push_back(VK_KHR_MAINTENANCE1_EXTENSION_NAME);
-	}
+  DeviceMaker &defaultLayers() {
+	  
+#ifndef NDEBUG
+		
+#if defined(SYNC_VALIDATION_ONLY) && SYNC_VALIDATION_ONLY
+	//layer("VK_LAYER_KHRONOS_synchronization2");
+#else
+	layer("VK_LAYER_LUNARG_standard_validation");
+	layer("VK_LAYER_LUNARG_assistant_layer");
+#endif
+	
+#endif
+	extension(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
     return *this;
   }
 
@@ -444,88 +554,62 @@ public:
     return *this;
   }
 
-  /// Add an extension. eg. VK_EXT_DEBUG_REPORT_EXTENSION_NAME
-  DeviceMaker &extension(const char *layer) {
-    device_extensions_.push_back(layer);
+  /// Add an extension. eg. VK_EXT_DEBUG_UTILS_EXTENSION_NAME
+  DeviceMaker &extension(const char *extension) {
+    device_extensions_.push_back(extension);
     return *this;
   }
 
   /// Add one or more queues to the device from a certain family.
-  DeviceMaker &queue(uint32_t familyIndex, float priority=0.0f, uint32_t n=1) {
-    queue_priorities_.emplace_back(n, priority);
+  //template< VkQueueGlobalPriorityEXT const global_priority = VK_QUEUE_GLOBAL_PRIORITY_MEDIUM_EXT >	// *bugfix - NVIDIA does not support this extension. It's not really needed - all queue priorities were the same anyway.
+  DeviceMaker &queue(uint32_t const familyIndex, uint32_t const n = 1u) {
+    queue_priorities_.emplace_back(n, 1.0f);
 
-    qci_.emplace_back(
-      vk::DeviceQueueCreateFlags{},
-      familyIndex, n,
-      queue_priorities_.back().data()
-    );
+	vk::DeviceQueueCreateInfo new_queue(vk::DeviceQueueCreateFlags{},
+										familyIndex, n,
+										queue_priorities_.back().data());
+
+	//if constexpr(VK_QUEUE_GLOBAL_PRIORITY_MEDIUM_EXT != global_priority) {	// only if not default global priority
+	//
+	//	static VkDeviceQueueGlobalPriorityCreateInfoEXT global_priority_ext;	// static life time required for deferred init from this function
+																				// only unique because of the template specialization
+	//	global_priority_ext.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_GLOBAL_PRIORITY_CREATE_INFO_EXT;
+	//	global_priority_ext.globalPriority = global_priority;
+	//	global_priority_ext.pNext = nullptr;
+
+	//	new_queue.pNext = &global_priority_ext;
+	//}
+    qci_.emplace_back(new_queue);
 
     return *this;
   }
 
-  DeviceMaker &physicalDeviceFeatures(const vk::PhysicalDeviceFeatures &v = {})
-  {
-	pdfs_.push_back(v);
-	return *this;
-  }
-  
-  DeviceMaker &enableGeometryShader ()
-  {
-	// assert !pdfs_.empty()
-	pdfs_.back().setGeometryShader(true);
-	return *this;
-  }
-  
-  DeviceMaker &enableTessellationShader ()
-  {
-	// assert !pdfs_.empty()
-	pdfs_.back().setTessellationShader(true);
-	return *this;
-  }
-  
-  DeviceMaker &multiviewFeatures (const vk::PhysicalDeviceMultiviewFeatures &v = {})
-  {
-	mvfs_.push_back(v);
-	return *this;
-  }
-  
-  DeviceMaker &enableMultiview ()
-  {
-	// assert !mvfs_.empty()
-	mvfs_.back().setMultiview(true);
-	return *this;
-  }
-
   /// Create a new logical device.
-  vk::UniqueDevice createUnique(vk::PhysicalDevice physical_device) {
-    auto dci = vk::DeviceCreateInfo{
-      {},
-      (uint32_t)qci_.size(), qci_.data(),
-      (uint32_t)layers_.size(), layers_.data(),
-      (uint32_t)device_extensions_.size(), device_extensions_.data()
-    };
+  vk::UniqueDevice createUnique(vk::PhysicalDevice physical_device, vk::PhysicalDeviceFeatures const& enabledFeatures, const void* const __restrict pNext = nullptr) {
 
-    //
-    if (!pdfs_.empty())
-		dci.setPEnabledFeatures(&pdfs_.front());
+	  vk::DeviceCreateInfo createInfo{
+		{}, (uint32_t)qci_.size(), qci_.data(),
+		(uint32_t)layers_.size(), layers_.data(),
+		(uint32_t)device_extensions_.size(), device_extensions_.data(),
+		&enabledFeatures };
 
-    // required to enable and use multiview
-    if (!mvfs_.empty())
-		dci.pNext = &mvfs_.front();
+	  createInfo.pNext = pNext;
+	  
+	  vk::UniqueDevice device = physical_device.createDeviceUnique(createInfo).value;
 
-    return physical_device.createDeviceUnique(dci);
+	  volkLoadDevice(*device); // volk
+
+	  return(device);
   }
 private:
   std::vector<const char *> layers_;
   std::vector<const char *> device_extensions_;
   std::vector<std::vector<float> > queue_priorities_;
   std::vector<vk::DeviceQueueCreateInfo> qci_;
-  std::vector<vk::PhysicalDeviceFeatures> pdfs_;
-  std::vector<vk::PhysicalDeviceMultiviewFeatures> mvfs_;
-
   vk::ApplicationInfo app_info_;
 };
 
+#ifndef NDEBUG
 class DebugCallback {
 public:
   DebugCallback() {
@@ -533,59 +617,212 @@ public:
 
   DebugCallback(
     vk::Instance instance,
-    vk::DebugReportFlagsEXT flags =
-      vk::DebugReportFlagBitsEXT::eWarning |
-      vk::DebugReportFlagBitsEXT::eError
+    vk::DebugUtilsMessageSeverityFlagsEXT const severityFlags =
+      vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning |
+      vk::DebugUtilsMessageSeverityFlagBitsEXT::eError
   ) : instance_(instance) {
-    auto ci = vk::DebugReportCallbackCreateInfoEXT{flags, &debugCallback};
+#ifndef NDEBUG
+	  vk::DebugUtilsMessageTypeFlagsEXT const typeFlags(vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance | vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation);
+	  vk::DebugUtilsMessengerCreateFlagBitsEXT const flags{};
 
-    auto vkCreateDebugReportCallbackEXT =
-        (PFN_vkCreateDebugReportCallbackEXT)instance_.getProcAddr(
-            "vkCreateDebugReportCallbackEXT");
+	  auto ci = vk::DebugUtilsMessengerCreateInfoEXT(flags, severityFlags, typeFlags, &debugCallback);
 
-    VkDebugReportCallbackEXT cb;
-    vkCreateDebugReportCallbackEXT(
-      instance_, &(const VkDebugReportCallbackCreateInfoEXT &)ci,
-      nullptr, &cb
+    auto vkCreateDebugUtilsMessengerEXT =
+        (PFN_vkCreateDebugUtilsMessengerEXT)instance_.getProcAddr(
+			"vkCreateDebugUtilsMessengerEXT");
+
+	VkDebugUtilsMessengerEXT mess;
+	vkCreateDebugUtilsMessengerEXT(
+      instance_, &(const VkDebugUtilsMessengerCreateInfoEXT&)ci,
+      nullptr, &mess
     );
-    callback_ = cb;
+    messenger_ = mess;
+#endif
   }
 
   ~DebugCallback() {
-    //reset();
+    //reset(); // handled by messenger_ object at exit
   }
 
   void reset() {
-    if (callback_) {
-      auto vkDestroyDebugReportCallbackEXT =
-          (PFN_vkDestroyDebugReportCallbackEXT)instance_.getProcAddr(
-              "vkDestroyDebugReportCallbackEXT");
-      vkDestroyDebugReportCallbackEXT(instance_, callback_, nullptr);
-      callback_ = vk::DebugReportCallbackEXT{};
+    if (messenger_) {
+      auto vkDestroyDebugUtilsMessengerEXT =
+          (PFN_vkDestroyDebugUtilsMessengerEXT)instance_.getProcAddr(
+              "vkDestroyDebugUtilsMessengerEXT");
+	  vkDestroyDebugUtilsMessengerEXT(instance_, messenger_, nullptr);
+	  messenger_ = vk::DebugUtilsMessengerEXT{};
     }
   }
+
+  void acquireDeviceFunctionPointers( vk::Device const& device ) {
+
+	  device_ = device;
+	  
+	  pfn_vkSetDebugUtilsObjectNameEXT = (PFN_vkSetDebugUtilsObjectNameEXT)device.getProcAddr("vkSetDebugUtilsObjectNameEXT");
+	  pfn_vkCmdInsertDebugUtilsLabelEXT = (PFN_vkCmdInsertDebugUtilsLabelEXT)device.getProcAddr("vkCmdInsertDebugUtilsLabelEXT");
+  }
 private:
-  // Report any errors or warnings.
+	/*
+
+	typedef VkBool32 (VKAPI_PTR *PFN_vkDebugUtilsMessengerCallbackEXT)(
+	VkDebugUtilsMessageSeverityFlagBitsEXT           messageSeverity,
+	VkDebugUtilsMessageTypeFlagsEXT                  messageTypes,
+	const VkDebugUtilsMessengerCallbackDataEXT*      pCallbackData,
+	void*                                            pUserData);
+
+	*/
+	// Messagner callback, outputing to console any errors or warnings.
   static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
-      VkDebugReportFlagsEXT flags, VkDebugReportObjectTypeEXT objectType,
-      uint64_t object, size_t location, int32_t messageCode,
-      const char *pLayerPrefix, const char *pMessage, void *pUserData) {
-    printf("%08x debugCallback: %s\n", flags, pMessage);
+      VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
+	  VkDebugUtilsMessageTypeFlagsEXT messageTypes,
+	  const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void *pUserData) {
+
+	  static constexpr int32_t const granularity = 24 << 2;
+	  static std::string szLast = "";
+	  constinit static int32_t iReplicateCnt = granularity;
+	 
+ 	  if (iReplicateCnt <= 0 || szLast.find(std::string(pCallbackData->pMessageIdName).substr(1, granularity>>1)) == std::string::npos) {
+		  
+		  vk::DebugUtilsMessageSeverityFlagsEXT const severity(messageSeverity);
+		  vk::DebugUtilsMessageTypeFlagsEXT const types(messageTypes);
+
+		  fmt::print(fg(fmt::color::orange), "\n ++++ ");
+		  fmt::print("\n{:s}-{:s} : {:s} {:s}\n", vk::to_string(severity), vk::to_string(types), pCallbackData->pMessage, (iReplicateCnt<=0?"REPEATED":""));
+		  
+		  uint32_t index(0);
+		  uint32_t queueLabelCount(pCallbackData->queueLabelCount);
+		  while (queueLabelCount--) {
+			  std::string_view const label(pCallbackData->pQueueLabels[index].pLabelName ? pCallbackData->pQueueLabels[index].pLabelName : "null");
+			  fmt::print("\n\t queue: {:s}", label);
+
+			  ++index;
+		  }
+
+		  index = 0;
+		  uint32_t cmdbufferLabelCount(pCallbackData->cmdBufLabelCount);
+		  while (cmdbufferLabelCount--) {
+			  std::string_view const label(pCallbackData->pCmdBufLabels[index].pLabelName ? pCallbackData->pCmdBufLabels[index].pLabelName : "null");
+			  fmt::print("\n\t command buffer: {:s}", label);
+
+			  ++index;
+		  }
+
+		  index = 0;
+		  uint32_t objectLabelCount(pCallbackData->objectCount);
+		  while (objectLabelCount--) {
+
+			  vk::ObjectType const type((vk::ObjectType)pCallbackData->pObjects[index].objectType);
+
+			  std::string_view const label(pCallbackData->pObjects[index].pObjectName ? pCallbackData->pObjects[index].pObjectName : "null");
+			  fmt::print("\n\t {:s}: {:s}", vk::to_string(type), label);
+
+			  ++index;
+		  }
+
+		  fmt::print(fg(fmt::color::orange), "\n ++++ \n");
+
+		  szLast = pCallbackData->pMessageIdName;
+		  iReplicateCnt = granularity;
+	  }
+	  else {
+		  --iReplicateCnt;
+	  }
+
+#if defined(BREAK_ON_VALIDATION_ERROR)
+#if BREAK_ON_VALIDATION_ERROR
+		  DebugBreak();
+		  quick_exit(1);
+#endif
+#endif
+
     return VK_FALSE;
   }
-  vk::DebugReportCallbackEXT callback_;
+  vk::DebugUtilsMessengerEXT messenger_;
   vk::Instance instance_;
+  
+  public:
+	  static inline vk::Device device_;
+	  static inline PFN_vkSetDebugUtilsObjectNameEXT pfn_vkSetDebugUtilsObjectNameEXT = nullptr; 
+	  static inline PFN_vkCmdInsertDebugUtilsLabelEXT pfn_vkCmdInsertDebugUtilsLabelEXT = nullptr;
 };
+
+// use vk::ObjectType::_xxx_
+/*
+enum class ObjectType
+  {
+	eUnknown = VK_OBJECT_TYPE_UNKNOWN,
+	eInstance = VK_OBJECT_TYPE_INSTANCE,
+	ePhysicalDevice = VK_OBJECT_TYPE_PHYSICAL_DEVICE,
+	eDevice = VK_OBJECT_TYPE_DEVICE,
+	eQueue = VK_OBJECT_TYPE_QUEUE,
+	eSemaphore = VK_OBJECT_TYPE_SEMAPHORE,
+	eCommandBuffer = VK_OBJECT_TYPE_COMMAND_BUFFER,
+	eFence = VK_OBJECT_TYPE_FENCE,
+	eDeviceMemory = VK_OBJECT_TYPE_DEVICE_MEMORY,
+	eBuffer = VK_OBJECT_TYPE_BUFFER,
+	eImage = VK_OBJECT_TYPE_IMAGE,
+	eEvent = VK_OBJECT_TYPE_EVENT,
+	eQueryPool = VK_OBJECT_TYPE_QUERY_POOL,
+	eBufferView = VK_OBJECT_TYPE_BUFFER_VIEW,
+	eImageView = VK_OBJECT_TYPE_IMAGE_VIEW,
+	eShaderModule = VK_OBJECT_TYPE_SHADER_MODULE,
+	ePipelineCache = VK_OBJECT_TYPE_PIPELINE_CACHE,
+	ePipelineLayout = VK_OBJECT_TYPE_PIPELINE_LAYOUT,
+	eRenderPass = VK_OBJECT_TYPE_RENDER_PASS,
+	ePipeline = VK_OBJECT_TYPE_PIPELINE,
+	eDescriptorSetLayout = VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT,
+	eSampler = VK_OBJECT_TYPE_SAMPLER,
+	eDescriptorPool = VK_OBJECT_TYPE_DESCRIPTOR_POOL,
+	eDescriptorSet = VK_OBJECT_TYPE_DESCRIPTOR_SET,
+	eFramebuffer = VK_OBJECT_TYPE_FRAMEBUFFER,
+	eCommandPool = VK_OBJECT_TYPE_COMMAND_POOL,
+	eSamplerYcbcrConversion = VK_OBJECT_TYPE_SAMPLER_YCBCR_CONVERSION,
+	eDescriptorUpdateTemplate = VK_OBJECT_TYPE_DESCRIPTOR_UPDATE_TEMPLATE,
+	eSurfaceKHR = VK_OBJECT_TYPE_SURFACE_KHR,
+	eSwapchainKHR = VK_OBJECT_TYPE_SWAPCHAIN_KHR,
+	eDisplayKHR = VK_OBJECT_TYPE_DISPLAY_KHR,
+	eDisplayModeKHR = VK_OBJECT_TYPE_DISPLAY_MODE_KHR,
+	eDebugReportCallbackEXT = VK_OBJECT_TYPE_DEBUG_REPORT_CALLBACK_EXT,
+	eObjectTableNVX = VK_OBJECT_TYPE_OBJECT_TABLE_NVX,
+	eIndirectCommandsLayoutNVX = VK_OBJECT_TYPE_INDIRECT_COMMANDS_LAYOUT_NVX,
+	eDebugUtilsMessengerEXT = VK_OBJECT_TYPE_DEBUG_UTILS_MESSENGER_EXT,
+	eValidationCacheEXT = VK_OBJECT_TYPE_VALIDATION_CACHE_EXT,
+	eAccelerationStructureNV = VK_OBJECT_TYPE_ACCELERATION_STRUCTURE_NV,
+	ePerformanceConfigurationINTEL = VK_OBJECT_TYPE_PERFORMANCE_CONFIGURATION_INTEL,
+	eDescriptorUpdateTemplateKHR = VK_OBJECT_TYPE_DESCRIPTOR_UPDATE_TEMPLATE_KHR,
+	eSamplerYcbcrConversionKHR = VK_OBJECT_TYPE_SAMPLER_YCBCR_CONVERSION_KHR
+  };
+  */
+#define VKU_SET_OBJECT_NAME(type, object, objectname) \
+{ \
+	vk::DebugUtilsObjectNameInfoEXT const obj{ \
+		type, (uint64_t)(object), objectname \
+	}; \
+	vku::DebugCallback::pfn_vkSetDebugUtilsObjectNameEXT((VkDevice const)vku::DebugCallback::device_, ((VkDebugUtilsObjectNameInfoEXT const* const)&obj)); \
+} 
+#define VKU_SET_CMD_BUFFER_LABEL(cb, labelname) \
+{ \
+	vk::DebugUtilsLabelEXT const label{ labelname }; \
+	vku::DebugCallback::pfn_vkCmdInsertDebugUtilsLabelEXT((VkCommandBuffer const)cb, ((VkDebugUtilsLabelEXT const* const)&label)); \
+}
+		
+#else // NDEBUG
+
+#define VKU_SET_OBJECT_NAME(type, object, objectname) { (void)type; (void)object; (void)objectname; }
+#define VKU_SET_CMD_BUFFER_LABEL(cb, labelname) { (void)cb; (void)labelname; }
+
+#endif
 
 /// Factory for renderpasses.
 /// example:
 ///     RenderpassMaker rpm;
 ///     rpm.subpassBegin(vk::PipelineBindPoint::eGraphics);
 ///     rpm.subpassColorAttachment(vk::ImageLayout::eColorAttachmentOptimal);
-///
+///    
 ///     rpm.attachmentDescription(attachmentDesc);
 ///     rpm.subpassDependency(dependency);
 ///     s.renderPass_ = rpm.createUnique(device);
+// ********* Color Attachments should be grouped together, same with Input Attachments *********
 class RenderpassMaker {
 public:
   RenderpassMaker() {
@@ -593,51 +830,87 @@ public:
 
   /// Begin an attachment description.
   /// After this you can call attachment* many times
-  RenderpassMaker& attachmentBegin(vk::Format format) {
-    vk::AttachmentDescription desc{{}, format};
-    s.attachmentDescriptions.push_back(desc);
-    return *this;
+  void attachmentBegin(vk::Format format) {
+    s.attachmentDescriptions.emplace_back(vk::AttachmentDescription{ {}, format });
   }
 
-  RenderpassMaker& attachmentFlags(vk::AttachmentDescriptionFlags value) { s.attachmentDescriptions.back().flags = value; return *this;};
-  RenderpassMaker& attachmentFormat(vk::Format value) { s.attachmentDescriptions.back().format = value; return *this;};
-  RenderpassMaker& attachmentSamples(vk::SampleCountFlagBits value) { s.attachmentDescriptions.back().samples = value; return *this;};
-  RenderpassMaker& attachmentLoadOp(vk::AttachmentLoadOp value) { s.attachmentDescriptions.back().loadOp = value; return *this;};
-  RenderpassMaker& attachmentStoreOp(vk::AttachmentStoreOp value) { s.attachmentDescriptions.back().storeOp = value;  return *this; };
-  RenderpassMaker& attachmentStencilLoadOp(vk::AttachmentLoadOp value) { s.attachmentDescriptions.back().stencilLoadOp = value; return *this;};
-  RenderpassMaker& attachmentStencilStoreOp(vk::AttachmentStoreOp value) { s.attachmentDescriptions.back().stencilStoreOp = value; return *this;};
-  RenderpassMaker& attachmentInitialLayout(vk::ImageLayout value) { s.attachmentDescriptions.back().initialLayout = value; return *this;};
-  RenderpassMaker& attachmentFinalLayout(vk::ImageLayout value) { s.attachmentDescriptions.back().finalLayout = value; return *this;};
+  void attachmentFlags(vk::AttachmentDescriptionFlags const value) { s.attachmentDescriptions.back().flags = value; };
+  void attachmentFormat(vk::Format const value) { s.attachmentDescriptions.back().format = value; };
+  void attachmentSamples(vk::SampleCountFlagBits const value) { s.attachmentDescriptions.back().samples = value; };
+  void attachmentLoadOp(vk::AttachmentLoadOp const value) { s.attachmentDescriptions.back().loadOp = value; };
+  void attachmentStoreOp(vk::AttachmentStoreOp const value) { s.attachmentDescriptions.back().storeOp = value; };
+  void attachmentStencilLoadOp(vk::AttachmentLoadOp const value) { s.attachmentDescriptions.back().stencilLoadOp = value; };
+  void attachmentStencilStoreOp(vk::AttachmentStoreOp const value) { s.attachmentDescriptions.back().stencilStoreOp = value; };
+  void attachmentInitialLayout(vk::ImageLayout const value) { s.attachmentDescriptions.back().initialLayout = value; };
+  void attachmentFinalLayout(vk::ImageLayout const value) { s.attachmentDescriptions.back().finalLayout = value; };
 
   /// Start a subpass description.
   /// After this you can can call subpassColorAttachment many times
   /// and subpassDepthStencilAttachment once.
-  RenderpassMaker& subpassBegin(vk::PipelineBindPoint bp) {
+  void subpassBegin(vk::PipelineBindPoint const bp) {
     vk::SubpassDescription desc{};
     desc.pipelineBindPoint = bp;
-    s.subpassDescriptions.push_back(desc);
-    return *this;
+    s.subpassDescriptions.emplace_back(desc);
   }
 
-  RenderpassMaker& subpassColorAttachment(vk::ImageLayout layout, uint32_t attachment) {
+  void subpassColorAttachment(vk::ImageLayout const layout, uint32_t const attachment) {
     vk::SubpassDescription &subpass = s.subpassDescriptions.back();
-    auto *p = getAttachmentReference();
+    auto * const p = getAttachmentReference();
     p->layout = layout;
     p->attachment = attachment;
-    if (subpass.colorAttachmentCount == 0) {
+    if (0 == subpass.colorAttachmentCount) {
       subpass.pColorAttachments = p;
     }
-    subpass.colorAttachmentCount++;
-    return *this;
+    ++subpass.colorAttachmentCount;
   }
 
-  RenderpassMaker& subpassDepthStencilAttachment(vk::ImageLayout layout, uint32_t attachment) {
+  void subpassInputAttachment(vk::ImageLayout const layout, uint32_t const attachment) {
+	  vk::SubpassDescription& subpass = s.subpassDescriptions.back();
+	  auto* const p = getAttachmentReference();
+	  p->layout = layout;
+	  p->attachment = attachment;
+	  if (0 == subpass.inputAttachmentCount) {
+		  subpass.pInputAttachments = p;
+	  }
+	  ++subpass.inputAttachmentCount;
+  }
+
+  void subpassDepthStencilAttachment(vk::ImageLayout const layout, uint32_t const attachment) {
     vk::SubpassDescription &subpass = s.subpassDescriptions.back();
-    auto *p = getAttachmentReference();
+    auto * const p = getAttachmentReference();
     p->layout = layout;
     p->attachment = attachment;
     subpass.pDepthStencilAttachment = p;
-    return *this;
+  }
+
+  void subpassResolveSkipAttachment() {
+	  vk::SubpassDescription& subpass = s.subpassDescriptions.back();
+	  auto* const p = getAttachmentReference();
+	  p->layout = vk::ImageLayout::eUndefined;
+	  p->attachment = VK_ATTACHMENT_UNUSED;
+	  if (nullptr == subpass.pResolveAttachments) {
+		  subpass.pResolveAttachments = p;
+	  }
+  }
+
+  void subpassResolveAttachment(vk::ImageLayout const layout, uint32_t const attachment) {
+	  vk::SubpassDescription& subpass = s.subpassDescriptions.back();
+	  auto* const p = getAttachmentReference();
+	  p->layout = layout;
+	  p->attachment = attachment;
+	  if (nullptr == subpass.pResolveAttachments) {
+		  subpass.pResolveAttachments = p;
+	  }
+  }
+
+  void subpassPreserveAttachment(uint32_t attachment) {
+	  vk::SubpassDescription& subpass = s.subpassDescriptions.back();
+	  auto* const p = getPreserveAttachmentReference();
+	  *p = attachment;
+	  if (0 == subpass.preserveAttachmentCount) {
+		  subpass.pPreserveAttachments = p;
+	  }
+	  ++subpass.preserveAttachmentCount;
   }
 
   vk::UniqueRenderPass createUnique(const vk::Device &device) const {
@@ -648,41 +921,31 @@ public:
     renderPassInfo.pSubpasses = s.subpassDescriptions.data();
     renderPassInfo.dependencyCount = (uint32_t)s.subpassDependencies.size();
     renderPassInfo.pDependencies = s.subpassDependencies.data();
-    return device.createRenderPassUnique(renderPassInfo);
+    return device.createRenderPassUnique(renderPassInfo).value;
   }
 
-  vk::UniqueRenderPass createUnique(const vk::Device &device, const vk::RenderPassMultiviewCreateInfo &I) const {
-    vk::RenderPassCreateInfo renderPassInfo{};
-    renderPassInfo.attachmentCount = (uint32_t)s.attachmentDescriptions.size();
-    renderPassInfo.pAttachments = s.attachmentDescriptions.data();
-    renderPassInfo.subpassCount = (uint32_t)s.subpassDescriptions.size();
-    renderPassInfo.pSubpasses = s.subpassDescriptions.data();
-    renderPassInfo.dependencyCount = (uint32_t)s.subpassDependencies.size();
-    renderPassInfo.pDependencies = s.subpassDependencies.data();
-    renderPassInfo.pNext = &I; // identical to createUnique(const vk::Device &device) except set pNext to use multi-view &I
-    return device.createRenderPassUnique(renderPassInfo);
-  }
-
-  RenderpassMaker& dependencyBegin(uint32_t srcSubpass, uint32_t dstSubpass) {
+  void dependencyBegin(uint32_t srcSubpass, uint32_t dstSubpass) {
     vk::SubpassDependency desc{};
     desc.srcSubpass = srcSubpass;
     desc.dstSubpass = dstSubpass;
-    s.subpassDependencies.push_back(desc);
-    return *this;
+    s.subpassDependencies.emplace_back(desc);
   }
 
-  RenderpassMaker& dependencySrcSubpass(uint32_t value) { s.subpassDependencies.back().srcSubpass = value; return *this;};
-  RenderpassMaker& dependencyDstSubpass(uint32_t value) { s.subpassDependencies.back().dstSubpass = value; return *this;};
-  RenderpassMaker& dependencySrcStageMask(vk::PipelineStageFlags value) { s.subpassDependencies.back().srcStageMask = value; return *this;};
-  RenderpassMaker& dependencyDstStageMask(vk::PipelineStageFlags value) { s.subpassDependencies.back().dstStageMask = value; return *this;};
-  RenderpassMaker& dependencySrcAccessMask(vk::AccessFlags value) { s.subpassDependencies.back().srcAccessMask = value; return *this;};
-  RenderpassMaker& dependencyDstAccessMask(vk::AccessFlags value) { s.subpassDependencies.back().dstAccessMask = value; return *this;};
-  RenderpassMaker& dependencyDependencyFlags(vk::DependencyFlags value) { s.subpassDependencies.back().dependencyFlags = value; return *this;};
+  void dependencySrcSubpass(uint32_t const value) { s.subpassDependencies.back().srcSubpass = value; };
+  void dependencyDstSubpass(uint32_t const value) { s.subpassDependencies.back().dstSubpass = value; };
+  void dependencySrcStageMask(vk::PipelineStageFlags const value) { s.subpassDependencies.back().srcStageMask = value; };
+  void dependencyDstStageMask(vk::PipelineStageFlags const value) { s.subpassDependencies.back().dstStageMask = value; };
+  void dependencySrcAccessMask(vk::AccessFlags const value) { s.subpassDependencies.back().srcAccessMask = value; };
+  void dependencyDstAccessMask(vk::AccessFlags const value) { s.subpassDependencies.back().dstAccessMask = value; };
+  void dependencyDependencyFlags(vk::DependencyFlags const value) { s.subpassDependencies.back().dependencyFlags = value; };
 private:
-  constexpr static int max_refs = 64;
+  constexpr static int const max_refs = 16;
 
   vk::AttachmentReference *getAttachmentReference() {
     return (s.num_refs < max_refs) ? &s.attachmentReferences[s.num_refs++] : nullptr;
+  }
+  uint32_t* getPreserveAttachmentReference() {
+	  return (s.num_preserve_refs < (max_refs >> 1)) ? &s.preserveReferences[s.num_preserve_refs++] : nullptr;
   }
 
   struct State {
@@ -690,13 +953,28 @@ private:
     std::vector<vk::SubpassDescription> subpassDescriptions;
     std::vector<vk::SubpassDependency> subpassDependencies;
     std::array<vk::AttachmentReference, max_refs> attachmentReferences;
-    int num_refs = 0;
+	std::array<uint32_t, (max_refs>>1)> preserveReferences;
+	int num_refs = 0, num_preserve_refs = 0;
     bool ok_ = false;
   };
 
   State s;
 };
 
+class SpecializationConstant {
+public:
+	SpecializationConstant()
+		: value{}, constant_id{}
+	{}
+
+	template<typename... Args>
+	explicit SpecializationConstant(uint32_t const constant_id_, Args&&... args)
+		: value(std::forward<Args>(args)...), constant_id(constant_id_)
+	{}
+
+	std::variant<int, float> const  value;
+	uint32_t const					constant_id;
+};
 /// Class for building shader modules and extracting metadata from shaders.
 class ShaderModule {
 public:
@@ -704,23 +982,91 @@ public:
   }
 
   /// Construct a shader module from a file
-  ShaderModule(const vk::Device &device, const std::string &filename) {
-    auto file = std::ifstream(filename, std::ios::binary);
-    if (!file.good()) {
-      return;
-    }
+  ShaderModule(const vk::Device &device, std::wstring_view const filename, std::optional< std::vector< SpecializationConstant > const > constants_ = std::nullopt) {
+	  {
+		  auto file = std::ifstream(filename.data(), std::ios::binary | std::ios::in);
+		  if (file.bad()) {
+			  file.close();
+			  return;
+		  }
 
-    file.seekg(0, std::ios::end);
-    int length = (int)file.tellg();
+		  file.seekg(0, std::ios::end);
+		  int const length = (int)file.tellg();
 
-    s.opcodes_.resize((size_t)(length / 4));
-    file.seekg(0, std::ios::beg);
-    file.read((char *)s.opcodes_.data(), s.opcodes_.size() * 4);
+		  std::vector<uint32_t> opcodes;
+		  opcodes.reserve((size_t)(length / 4));
+		  opcodes.resize((size_t)(length / 4));
+		  file.seekg(0, std::ios::beg);
+		  file.read((char*)opcodes.data(), opcodes.size() * 4);
 
-    vk::ShaderModuleCreateInfo ci;
-    ci.codeSize = s.opcodes_.size() * 4;
-    ci.pCode = s.opcodes_.data();
-    s.module_ = device.createShaderModuleUnique(ci);
+		  vk::ShaderModuleCreateInfo ci;
+		  ci.codeSize = opcodes.size() * 4;
+		  ci.pCode = opcodes.data();
+		  s.module_ = device.createShaderModuleUnique(ci).value;
+
+		  std::string const shaderFile(stringconv::ws2s(filename.substr(filename.find_last_of('/') + 1, filename.size())));
+		
+		  VKU_SET_OBJECT_NAME(vk::ObjectType::eShaderModule, (VkShaderModule)(*s.module_), shaderFile.c_str());
+		
+		  file.close();
+	  }
+	if (constants_ && !constants_->empty()) {
+
+		std::vector< SpecializationConstant > const& constants(*constants_);
+
+		// get total size needed for value buffer
+		{
+			size_t total_value_size(0);
+			for (auto const& constant : constants) {
+
+				std::visit([&total_value_size, &constant](auto&& arg) {
+
+					total_value_size += sizeof(arg);
+
+				}, constant.value);
+			}
+			// allocate memory for the data buffer containing values
+			special.info.dataSize = total_value_size;
+			special.values = new std::byte[special.info.dataSize];
+		}
+
+		// set num of entries
+		special.info.mapEntryCount = (uint32_t)constants.size();
+
+		// build series of constant map entries 
+		// build data buffer containg values
+		size_t current_buffer_size(0);
+
+		for (auto const& constant : constants) {
+
+			std::visit([this, &current_buffer_size, &constant](auto&& arg) {
+
+				size_t const value_type_size(sizeof(arg));
+				
+				// map entry
+				special.constant_descs.emplace_back(vk::SpecializationMapEntry(constant.constant_id, (uint32_t)current_buffer_size, value_type_size));
+				
+				// value 
+				memcpy_s(&(special.values + current_buffer_size)[0], special.info.dataSize, &arg, value_type_size);
+				
+				current_buffer_size += value_type_size;
+
+			}, constant.value);
+		}
+
+		// all of this memory is resident until shader module is dtor
+		// required as this data isn't used until pipeline is actually created 
+
+		// point to specialization constant map entries
+		special.info.pMapEntries = special.constant_descs.data();
+
+		// point to specialization constant value buffer
+		special.info.pData = special.values;
+
+		// set specialization constants active (reference to the memory containg the "special.info")
+		// in PipelineMaker (vk::PipelineShaderStageCreateInfo) will set a reference accordingly
+		special.hasSpecialization = true;
+	}
 
     s.ok_ = true;
   }
@@ -728,122 +1074,49 @@ public:
   /// Construct a shader module from a memory
   template<class InIter>
   ShaderModule(const vk::Device &device, InIter begin, InIter end) {
-    s.opcodes_.assign(begin, end);
+
+	std::vector<uint32_t> opcodes;
+    opcodes.assign(begin, end);
     vk::ShaderModuleCreateInfo ci;
-    ci.codeSize = s.opcodes_.size() * 4;
-    ci.pCode = s.opcodes_.data();
+    ci.codeSize = opcodes.size() * 4;
+    ci.pCode = opcodes.data();
     s.module_ = device.createShaderModuleUnique(ci);
 
     s.ok_ = true;
   }
 
-#ifdef VOOKOO_SPIRV_SUPPORT
-  /// A variable in a shader.
-  struct Variable {
-    // The name of the variable from the GLSL/HLSL
-    std::string debugName;
+  bool const ok() const { return s.ok_; }
+  VkShaderModule const shadermodule() const { return(*s.module_); }
 
-    // The internal name (integer) of the variable
-    int name;
-
-    // The location in the binding.
-    int location;
-
-    // The binding in the descriptor set or I/O channel.
-    int binding;
-
-    // The descriptor set (for uniforms)
-    int set;
-    int instruction;
-
-    // Storage class of the variable, eg. spv::StorageClass::Uniform
-    spv::StorageClass storageClass;
-  };
-
-  /// Get a list of variables from the shader.
-  ///
-  /// This exposes the Uniforms, inputs, outputs, push constants.
-  /// See spv::StorageClass for more details.
-  std::vector<Variable> getVariables() const {
-    auto bound = s.opcodes_[3];
-
-    std::unordered_map<int, int> bindings;
-    std::unordered_map<int, int> locations;
-    std::unordered_map<int, int> sets;
-    std::unordered_map<int, std::string> debugNames;
-
-    for (int i = 5; i != s.opcodes_.size(); i += s.opcodes_[i] >> 16) {
-      spv::Op op = spv::Op(s.opcodes_[i] & 0xffff);
-      if (op == spv::Op::OpDecorate) {
-        int name = s.opcodes_[i + 1];
-        auto decoration = spv::Decoration(s.opcodes_[i + 2]);
-        if (decoration == spv::Decoration::Binding) {
-          bindings[name] = s.opcodes_[i + 3];
-        } else if (decoration == spv::Decoration::Location) {
-          locations[name] = s.opcodes_[i + 3];
-        } else if (decoration == spv::Decoration::DescriptorSet) {
-          sets[name] = s.opcodes_[i + 3];
-        }
-      } else if (op == spv::Op::OpName) {
-        int name = s.opcodes_[i + 1];
-        debugNames[name] = (const char *)&s.opcodes_[i + 2];
-      }
-    }
-
-    std::vector<Variable> result;
-    for (int i = 5; i != s.opcodes_.size(); i += s.opcodes_[i] >> 16) {
-      spv::Op op = spv::Op(s.opcodes_[i] & 0xffff);
-      if (op == spv::Op::OpVariable) {
-        int name = s.opcodes_[i + 1];
-        auto sc = spv::StorageClass(s.opcodes_[i + 3]);
-        Variable b;
-        b.debugName = debugNames[name];
-        b.name = name;
-        b.location = locations[name];
-        b.set = sets[name];
-        b.instruction = i;
-        b.storageClass = sc;
-        result.push_back(b);
-      }
-    }
-    return result;
-  }
-#endif
-
-  bool ok() const { return s.ok_; }
-  VkShaderModule module() const { return *s.module_; }
-
-  /// Write a C++ consumable dump of the shader.
-  /// Todo: make this more idiomatic.
-  std::ostream &write(std::ostream &os) {
-    os << "static const uint32_t shader[] = {\n";
-    char tmp[256];
-    auto p = s.opcodes_.begin();
-    snprintf(
-      tmp, sizeof(tmp), "  0x%08x,0x%08x,0x%08x,0x%08x,0x%08x,\n", p[0], p[1], p[2], p[3], p[4]);
-    os << tmp;
-    for (int i = 5; i != s.opcodes_.size(); i += s.opcodes_[i] >> 16) {
-      char *p = tmp + 2, *e = tmp + sizeof(tmp) - 2;
-      for (int j = i; j != i + (s.opcodes_[i] >> 16); ++j) {
-        p += snprintf(p, e-p, "0x%08x,", s.opcodes_[j]);
-        if (p > e-16) { *p++ = '\n'; *p = 0; os << tmp; p = tmp + 2; }
-      }
-      *p++ = '\n';
-      *p = 0;
-      os << tmp;
-    }
-    os << "};\n\n";
-    return os;
-  }
+  bool const hasSpecialization() const { return(special.hasSpecialization); }
+  vk::SpecializationInfo const* const specialization() const { return(&special.info); }
 
 private:
   struct State {
-    std::vector<uint32_t> opcodes_;
     vk::UniqueShaderModule module_;
     bool ok_ = false;
   };
 
+  struct Specialization {
+	  std::byte*							  values;
+	  std::vector<vk::SpecializationMapEntry> constant_descs;
+	  vk::SpecializationInfo				  info;
+	  bool									  hasSpecialization;
+
+	  Specialization()
+		  : values(nullptr), hasSpecialization(false)
+	  {}
+	  ~Specialization()
+	  {
+		  if (values) {
+			  delete [] values;
+			  values = nullptr;
+		  }
+	  }
+  };
+
   State s;
+  Specialization  special;
 };
 
 /// A class for building pipeline layouts.
@@ -858,41 +1131,23 @@ public:
         {}, (uint32_t)setLayouts_.size(),
         setLayouts_.data(), (uint32_t)pushConstantRanges_.size(),
         pushConstantRanges_.data()};
-    return device.createPipelineLayoutUnique(pipelineLayoutInfo);
+    return device.createPipelineLayoutUnique(pipelineLayoutInfo).value;
   }
 
   /// Add a descriptor set layout to the pipeline.
-  PipelineLayoutMaker& descriptorSetLayout(vk::DescriptorSetLayout layout) {
+  void descriptorSetLayout(vk::DescriptorSetLayout layout) {
     setLayouts_.push_back(layout);
-    return *this;
   }
 
   /// Add a push constant range to the pipeline.
   /// These describe the size and location of variables in the push constant area.
-  PipelineLayoutMaker& pushConstantRange(vk::ShaderStageFlags stageFlags_, uint32_t offset_, uint32_t size_) {
+  void pushConstantRange(vk::ShaderStageFlags stageFlags_, uint32_t offset_, uint32_t size_) {
     pushConstantRanges_.emplace_back(stageFlags_, offset_, size_);
-    return *this;
   }
 
 private:
   std::vector<vk::DescriptorSetLayout> setLayouts_;
   std::vector<vk::PushConstantRange> pushConstantRanges_;
-};
-
-
-struct SpecConst {
-  uint32_t    constantID;
-  std::aligned_union<4,VkBool32, uint32_t, int32_t, float, double>::type
-      data;
-  uint32_t alignment;
-  uint32_t size;
-
-  template <typename T>
-  SpecConst(uint32_t constantID, T value)
-      : constantID(constantID), alignment{alignof(T)}, size(sizeof(T)) {
-    new (&data) T{value};
-  }
-
 };
 
 /// A class for building pipelines.
@@ -903,36 +1158,16 @@ struct SpecConst {
 /// The default is to generate a working pipeline.
 class PipelineMaker {
 public:
-  struct SpecData {
-    vk::SpecializationInfo specializationInfo_;
-    std::vector<vk::SpecializationMapEntry> specializationMapEntries_;
-    std::unique_ptr<char []> data_;
-    size_t data_size_;
-
-    SpecData(){}
-
-    template <typename iterator, typename sentinel>
-    SpecData(iterator b, sentinel e);
-
-    template <typename SCList>
-    SpecData(const SCList &specConstants);
-
-    SpecData(std::initializer_list<SpecConst> list)
-        : SpecData(list.begin(), list.end()) {}
-    SpecData(SpecData &&) = default;
-    SpecData(const SpecData &) = delete;
-    SpecData &operator=(SpecData &&) = default;
-    SpecData &operator=(const SpecData &) = delete;
-  };
-public:
-  void init ()
-  {
+  PipelineMaker(uint32_t const width, uint32_t const height) {
     inputAssemblyState_.topology = vk::PrimitiveTopology::eTriangleList;
+	//viewport_ = vk::Viewport{ 0.0f, float(height), float(width), -float(height), 0.0f, 1.0f };  // reference on how to - for inversion to make Up Y+
+	viewport_ = vk::Viewport{ 0.0f, 0.0f, (float)width, (float)height, 0.0f, 1.0f }; // default Up is Y- for Vulkan
+
+    scissor_ = vk::Rect2D{{0, 0}, {width, height}};
     rasterizationState_.lineWidth = 1.0f;
 
-     // Set up depth test, but do not enable it.
     depthStencilState_.depthTestEnable = VK_FALSE;
-    depthStencilState_.depthWriteEnable = VK_TRUE;
+    depthStencilState_.depthWriteEnable = VK_FALSE;
     depthStencilState_.depthCompareOp = vk::CompareOp::eLessOrEqual;
     depthStencilState_.depthBoundsTestEnable = VK_FALSE;
     depthStencilState_.back.failOp = vk::StencilOp::eKeep;
@@ -942,26 +1177,15 @@ public:
     depthStencilState_.front = depthStencilState_.back;
   }
 
-  PipelineMaker() {
-	init();
-  }
-
-  PipelineMaker(uint32_t width, uint32_t height) {
-    viewport(vk::Viewport{0.0f, 0.0f, (float)width, (float)height, 0.0f, 1.0f});
-	scissor(vk::Rect2D{{0, 0}, {width, height}});
-	
-	init();
-  }
-  
-  vk::UniquePipeline createUnique(const vk::Device &device,
-                            const vk::PipelineCache &pipelineCache,
-                            const vk::PipelineLayout &pipelineLayout,
-                            const vk::RenderPass &renderPass, bool defaultBlend=true) {
+  vk::Pipeline create(const vk::Device &device,
+                      const vk::PipelineCache &pipelineCache,
+                      const vk::PipelineLayout &pipelineLayout,
+                      const vk::RenderPass &renderPass) {
 
     // Add default colour blend attachment if necessary.
-    if (colorBlendAttachments_.empty() && defaultBlend) {
+	if (colorBlendAttachments_.empty()) {
       vk::PipelineColorBlendAttachmentState blend{};
-      blend.blendEnable = 0;
+      blend.blendEnable = VK_FALSE;
       blend.srcColorBlendFactor = vk::BlendFactor::eOne;
       blend.dstColorBlendFactor = vk::BlendFactor::eZero;
       blend.colorBlendOp = vk::BlendOp::eAdd;
@@ -970,7 +1194,7 @@ public:
       blend.alphaBlendOp = vk::BlendOp::eAdd;
       typedef vk::ColorComponentFlagBits ccbf;
       blend.colorWriteMask = ccbf::eR|ccbf::eG|ccbf::eB|ccbf::eA;
-      colorBlendAttachments_.push_back(blend);
+      colorBlendAttachments_.emplace_back(blend);
     }
 
     auto count = (uint32_t)colorBlendAttachments_.size();
@@ -978,7 +1202,7 @@ public:
     colorBlendState_.pAttachments = count ? colorBlendAttachments_.data() : nullptr;
 
     vk::PipelineViewportStateCreateInfo viewportState{
-        {}, (uint32_t)viewport_.size(), viewport_.data(), (uint32_t)scissor_.size(), scissor_.data()};
+        {}, 1, &viewport_, 1, &scissor_};
 
     vk::PipelineVertexInputStateCreateInfo vertexInputState;
     vertexInputState.vertexAttributeDescriptionCount = (uint32_t)vertexAttributeDescriptions_.size();
@@ -1002,129 +1226,121 @@ public:
     pipelineInfo.renderPass = renderPass;
     pipelineInfo.pDynamicState = dynamicState_.empty() ? nullptr : &dynState;
     pipelineInfo.subpass = subpass_;
-    pipelineInfo.pTessellationState = &tessellationState_;
 
-    auto [result, pipeline] = device.createGraphicsPipelineUnique(pipelineCache, pipelineInfo);
-    // TODO check result for vk::Result::ePipelineCompileRequiredEXT
-    return std::move(pipeline);
+    return( std::move(device.createGraphicsPipeline(pipelineCache, pipelineInfo).value) );
   }
 
   /// Add a shader module to the pipeline.
-  PipelineMaker& shader(vk::ShaderStageFlagBits stage, const vku::ShaderModule &shader,
-                 const char *entryPoint = "main") {
+  void shader(vk::ShaderStageFlagBits stage, vku::ShaderModule const& __restrict shader) {
     vk::PipelineShaderStageCreateInfo info{};
-    info.module = shader.module();
-    info.pName = entryPoint;
+    info.module = shader.shadermodule();
+    info.pName = "main";  // required to always be main - limitation of glsl spec they did it on purpose
     info.stage = stage;
-    modules_.emplace_back(info);
-    return *this;
-  }
 
-  /// Add a shader module with specialized constants to the pipeline.
-  PipelineMaker& shader(vk::ShaderStageFlagBits stage, vku::ShaderModule &shader,
-              SpecData specConstants,
-              const char *entryPoint = "main") {
-    auto data = std::unique_ptr<SpecData>{new SpecData{std::move(specConstants)}};
-    vk::PipelineShaderStageCreateInfo info{};
-    info.module = shader.module();
-    info.pName = entryPoint;
-    info.stage = stage;
-    info.pSpecializationInfo = &data->specializationInfo_;
+	// if specialization constants were defined for the shader module, use them
+	if (shader.hasSpecialization()) {
+		info.pSpecializationInfo = shader.specialization();
+	}
+
     modules_.emplace_back(info);
-    moduleSpecializations_.emplace_back(std::move(data));
-    return *this;
+  }
+  // mostly for live shader, index is in order the shader stages were added
+  void replace_shader(uint32_t const index, vk::ShaderStageFlagBits stage, vku::ShaderModule& shader) {
+	  vk::PipelineShaderStageCreateInfo info{};
+	  info.module = shader.shadermodule();
+	  info.pName = "main";
+	  info.stage = stage;
+
+	  // if specialization constants were defined for the shader module, use them
+	  if (shader.hasSpecialization()) {
+		  info.pSpecializationInfo = shader.specialization();
+	  }
+
+#ifndef NDEBUG
+	  assert_print(modules_[index].stage == info.stage, "FAIL liveshader : mismatch on shader stages, replace shader with wrong stage.");
+#endif
+	  modules_[index] = info;
   }
 
   /// Add a blend state to the pipeline for one colour attachment.
   /// If you don't do this, a default is used.
-  PipelineMaker& colorBlend(const vk::PipelineColorBlendAttachmentState &state) {
-    colorBlendAttachments_.push_back(state);
-    return *this;
+  void colorBlend(const vk::PipelineColorBlendAttachmentState &state) {
+    colorBlendAttachments_.emplace_back(state);
   }
 
-  PipelineMaker& subPass(uint32_t subpass) {
+  void subPass(uint32_t subpass) {
     subpass_ = subpass;
-    return *this;
   }
 
   /// Begin setting colour blend value
   /// If you don't do this, a default is used.
   /// Follow this with blendEnable() blendSrcColorBlendFactor() etc.
-  /// Default is a regular alpha blend.
-  PipelineMaker& blendBegin(vk::Bool32 enable) {
+  /// Default is a opaque.
+  void blendBegin(vk::Bool32 enable) {
     colorBlendAttachments_.emplace_back();
     auto &blend = colorBlendAttachments_.back();
     blend.blendEnable = enable;
-    blend.srcColorBlendFactor = vk::BlendFactor::eSrcAlpha;
-    blend.dstColorBlendFactor = vk::BlendFactor::eOneMinusSrcAlpha;
+    blend.srcColorBlendFactor = vk::BlendFactor::eOne;
+    blend.dstColorBlendFactor = vk::BlendFactor::eZero;
     blend.colorBlendOp = vk::BlendOp::eAdd;
-    blend.srcAlphaBlendFactor = vk::BlendFactor::eSrcAlpha;
-    blend.dstAlphaBlendFactor = vk::BlendFactor::eOneMinusSrcAlpha;
+    blend.srcAlphaBlendFactor = vk::BlendFactor::eOne;
+    blend.dstAlphaBlendFactor = vk::BlendFactor::eZero;
     blend.alphaBlendOp = vk::BlendOp::eAdd;
     typedef vk::ColorComponentFlagBits ccbf;
     blend.colorWriteMask = ccbf::eR|ccbf::eG|ccbf::eB|ccbf::eA;
-    return *this;
   }
 
   /// Enable or disable blending (called after blendBegin())
-  PipelineMaker& blendEnable(vk::Bool32 value) { colorBlendAttachments_.back().blendEnable = value; return *this;}
+  void blendEnable(vk::Bool32 value) { colorBlendAttachments_.back().blendEnable = value; }
 
   /// Source colour blend factor (called after blendBegin())
-  PipelineMaker& blendSrcColorBlendFactor(vk::BlendFactor value) { colorBlendAttachments_.back().srcColorBlendFactor = value; return *this;}
+  void blendSrcColorBlendFactor(vk::BlendFactor value) { colorBlendAttachments_.back().srcColorBlendFactor = value; }
 
   /// Destination colour blend factor (called after blendBegin())
-  PipelineMaker& blendDstColorBlendFactor(vk::BlendFactor value) { colorBlendAttachments_.back().dstColorBlendFactor = value; return *this;}
+  void blendDstColorBlendFactor(vk::BlendFactor value) { colorBlendAttachments_.back().dstColorBlendFactor = value; }
 
   /// Blend operation (called after blendBegin())
-  PipelineMaker& blendColorBlendOp(vk::BlendOp value) { colorBlendAttachments_.back().colorBlendOp = value; return *this;}
+  void blendColorBlendOp(vk::BlendOp value) { colorBlendAttachments_.back().colorBlendOp = value; }
 
   /// Source alpha blend factor (called after blendBegin())
-  PipelineMaker& blendSrcAlphaBlendFactor(vk::BlendFactor value) { colorBlendAttachments_.back().srcAlphaBlendFactor = value; return *this;}
+  void blendSrcAlphaBlendFactor(vk::BlendFactor value) { colorBlendAttachments_.back().srcAlphaBlendFactor = value; }
 
   /// Destination alpha blend factor (called after blendBegin())
-  PipelineMaker& blendDstAlphaBlendFactor(vk::BlendFactor value) { colorBlendAttachments_.back().dstAlphaBlendFactor = value; return *this;}
+  void blendDstAlphaBlendFactor(vk::BlendFactor value) { colorBlendAttachments_.back().dstAlphaBlendFactor = value; }
 
   /// Alpha operation (called after blendBegin())
-  PipelineMaker& blendAlphaBlendOp(vk::BlendOp value) { colorBlendAttachments_.back().alphaBlendOp = value; return *this;}
+  void blendAlphaBlendOp(vk::BlendOp value) { colorBlendAttachments_.back().alphaBlendOp = value; }
 
   /// Colour write mask (called after blendBegin())
-  PipelineMaker& blendColorWriteMask(vk::ColorComponentFlags value) { colorBlendAttachments_.back().colorWriteMask = value; return *this;}
+  void blendColorWriteMask(vk::ColorComponentFlags value) { colorBlendAttachments_.back().colorWriteMask = value; }
 
   /// Add a vertex attribute to the pipeline.
-  PipelineMaker& vertexAttribute(uint32_t location_, uint32_t binding_, vk::Format format_, uint32_t offset_) {
+  void vertexAttribute(uint32_t location_, uint32_t binding_, vk::Format format_, uint32_t offset_) {
     vertexAttributeDescriptions_.push_back({location_, binding_, format_, offset_});
-    return *this;
   }
 
   /// Add a vertex attribute to the pipeline.
-  PipelineMaker& vertexAttribute(const vk::VertexInputAttributeDescription &desc) {
+  void vertexAttribute(const vk::VertexInputAttributeDescription &desc) {
     vertexAttributeDescriptions_.push_back(desc);
-    return *this;
   }
 
   /// Add a vertex binding to the pipeline.
   /// Usually only one of these is needed to specify the stride.
   /// Vertices can also be delivered one per instance.
-  PipelineMaker& vertexBinding(uint32_t binding_, uint32_t stride_, vk::VertexInputRate inputRate_ = vk::VertexInputRate::eVertex) {
+  void vertexBinding(uint32_t binding_, uint32_t stride_, vk::VertexInputRate inputRate_ = vk::VertexInputRate::eVertex) {
     vertexBindingDescriptions_.push_back({binding_, stride_, inputRate_});
-    return *this;
   }
 
   /// Add a vertex binding to the pipeline.
   /// Usually only one of these is needed to specify the stride.
   /// Vertices can also be delivered one per instance.
-  PipelineMaker& vertexBinding(const vk::VertexInputBindingDescription &desc) {
+  void vertexBinding(const vk::VertexInputBindingDescription &desc) {
     vertexBindingDescriptions_.push_back(desc);
-    return *this;
   }
 
   /// Specify the topology of the pipeline.
   /// Usually this is a triangle list, but points and lines are possible too.
   PipelineMaker &topology( vk::PrimitiveTopology topology ) { inputAssemblyState_.topology = topology; return *this; }
-
-  /// Specify patch count.
-  /// Applies when (inputAssemblyState_.topology == vk::PrimitiveTopology::ePatchList).
-  PipelineMaker &setPatchControlPoints( uint32_t patchControlPoints ) { tessellationState_.setPatchControlPoints(patchControlPoints); return *this; }
 
   /// Enable or disable primitive restart.
   /// If using triangle strips, for example, this allows a special index value (0xffff or 0xffffffff) to start a new strip.
@@ -1136,11 +1352,11 @@ public:
 
   /// Set the viewport value.
   /// Usually there is only one viewport, but you can have multiple viewports active for rendering cubemaps or VR stereo pair
-  PipelineMaker &viewport(const vk::Viewport &value) { viewport_.push_back(value); return *this; }
+  PipelineMaker &viewport(const vk::Viewport &value) { viewport_ = value; return *this; }
 
   /// Set the scissor value.
   /// This defines the area that the fragment shaders can write to. For example, if you are rendering a portal or a mirror.
-  PipelineMaker &scissor(const vk::Rect2D &value) { scissor_.push_back(value); return *this; }
+  PipelineMaker &scissor(const vk::Rect2D &value) { scissor_ = value; return *this; }
 
   /// Set a whole rasterization state.
   /// Note you can set individual values with their own call
@@ -1190,102 +1406,46 @@ public:
   PipelineMaker &dynamicState(vk::DynamicState value) { dynamicState_.push_back(value); return *this; }
 private:
   vk::PipelineInputAssemblyStateCreateInfo inputAssemblyState_;
-  std::vector<vk::Viewport> viewport_;
-  std::vector<vk::Rect2D> scissor_;
+  vk::Viewport viewport_;
+  vk::Rect2D scissor_;
   vk::PipelineRasterizationStateCreateInfo rasterizationState_;
   vk::PipelineMultisampleStateCreateInfo multisampleState_;
   vk::PipelineDepthStencilStateCreateInfo depthStencilState_;
   vk::PipelineColorBlendStateCreateInfo colorBlendState_;
-  vk::PipelineTessellationStateCreateInfo tessellationState_;
   std::vector<vk::PipelineColorBlendAttachmentState> colorBlendAttachments_;
   std::vector<vk::PipelineShaderStageCreateInfo> modules_;
-  std::vector<std::unique_ptr<SpecData>> moduleSpecializations_;
   std::vector<vk::VertexInputAttributeDescription> vertexAttributeDescriptions_;
   std::vector<vk::VertexInputBindingDescription> vertexBindingDescriptions_;
   std::vector<vk::DynamicState> dynamicState_;
   uint32_t subpass_ = 0;
 };
 
-template <typename iterator, typename sentinel>
-PipelineMaker::SpecData::SpecData(iterator b, sentinel e)
-{
-  auto round_offset = [](uint32_t offset, uint32_t alignment) {
-    uint32_t unaligned = offset & (alignment-1);
-    return unaligned == 0 ? offset : offset + alignment-unaligned;
-  };
-  uint32_t offset = 0;
-  for (auto it = b; it != e; ++it) {
-    auto &entry = *it;
-    offset = round_offset(offset, entry.alignment) + entry.size;
-  }
-  data_size_ = offset;
-  // We rely on the fact that new allocates with the maximum basic type alignment.
-  data_ = std::unique_ptr<char[]>(new char[data_size_]);
-  offset = 0;
-  int specCount = 0;
-  for (auto it = b; it != e; ++it) {
-    auto &entry = *it;
-    offset = round_offset(offset, entry.alignment);
-    specializationMapEntries_.emplace_back(
-        entry.constantID, offset, entry.size);
-    const char *src = reinterpret_cast<const char *>(&entry.data);
-    std::copy(src, src+entry.size, data_.get() + offset);
-    offset += entry.size;
-    ++specCount;
-  }
-  specializationInfo_.mapEntryCount = specCount;
-  specializationInfo_.pMapEntries = specializationMapEntries_.data();
-  specializationInfo_.dataSize =  data_size_;
-  specializationInfo_.pData = data_.get();
-}
-
-template <typename SCList>
-PipelineMaker::SpecData::SpecData(const SCList &specConstants)
-{
-  auto round_offset = [](uint32_t offset, uint32_t alignment) {
-    uint32_t unaligned = offset & (alignment-1);
-    return unaligned == 0 ? offset : offset + alignment-unaligned;
-  };
-  uint32_t offset = 0;
-  for (auto &entry : specConstants) {
-    offset = round_offset(offset, entry.alignment) + entry.size;
-  }
-  data_size_ = offset;
-  // We rely on the fact that new allocates with the maximum basic type alignment.
-  data_ = std::unique_ptr<char[]>(new char[data_size_]);
-  offset = 0;
-  for (auto &entry : specConstants) {
-    offset = round_offset(offset, entry.alignment);
-    specializationMapEntries_.emplace_back(
-        entry.constantID, offset, entry.size);
-    const char *src = reinterpret_cast<const char *>(&entry.data);
-    std::copy(src, src+entry.size, data_.get() + offset);
-    offset += entry.size;
-  }
-  specializationInfo_.mapEntryCount = static_cast<uint32_t>(specConstants.size());
-  specializationInfo_.pMapEntries = specializationMapEntries_.data();
-  specializationInfo_.dataSize =  data_size_;
-  specializationInfo_.pData = data_.get();
-}
-
 /// A class for building compute pipelines.
 class ComputePipelineMaker {
+	friend class Framework;
+	constinit static inline bool fullsubgroups_supported = false;
 public:
   ComputePipelineMaker() {
   }
 
   /// Add a shader module to the pipeline.
-  ComputePipelineMaker& shader(vk::ShaderStageFlagBits stage, vku::ShaderModule &shader,
+  void shader(vk::ShaderStageFlagBits stage, vku::ShaderModule const& __restrict shader,
                  const char *entryPoint = "main") {
-    stage_.module = shader.module();
+    stage_.module = shader.shadermodule();
     stage_.pName = entryPoint;
     stage_.stage = stage;
-    return *this;
+	
+	if (shader.hasSpecialization()) {
+		stage_.pSpecializationInfo = shader.specialization();
+	}
   }
 
   /// Set the compute shader module.
-  ComputePipelineMaker &module(const vk::PipelineShaderStageCreateInfo &value) {
+  ComputePipelineMaker & shadermodule(const vk::PipelineShaderStageCreateInfo &value) {
     stage_ = value;
+
+	// if specialization constants were defined for the shader module, use them
+	
     return *this;
   }
 
@@ -1294,11 +1454,15 @@ public:
     vk::ComputePipelineCreateInfo pipelineInfo{};
 
     pipelineInfo.stage = stage_;
-    pipelineInfo.layout = pipelineLayout;
+	pipelineInfo.layout = pipelineLayout;
+	
+	vk::PipelineShaderStageRequiredSubgroupSizeCreateInfoEXT fullsubgroups_info(32); // both nvidia and amd now use 32. AMD used to use 64, NVIDIA always 32. So for best compatibility set the subgroup size to the new standard ( 32 ). Now it's consistent on AMD & NVIDIA.
+	if (fullsubgroups_supported) {
+		stage_.flags = vk::PipelineShaderStageCreateFlagBits::eAllowVaryingSubgroupSizeEXT | vk::PipelineShaderStageCreateFlagBits::eRequireFullSubgroupsEXT; // only for compute shaders, require full subgroups
+		stage_.pNext = &fullsubgroups_info;
+	}
 
-    auto [ result, pipeline ] = device.createComputePipelineUnique(pipelineCache, pipelineInfo);
-    // TODO check result for vk::Result::ePipelineCompileRequiredEXT
-    return std::move(pipeline);
+    return device.createComputePipelineUnique(pipelineCache, pipelineInfo).value;
   }
 private:
   vk::PipelineShaderStageCreateInfo stage_;
@@ -1308,97 +1472,368 @@ private:
 /// Buffers require memory objects which represent GPU and CPU resources.
 class GenericBuffer {
 public:
-  GenericBuffer() {
+	constexpr GenericBuffer() {} // every member is zero initialized (see below) - constexpr of the default ctor allows constinit optimization for private voxel data in cVoxelWorld.cpp file.
+  
+
+  GenericBuffer(vk::BufferUsageFlags const usage, vk::DeviceSize const size, vk::MemoryPropertyFlags const memflags = vk::MemoryPropertyFlagBits::eDeviceLocal, VmaMemoryUsage const gpu_usage = VMA_MEMORY_USAGE_UNKNOWN, uint32_t const mapped_access = (uint32_t)eMappedAccess::Disabled, bool const bDedicatedMemory = false, bool const bPersistantMapping = false) {
+	  
+	  vk::BufferCreateInfo ci{};
+	  ci.size = maxsizebytes_ = size;
+	  ci.usage = usage;
+	  ci.sharingMode = vk::SharingMode::eExclusive;
+	 
+	  VmaAllocationCreateInfo allocInfo{};
+	  allocInfo.usage = gpu_usage ? gpu_usage : VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;  // default to gpu only if 0/unknown is passed in
+	  allocInfo.requiredFlags = (VkMemoryPropertyFlags)memflags;
+	  allocInfo.preferredFlags = allocInfo.requiredFlags;
+	  allocInfo.flags = (bDedicatedMemory ? VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT : (VmaAllocationCreateFlags)0)
+					  | (bPersistantMapping ? VMA_ALLOCATION_CREATE_MAPPED_BIT : (VmaAllocationCreateFlags)0);
+
+	  if ((uint32_t)eMappedAccess::Disabled == mapped_access) { // only if not provided
+		
+		  if (bPersistantMapping) { // only if known to be mapped
+			  // default to sequential access (important if forgotten)
+			  allocInfo.flags |= (uint32_t)eMappedAccess::Sequential;
+		  }
+	  }
+	  else {
+
+		  allocInfo.flags |= mapped_access;
+	  }
+	
+	  vmaCreateBuffer(vma_, (VkBufferCreateInfo const* const)&ci, &allocInfo, (VkBuffer*)&buffer_, &allocation_, &mem_);
   }
 
-  GenericBuffer(vk::Device device, const vk::PhysicalDeviceMemoryProperties &memprops, vk::BufferUsageFlags usage, vk::DeviceSize size, vk::MemoryPropertyFlags memflags = vk::MemoryPropertyFlagBits::eDeviceLocal) {
-    // Create the buffer object without memory.
-    vk::BufferCreateInfo ci{};
-    ci.size = size_ = size;
-    ci.usage = usage;
-    ci.sharingMode = vk::SharingMode::eExclusive;
-    buffer_ = device.createBufferUnique(ci);
+  // for clearing staging buffers
+  __SAFE_BUF void clearLocal() const {
+      void* const __restrict ptr(map());
+	  memset(ptr, 0, (size_t)maxsizebytes_);
+      unmap();
+      flush(maxsizebytes_);
+  }
 
-    // Find out how much memory and which heap to allocate from.
-    auto memreq = device.getBufferMemoryRequirements(*buffer_);
+  // checks alignment of source, assumes alignment of dst is same or greater
+  template<bool const bClear, typename T, size_t const alignment = alignof(T)>
+  __SAFE_BUF void updateLocal(T const* const __restrict src, vk::DeviceSize const size) const {
+	  T* const __restrict ptr( static_cast<T* const __restrict>(map()) );
 
-    // Create a memory object to bind to the buffer.
-    vk::MemoryAllocateInfo mai{};
-    mai.allocationSize = memreq.size;
-    mai.memoryTypeIndex = vku::findMemoryTypeIndex(memprops, memreq.memoryTypeBits, memflags);
-    mem_ = device.allocateMemoryUnique(mai);
+	  vk::DeviceSize flush_size(size);
+	
+		if constexpr (bClear) {
 
-    device.bindBufferMemory(*buffer_, *mem_, 0);
+			if constexpr (alignment >= 16) {
+				if (maxsizebytes_ > 4096) {
+					___memset_threaded<alignment>(ptr, 0, (size_t)maxsizebytes_);		// alignment is known
+				}
+				else {
+					memset(ptr, 0, (size_t)maxsizebytes_);							
+				}
+			}
+			else {
+				memset(ptr, 0, (size_t)maxsizebytes_);			// alignment is unknown, can only assume minimum 16 byte alignment
+			}
+			flush_size = maxsizebytes_;
+		}
+		if constexpr (alignment >= 16) {
+			if (size > 4096) {
+				___memcpy_threaded<alignment>(ptr, src, (size_t)size);				// alignment is known
+			}
+			else {
+				memcpy(ptr, src, (size_t)size);										
+			}
+		}
+		else {
+			memcpy(ptr, src, (size_t)size);									// alignment is unknown, can only assume minimum 16 byte alignment
+		}
+
+	  unmap();
+	  flush(flush_size);
   }
 
   /// For a host visible buffer, copy memory to the buffer object.
-  void updateLocal(const vk::Device &device, const void *value, vk::DeviceSize size) const {
-    void *ptr = device.mapMemory(*mem_, 0, size_, vk::MemoryMapFlags{});
-    memcpy(ptr, value, (size_t)size);
-    flush(device);
-    device.unmapMemory(*mem_);
-  }
+  template<typename T, size_t const alignment = alignof(T)>
+  __SAFE_BUF void updateLocal(T const* const __restrict value, vk::DeviceSize const size) {
 
+	  if (size != maxsizebytes_) {
+		  updateLocal<(true), T>(value, size);
+	  }
+	  else {
+		  updateLocal<(false), T>(value, size);
+	  }
+
+	  bActiveDelta = (size != activesizebytes_);
+	  activesizebytes_ = size;
+  }
+  void createAsGPUBuffer(vk::Device const device, vk::CommandPool const commandPool, vk::Queue const queue, vk::DeviceSize const maxsize, vk::BufferUsageFlagBits const bits) // good for gpu->gpu copies, used to reset buffers shared_buffer & subgroup_layer_count_max
+  {
+	  if (maxsize == 0) return;
+	  using buf = vk::BufferUsageFlagBits;
+	  using pfb = vk::MemoryPropertyFlagBits;
+
+	  if (0 == maxsizebytes()) { // only allocate once
+		  *this = vku::GenericBuffer(bits | buf::eTransferDst, maxsize); // device local, gpu only buffer - here default params get a device allocated buffer (gpu), with *no* mapping capability - can be initialized or set at any time with a staging buffer and upload to this buffer only.
+		  activesizebytes_ = maxsizebytes();
+
+		  // upload temporary staging buffer to clear
+		  vku::GenericBuffer tmp(buf::eTransferSrc, maxsize, pfb::eHostCoherent | pfb::eHostVisible, VMA_MEMORY_USAGE_AUTO_PREFER_HOST, (uint32_t)vku::eMappedAccess::Sequential, false, false);
+		  tmp.clearLocal();
+
+		  vku::executeImmediately<false>(device, commandPool, queue, [&](vk::CommandBuffer cb) {
+			  vk::BufferCopy bc{ 0, 0, maxsize };
+			  cb.copyBuffer(tmp.buffer(), buffer_, bc);
+		  });
+	  }
+  }
+  
+  void createAsCPUToGPUBuffer(vk::DeviceSize const maxsize, uint32_t const mapped_access = (uint32_t)vku::eMappedAccess::Disabled, bool const bDedicatedMemory = false, bool const bPersistantMapping = false)
+  {
+	  if (maxsize == 0) return;
+	  using buf = vk::BufferUsageFlagBits;
+	  using pfb = vk::MemoryPropertyFlagBits;
+
+	  if (0 == maxsizebytes()) { // only allocate once
+		  *this = vku::GenericBuffer(buf::eTransferSrc, maxsize, pfb::eHostCoherent | pfb::eHostVisible, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, mapped_access, bDedicatedMemory, bPersistantMapping);
+		  activesizebytes_ = maxsizebytes();
+		  clearLocal();
+	  }
+  }
+  void createAsStagingBuffer(vk::DeviceSize const maxsize, uint32_t const mapped_access = (uint32_t)vku::eMappedAccess::Disabled, bool const bDedicatedMemory = false, bool const bPersistantMapping = false)
+  {
+	  if (maxsize == 0) return;
+	  using buf = vk::BufferUsageFlagBits;
+	  using pfb = vk::MemoryPropertyFlagBits;
+
+	  if (0 == maxsizebytes()) { // only allocate once
+		  *this = vku::GenericBuffer(buf::eTransferSrc, maxsize, pfb::eHostCoherent | pfb::eHostVisible, VMA_MEMORY_USAGE_AUTO_PREFER_HOST, mapped_access, bDedicatedMemory, bPersistantMapping);
+		  activesizebytes_ = maxsizebytes();
+		  clearLocal();
+	  }
+  }
+  // intended for use with frame work's dynamic command buffer
+  // that gets queued up before the static command buffer
+  template<typename T>
+  void uploadDeferred(vk::CommandBuffer& __restrict cb, vku::GenericBuffer& __restrict stagingBuffer, const T * __restrict value, vk::DeviceSize const size, vk::DeviceSize const maxsize) {
+	  if (size == 0) return;
+	  using buf = vk::BufferUsageFlagBits;
+	  using pfb = vk::MemoryPropertyFlagBits;
+
+	  if (0 == stagingBuffer.maxsizebytes()) { // only allocate once
+		  stagingBuffer = vku::GenericBuffer(buf::eTransferSrc, maxsize, pfb::eHostCoherent | pfb::eHostVisible, VMA_MEMORY_USAGE_AUTO_PREFER_HOST, vku::eMappedAccess::Sequential, false, true); // *bugfix - hidden options not exposed thru this path, default to persistant mapping.
+	  }
+	  stagingBuffer.updateLocal(value, size);
+	  bActiveDelta = (activesizebytes_ != size);
+	  activesizebytes_ = size;
+
+	  vk::BufferCopy bc{ 0, 0, size };
+	  cb.copyBuffer(stagingBuffer.buffer(), buffer_, bc);
+  }
+  // this is for a staging buffer that has already been updated(mappped/unmapped) and has updated the active size
+  void setActiveSizeBytes(vk::DeviceSize const size)
+  {
+	  bActiveDelta = (activesizebytes_ != size);
+	  activesizebytes_ = size;
+  }
+  // fast path, **no clear done** intended for usage with map/unmap of staging buffers
+  void uploadDeferred(vk::CommandBuffer& __restrict cb, vku::GenericBuffer const& __restrict stagingBuffer) {
+
+	  vk::DeviceSize const size(stagingBuffer.activesizebytes());
+
+	  bActiveDelta = (activesizebytes_ != size);
+	  activesizebytes_ = size;
+
+	  if (0 == size)
+		  return;
+
+	  vk::BufferCopy const bc{ 0, 0, activesizebytes_ };
+	  cb.copyBuffer(stagingBuffer.buffer(), buffer_, bc);
+  }
+  // fast path, **no clear done** intended for usage with map/unmap of staging buffers
+  void uploadDeferred(vk::CommandBuffer& __restrict cb, vku::GenericBuffer const& __restrict stagingBuffer, vku::GenericBuffer const& __restrict stagingBufferAppended) {
+
+	  vk::DeviceSize const firstactivesizebytes(stagingBuffer.activesizebytes()), secondactivesizebytes(stagingBufferAppended.activesizebytes());
+	  vk::DeviceSize const size(firstactivesizebytes + secondactivesizebytes);
+
+	  bActiveDelta = (activesizebytes_ != size);
+	  activesizebytes_ = size;
+
+	  if (0 == size)
+		  return;
+
+	  {
+		  vk::BufferCopy const bc{ 0, 0, firstactivesizebytes };
+		  cb.copyBuffer(stagingBuffer.buffer(), buffer_, bc);
+	  }
+
+	  if (0 == secondactivesizebytes)
+		  return;
+
+	  {
+		  vk::BufferCopy const bc{ 0, firstactivesizebytes, secondactivesizebytes };
+		  cb.copyBuffer(stagingBufferAppended.buffer(), buffer_, bc);
+	  }
+  }
   /// For a purely device local buffer, copy memory to the buffer object immediately.
   /// Note that this will stall the pipeline!
-  void upload(vk::Device device, const vk::PhysicalDeviceMemoryProperties &memprops, vk::CommandPool commandPool, vk::Queue queue, const void *value, vk::DeviceSize size) const {
+  template<typename T = void>
+  void upload(vk::Device device, vk::CommandPool commandPool, vk::Queue queue, const T * __restrict value, vk::DeviceSize const size) {
     if (size == 0) return;
     using buf = vk::BufferUsageFlagBits;
     using pfb = vk::MemoryPropertyFlagBits;
-    auto tmp = vku::GenericBuffer(device, memprops, buf::eTransferSrc, size, pfb::eHostVisible);
-    tmp.updateLocal(device, value, size);
+    auto tmp = vku::GenericBuffer(buf::eTransferSrc, size, pfb::eHostCoherent | pfb::eHostVisible, VMA_MEMORY_USAGE_AUTO_PREFER_HOST, eMappedAccess::Sequential);
+	maxsizebytes_ = tmp.maxsizebytes_;
 
-    vku::executeImmediately(device, commandPool, queue, [&](vk::CommandBuffer cb) {
-      vk::BufferCopy bc{0, 0, size};
-      cb.copyBuffer(tmp.buffer(), *buffer_, bc);
+	tmp.updateLocal(value, size);
+	
+	bActiveDelta = (activesizebytes_ != size);
+	activesizebytes_ = size;
+
+    vku::executeImmediately<false>(device, commandPool, queue, [&](vk::CommandBuffer cb) {
+      vk::BufferCopy bc{ 0, 0, size};
+      cb.copyBuffer(tmp.buffer(), buffer_, bc);
     });
   }
 
   template<typename T>
-  void upload(vk::Device device, const vk::PhysicalDeviceMemoryProperties &memprops, vk::CommandPool commandPool, vk::Queue queue, const std::vector<T> &value) const {
-    upload(device, memprops, commandPool, queue, value.data(), value.size() * sizeof(T));
+  void upload(vk::Device device, vk::CommandPool commandPool, vk::Queue queue, const std::vector<T> &value) {
+    upload<T>(device, commandPool, queue, value.data(), value.size() * sizeof(T));
   }
 
   template<typename T>
-  void upload(vk::Device device, const vk::PhysicalDeviceMemoryProperties &memprops, vk::CommandPool commandPool, vk::Queue queue, const T &value) const {
-    upload(device, memprops, commandPool, queue, &value, sizeof(value));
+  void upload(vk::Device device, vk::CommandPool commandPool, vk::Queue queue, const T &value) {
+    upload<T>(device, commandPool, queue, &value, sizeof(value));
   }
 
-  void barrier(vk::CommandBuffer cb, vk::PipelineStageFlags srcStageMask, vk::PipelineStageFlags dstStageMask, vk::DependencyFlags dependencyFlags, vk::AccessFlags srcAccessMask, vk::AccessFlags dstAccessMask, uint32_t srcQueueFamilyIndex, uint32_t dstQueueFamilyIndex) const {
-    vk::BufferMemoryBarrier bmb{srcAccessMask, dstAccessMask, srcQueueFamilyIndex, dstQueueFamilyIndex, *buffer_, 0, size_};
+  template<typename T>
+  void uploadDeferred(vk::Device const& __restrict device, vk::CommandBuffer& __restrict cb, vku::GenericBuffer& __restrict stagingBuffer, const std::vector<T, tbb::scalable_allocator<T> > & __restrict value, size_t const maxreservecount = 0) {
+	  uploadDeferred<T>(device, cb, stagingBuffer, value.data(), value.size() * sizeof(T), (0 == maxreservecount ? value.size() : maxreservecount) * sizeof(T));
+  }
+  
+  void barrier(vk::CommandBuffer const& __restrict cb, vk::PipelineStageFlags const srcStageMask, vk::PipelineStageFlags const dstStageMask, vk::DependencyFlags const dependencyFlags, vk::AccessFlags const srcAccessMask, vk::AccessFlags const dstAccessMask, uint32_t const srcQueueFamilyIndex, uint32_t const dstQueueFamilyIndex) const {
+    vk::BufferMemoryBarrier bmb{srcAccessMask, dstAccessMask, srcQueueFamilyIndex, dstQueueFamilyIndex, buffer_, 0, maxsizebytes_ };
     cb.pipelineBarrier(srcStageMask, dstStageMask, dependencyFlags, nullptr, bmb, nullptr);
+  }
+  // batched / multiple barriers
+  template<size_t const buffer_count>
+  static void barrier(std::array<vku::GenericBuffer const* const, buffer_count> const& __restrict buffers,
+	  vk::CommandBuffer const& __restrict cb, vk::PipelineStageFlags const srcStageMask, vk::PipelineStageFlags const dstStageMask, vk::DependencyFlags const dependencyFlags, vk::AccessFlags const srcAccessMask, vk::AccessFlags const dstAccessMask, uint32_t const srcQueueFamilyIndex, uint32_t const dstQueueFamilyIndex) {
+	  std::array<vk::BufferMemoryBarrier, buffer_count> bmbs;
+	  for (uint32_t i = 0; i < buffer_count; ++i) {
+		  bmbs[i] = vk::BufferMemoryBarrier{ srcAccessMask, dstAccessMask, srcQueueFamilyIndex, dstQueueFamilyIndex, buffers[i]->buffer_, 0, buffers[i]->maxsizebytes_ };
+	  }
+	   
+	  cb.pipelineBarrier(srcStageMask, dstStageMask, dependencyFlags, nullptr, bmbs, nullptr);
   }
 
   template<class Type, class Allocator>
-  void updateLocal(const vk::Device &device, const std::vector<Type, Allocator> &value) const {
-    updateLocal(device, (void*)value.data(), vk::DeviceSize(value.size() * sizeof(Type)));
+  void updateLocal(const std::vector<Type, Allocator> &value) {
+    updateLocal((void*)value.data(), vk::DeviceSize(value.size() * sizeof(Type)));
   }
 
   template<class Type>
-  void updateLocal(const vk::Device &device, const Type &value) const {
-    updateLocal(device, (void*)&value, vk::DeviceSize(sizeof(Type)));
+  void updateLocal(const Type &value) {
+    updateLocal((void*)&value, vk::DeviceSize(sizeof(Type)));
   }
 
-  void *map(const vk::Device &device) const { return device.mapMemory(*mem_, 0, size_, vk::MemoryMapFlags{}); };
-  void unmap(const vk::Device &device) const { return device.unmapMemory(*mem_); };
+  __SAFE_BUF void * const __restrict map() const {
+	  
+	  if (mem_.pMappedData)		// if persistantly mapped just return the pointer to memory
+		  return(mem_.pMappedData);
+	  
+	  // size no longer used : https://gpuopen-librariesandsdks.github.io/VulkanMemoryAllocator/html/memory_mapping.html#memory_mapping_mapping_functions
 
-  void flush(const vk::Device &device) const {
-    vk::MappedMemoryRange mr{*mem_, 0, VK_WHOLE_SIZE};
-    return device.flushMappedMemoryRanges(mr);
+	  void* __restrict mapped;
+	  vmaMapMemory(vma_, allocation_, (void**)&mapped);
+
+	  return(mapped);
+  };
+  __SAFE_BUF void unmap() const {
+
+	  if (mem_.pMappedData)		// if persistantly mapped just return, don't do anything
+		  return;
+
+	  vmaUnmapMemory(vma_, allocation_); 
+  };
+
+// required after writing to memory (IF BUFFER is HOST COHERENT - flushing can be skipped)
+  __SAFE_BUF void flush(vk::DeviceSize const bytes_flushed) const {
+	  vmaFlushAllocation(vma_, allocation_, 0, bytes_flushed); // flushes memory only for this buffers memory
+  }
+  __SAFE_BUF void flush() const {
+	  vmaFlushAllocation(vma_, allocation_, 0, maxsizebytes_); // flushes memory only for this buffers memory
   }
 
-  void invalidate(const vk::Device &device) const {
-    vk::MappedMemoryRange mr{*mem_, 0, VK_WHOLE_SIZE};
-    return device.invalidateMappedMemoryRanges(mr);
+  // required before reading memory (IF BUFFER is HOST COHERENT - invalidation can be skipped)
+  __SAFE_BUF void invalidate(vk::DeviceSize const bytes_invalidated) const {
+	  vmaInvalidateAllocation(vma_, allocation_, 0, bytes_invalidated); // invalidates memory only for this buffers memory
+  }
+  __SAFE_BUF void invalidate() const {
+	  vmaInvalidateAllocation(vma_, allocation_, 0, maxsizebytes_); // invalidates memory only for this buffers memory
   }
 
-  vk::Buffer buffer() const { return *buffer_; }
-  vk::DeviceMemory mem() const { return *mem_; }
-  vk::DeviceSize size() const { return size_; }
+  void release()
+  {
+	  if (allocation_) {
+		  vmaDestroyBuffer(vma_, buffer_, allocation_);
+		  buffer_ = nullptr;
+		  allocation_ = nullptr;
+		  mem_ = {};
+	  }
+  }
+
+  GenericBuffer(GenericBuffer&& relegate)
+  {
+	  buffer_ = std::move(relegate.buffer_);
+	  allocation_ = std::move(relegate.allocation_);
+	  mem_ = std::move(relegate.mem_);
+	  activesizebytes_ = relegate.activesizebytes_;
+	  maxsizebytes_ = relegate.maxsizebytes_;
+	  bActiveDelta = relegate.bActiveDelta;
+
+	  relegate.allocation_ = nullptr;
+	  relegate.buffer_ = nullptr;
+	  relegate.mem_ = {};
+	  relegate.activesizebytes_ = 0;
+	  relegate.maxsizebytes_ = 0;
+	  relegate.bActiveDelta = false;
+  }
+  GenericBuffer& operator=(GenericBuffer&& relegate)
+  {
+	  buffer_ = std::move(relegate.buffer_);
+	  allocation_ = std::move(relegate.allocation_);
+	  mem_ = std::move(relegate.mem_);
+	  activesizebytes_ = relegate.activesizebytes_;
+	  maxsizebytes_ = relegate.maxsizebytes_;
+	  bActiveDelta = relegate.bActiveDelta;
+
+	  relegate.allocation_ = nullptr;
+	  relegate.buffer_ = nullptr;
+	  relegate.mem_ = {};
+	  relegate.activesizebytes_ = 0;
+	  relegate.maxsizebytes_ = 0;
+	  relegate.bActiveDelta = false;
+
+	  return(*this);
+  }
+  ~GenericBuffer()
+  {
+	  release();
+  }
+
+  vk::Buffer const& __restrict buffer() const { return(buffer_); }
+  vk::DeviceSize const activesizebytes() const { return(activesizebytes_); }
+  vk::DeviceSize const maxsizebytes() const { return(maxsizebytes_); }
+  bool const isBufferActiveSizeDelta() const { return(bActiveDelta); }
 private:
-  vk::UniqueBuffer buffer_;
-  vk::UniqueDeviceMemory mem_;
-  vk::DeviceSize size_;
+  vk::Buffer		buffer_{};
+  VmaAllocation		allocation_{};
+  VmaAllocationInfo mem_{};
+  vk::DeviceSize activesizebytes_ = 0,
+				 maxsizebytes_ = 0;
+  bool			 bActiveDelta = false;
+
+private:
+	GenericBuffer(GenericBuffer const&) = delete;
+	GenericBuffer& operator=(GenericBuffer const&) = delete;
 };
 
 /// This class is a specialisation of GenericBuffer for high performance vertex buffers on the GPU.
@@ -1408,8 +1843,80 @@ public:
   VertexBuffer() {
   }
 
-  VertexBuffer(const vk::Device &device, const vk::PhysicalDeviceMemoryProperties &memprops, size_t size) : GenericBuffer(device, memprops, vk::BufferUsageFlagBits::eVertexBuffer | vk::BufferUsageFlagBits::eTransferDst, size, vk::MemoryPropertyFlagBits::eDeviceLocal) {
+  VertexBuffer(size_t const size, bool const bDedicatedMemory = false) : GenericBuffer(vk::BufferUsageFlagBits::eVertexBuffer | vk::BufferUsageFlagBits::eTransferDst, size, vk::MemoryPropertyFlagBits::eDeviceLocal, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, bDedicatedMemory) {
   }
+
+  VertexBuffer(VertexBuffer&& relegate)
+	  : GenericBuffer(std::forward<VertexBuffer&&>(relegate))
+  {
+  }
+  VertexBuffer& operator=(VertexBuffer&& relegate)
+  {
+	  GenericBuffer::operator=(std::forward<VertexBuffer&&>(relegate));
+	  return(*this);
+  }
+private:
+	VertexBuffer(VertexBuffer const&) = delete;
+	VertexBuffer& operator=(VertexBuffer const&) = delete;
+};
+
+struct VertexBufferPartition
+{
+	uint32_t active_vertex_count = 0, vertex_start_offset = 0;
+
+	VertexBufferPartition() = default;
+};
+
+class DynamicVertexBuffer : public GenericBuffer {
+public:
+	DynamicVertexBuffer() : partition_(nullptr) {
+	}
+
+	DynamicVertexBuffer(size_t size, bool const bDedicatedMemory = false)
+		: partition_(nullptr), GenericBuffer(
+			vk::BufferUsageFlagBits::eVertexBuffer | vk::BufferUsageFlagBits::eTransferDst, size, vk::MemoryPropertyFlagBits::eDeviceLocal, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, bDedicatedMemory) {
+	}
+
+	~DynamicVertexBuffer()
+	{
+		SAFE_DELETE_ARRAY(partition_);
+	}
+
+	DynamicVertexBuffer(DynamicVertexBuffer&& relegate)
+		: GenericBuffer(std::forward<DynamicVertexBuffer&&>(relegate))
+	{
+	}
+	DynamicVertexBuffer& operator=(DynamicVertexBuffer&& relegate)
+	{
+		GenericBuffer::operator=(std::forward<DynamicVertexBuffer&&>(relegate));
+
+		partition_ = relegate.partition_;
+		relegate.partition_ = nullptr;
+		partition_count_ = relegate.partition_count_;
+		relegate.partition_count_ = 0;
+
+		return(*this);
+	}
+
+	// Total Size of buffer used converted to -> Vertices
+	template<typename T>
+	uint32_t const ActiveVertexCount() const { return((uint32_t const)(((size_t)activesizebytes()) / sizeof(T))); }
+
+	uint32_t const										partition_count() const { return(partition_count_); }
+	VertexBufferPartition* const __restrict& __restrict partitions() const { return(partition_); }
+
+	void createPartitions(uint32_t const num_partitions) {
+
+		partition_ = new VertexBufferPartition[num_partitions]{};
+		partition_count_ = num_partitions;
+	}
+private:
+	VertexBufferPartition* partition_;
+	uint32_t			   partition_count_;
+
+private:
+	DynamicVertexBuffer(DynamicVertexBuffer const&) = delete;
+	DynamicVertexBuffer& operator=(DynamicVertexBuffer const&) = delete;
 };
 
 /// This class is a specialisation of GenericBuffer for low performance vertex buffers on the host.
@@ -1419,8 +1926,8 @@ public:
   }
 
   template<class Type, class Allocator>
-  HostVertexBuffer(const vk::Device &device, const vk::PhysicalDeviceMemoryProperties &memprops, const std::vector<Type, Allocator> &value) : GenericBuffer(device, memprops, vk::BufferUsageFlagBits::eVertexBuffer, value.size() * sizeof(Type), vk::MemoryPropertyFlagBits::eHostVisible) {
-    updateLocal(device, value);
+  HostVertexBuffer(const std::vector<Type, Allocator> &value) : GenericBuffer(vk::BufferUsageFlagBits::eVertexBuffer, value.size() * sizeof(Type), vk::MemoryPropertyFlagBits::eHostCoherent | vk::MemoryPropertyFlagBits::eHostVisible) {
+    updateLocal(value);
   }
 };
 
@@ -1431,8 +1938,46 @@ public:
   IndexBuffer() {
   }
 
-  IndexBuffer(const vk::Device &device, const vk::PhysicalDeviceMemoryProperties &memprops, vk::DeviceSize size) : GenericBuffer(device, memprops, vk::BufferUsageFlagBits::eIndexBuffer | vk::BufferUsageFlagBits::eTransferDst, size, vk::MemoryPropertyFlagBits::eDeviceLocal) {
+  IndexBuffer(vk::DeviceSize const size) : GenericBuffer(vk::BufferUsageFlagBits::eIndexBuffer | vk::BufferUsageFlagBits::eTransferDst, size, vk::MemoryPropertyFlagBits::eDeviceLocal, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE) {
   }
+
+  IndexBuffer(IndexBuffer&& relegate)
+	  : GenericBuffer(std::forward<IndexBuffer&&>(relegate))
+  {
+  }
+  IndexBuffer& operator=(IndexBuffer&& relegate)
+  {
+	  GenericBuffer::operator=(std::forward<IndexBuffer&&>(relegate));
+	  return(*this);
+  }
+private:
+	IndexBuffer(IndexBuffer const&) = delete;
+	IndexBuffer& operator=(IndexBuffer const&) = delete;
+};
+
+class DynamicIndexBuffer : public GenericBuffer {
+public:
+	DynamicIndexBuffer() {
+	}
+
+	DynamicIndexBuffer(vk::DeviceSize const size)
+		: GenericBuffer(
+			vk::BufferUsageFlagBits::eIndexBuffer | vk::BufferUsageFlagBits::eTransferDst, size, vk::MemoryPropertyFlagBits::eDeviceLocal, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE) {
+	}
+
+	DynamicIndexBuffer(DynamicIndexBuffer&& relegate)
+		: GenericBuffer(std::forward<DynamicIndexBuffer&&>(relegate))
+	{
+	}
+	DynamicIndexBuffer& operator=(DynamicIndexBuffer&& relegate)
+	{
+		GenericBuffer::operator=(std::forward<DynamicIndexBuffer&&>(relegate));
+		return(*this);
+	}
+
+private:
+	DynamicIndexBuffer(DynamicIndexBuffer const&) = delete;
+	DynamicIndexBuffer& operator=(DynamicIndexBuffer const&) = delete;
 };
 
 /// This class is a specialisation of GenericBuffer for low performance vertex buffers in CPU memory.
@@ -1442,8 +1987,8 @@ public:
   }
 
   template<class Type, class Allocator>
-  HostIndexBuffer(const vk::Device &device, const vk::PhysicalDeviceMemoryProperties &memprops, const std::vector<Type, Allocator> &value) : GenericBuffer(device, memprops, vk::BufferUsageFlagBits::eIndexBuffer, value.size() * sizeof(Type), vk::MemoryPropertyFlagBits::eHostVisible) {
-    updateLocal(device, value);
+  HostIndexBuffer(const std::vector<Type, Allocator> &value) : GenericBuffer(vk::BufferUsageFlagBits::eIndexBuffer, value.size() * sizeof(Type), vk::MemoryPropertyFlagBits::eHostCoherent | vk::MemoryPropertyFlagBits::eHostVisible) {
+    updateLocal(value);
   }
 };
 
@@ -1454,28 +1999,146 @@ public:
   }
 
   /// Device local uniform buffer.
-  UniformBuffer(const vk::Device &device, const vk::PhysicalDeviceMemoryProperties &memprops, size_t size) : GenericBuffer(device, memprops, vk::BufferUsageFlagBits::eUniformBuffer|vk::BufferUsageFlagBits::eTransferDst, (vk::DeviceSize)size, vk::MemoryPropertyFlagBits::eDeviceLocal) {
+  UniformBuffer(size_t const size) : GenericBuffer(vk::BufferUsageFlagBits::eUniformBuffer|vk::BufferUsageFlagBits::eTransferDst, (vk::DeviceSize)size, vk::MemoryPropertyFlagBits::eDeviceLocal, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE) {
   }
+
+  UniformBuffer(UniformBuffer&& relegate)
+	  : GenericBuffer(std::forward<UniformBuffer&&>(relegate))
+  {
+  }
+  UniformBuffer& operator=(UniformBuffer&& relegate)
+  {
+	  GenericBuffer::operator=(std::forward<UniformBuffer&&>(relegate));
+	  return(*this);
+  }
+
+private:
+	UniformBuffer(UniformBuffer const&) = delete;
+	UniformBuffer& operator=(UniformBuffer const&) = delete;
+};
+
+/// This class is a specialisation of GenericBuffer for uniform texel buffers.
+class UniformTexelBuffer : public GenericBuffer {
+public:
+	UniformTexelBuffer() {
+	}
+
+	/// Device local uniform buffer.
+	UniformTexelBuffer(vk::Device const& __restrict device, size_t const size, vk::Format const image_format, bool const bDedicatedMemory = false, bool const bPersistantMapping = false) : GenericBuffer(vk::BufferUsageFlagBits::eUniformTexelBuffer | vk::BufferUsageFlagBits::eTransferDst, (vk::DeviceSize)size, vk::MemoryPropertyFlagBits::eDeviceLocal, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, bDedicatedMemory, bPersistantMapping) {
+
+		vk::BufferViewCreateInfo viewInfo{};
+		viewInfo.buffer = buffer();
+		viewInfo.range = maxsizebytes();
+		viewInfo.format = image_format;
+
+		bufferView_ = device.createBufferViewUnique(viewInfo).value;
+	}
+
+	UniformTexelBuffer(UniformTexelBuffer&& relegate)
+		: GenericBuffer(std::forward<UniformTexelBuffer&&>(relegate))
+	{
+	}
+	UniformTexelBuffer& operator=(UniformTexelBuffer&& relegate)
+	{
+		GenericBuffer::operator=(std::forward<UniformTexelBuffer&&>(relegate));
+		return(*this);
+	}
+
+	vk::BufferView const bufferView() const { return(*bufferView_); }
+
+private:
+	vk::UniqueBufferView		bufferView_{};
+private:
+	UniformTexelBuffer(UniformTexelBuffer const&) = delete;
+	UniformTexelBuffer& operator=(UniformTexelBuffer const&) = delete;
+
+public:
+	~UniformTexelBuffer()
+	{
+		bufferView_.release();
+	}
+};
+
+class StorageBuffer : public GenericBuffer {
+public:
+	StorageBuffer() {
+	}
+
+    // additionalFlags : vk::BufferUsageFlagBits::eTransferDst, vk::BufferUsageFlagBits::eTransferSrc
+    StorageBuffer(size_t const size, bool const bDedicatedMemory = false, vk::BufferUsageFlags const additionalFlags = {}) : GenericBuffer(vk::BufferUsageFlagBits::eStorageBuffer | additionalFlags, size, vk::MemoryPropertyFlagBits::eDeviceLocal, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, bDedicatedMemory) {
+	}
+
+	StorageBuffer(StorageBuffer&& relegate)
+		: GenericBuffer(std::forward<StorageBuffer&&>(relegate))
+	{
+	}
+	StorageBuffer& operator=(StorageBuffer&& relegate)
+	{
+		GenericBuffer::operator=(std::forward<StorageBuffer&&>(relegate));
+		return(*this);
+	}
+
+private:
+	StorageBuffer(StorageBuffer const&) = delete;
+	StorageBuffer& operator=(StorageBuffer const&) = delete;
+};
+
+class HostStorageBuffer : public GenericBuffer {
+public:
+	HostStorageBuffer() {
+	}
+
+	template<class Type>
+	HostStorageBuffer(const Type& value) : GenericBuffer(vk::BufferUsageFlagBits::eStorageBuffer, sizeof(Type), vk::MemoryPropertyFlagBits::eHostCoherent | vk::MemoryPropertyFlagBits::eHostVisible) {
+		updateLocal(value);
+	}
+	template<class Type, class Allocator>
+	HostStorageBuffer(const std::vector<Type, Allocator>& value) : GenericBuffer(vk::BufferUsageFlagBits::eStorageBuffer, value.size() * sizeof(Type), vk::MemoryPropertyFlagBits::eHostCoherent | vk::MemoryPropertyFlagBits::eHostVisible) {
+		updateLocal(value);
+	}
+};
+
+class IndirectBuffer : public GenericBuffer {
+public:
+	IndirectBuffer() {
+	}
+
+	IndirectBuffer(size_t const size, bool const bDedicatedMemory = false)
+		: GenericBuffer(vk::BufferUsageFlagBits::eIndirectBuffer | vk::BufferUsageFlagBits::eTransferDst, size, vk::MemoryPropertyFlagBits::eDeviceLocal, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, bDedicatedMemory) {
+	}
+
+	IndirectBuffer(IndirectBuffer&& relegate)
+		: GenericBuffer(std::forward<IndirectBuffer&&>(relegate))
+	{
+	}
+	IndirectBuffer& operator=(IndirectBuffer&& relegate)
+	{
+		GenericBuffer::operator=(std::forward<IndirectBuffer&&>(relegate));
+		return(*this);
+	}
+
+private:
+	IndirectBuffer(IndirectBuffer const&) = delete;
+	IndirectBuffer& operator=(IndirectBuffer const&) = delete;
 };
 
 /// Convenience class for updating descriptor sets (uniforms)
 class DescriptorSetUpdater {
 public:
-  DescriptorSetUpdater(int maxBuffers = 10, int maxImages = 10, int maxBufferViews = 0) {
+  DescriptorSetUpdater(int const maxBuffers = MAX_NUM_STORAGE_BUFFERS, int const maxImages = MAX_NUM_IMAGES, int const maxBufferViews = MAX_NUM_BUFFER_VIEWS) {
     // we must pre-size these buffers as we take pointers to their members.
-    bufferInfo_.resize(maxBuffers);
-    imageInfo_.resize(maxImages);
-    bufferViews_.resize(maxBufferViews);
+	bufferInfo_.reserve(maxBuffers); bufferInfo_.resize(maxBuffers);
+	imageInfo_.reserve(maxImages); imageInfo_.resize(maxImages);
+	bufferViews_.reserve(maxBufferViews); bufferViews_.resize(maxBufferViews);
   }
 
   /// Call this to begin a new descriptor set.
-  DescriptorSetUpdater& beginDescriptorSet(vk::DescriptorSet dstSet) {
+  void beginDescriptorSet(vk::DescriptorSet dstSet) {
     dstSet_ = dstSet;
-    return *this;
   }
 
   /// Call this to begin a new set of images.
-  DescriptorSetUpdater& beginImages(uint32_t dstBinding, uint32_t dstArrayElement, vk::DescriptorType descriptorType) {
+  void beginImages(uint32_t dstBinding, uint32_t dstArrayElement, vk::DescriptorType descriptorType) {
     vk::WriteDescriptorSet wdesc{};
     wdesc.dstSet = dstSet_;
     wdesc.dstBinding = dstBinding;
@@ -1484,22 +2147,23 @@ public:
     wdesc.descriptorType = descriptorType;
     wdesc.pImageInfo = imageInfo_.data() + numImages_;
     descriptorWrites_.push_back(wdesc);
-    return *this;
   }
 
   /// Call this to add a combined image sampler.
-  DescriptorSetUpdater& image(vk::Sampler sampler, vk::ImageView imageView, vk::ImageLayout imageLayout) {
+  void image(vk::Sampler sampler, vk::ImageView imageView, vk::ImageLayout imageLayout) {
     if (!descriptorWrites_.empty() && numImages_ != imageInfo_.size() && descriptorWrites_.back().pImageInfo) {
       descriptorWrites_.back().descriptorCount++;
       imageInfo_[numImages_++] = vk::DescriptorImageInfo{sampler, imageView, imageLayout};
     } else {
+#ifndef NDEBUG
+		fmt::print(fg(fmt::color::red), "\n limit reached, cap of {:d} images\n", numImages_);
+#endif
       ok_ = false;
     }
-    return *this;
   }
 
   /// Call this to start defining buffers.
-  DescriptorSetUpdater& beginBuffers(uint32_t dstBinding, uint32_t dstArrayElement, vk::DescriptorType descriptorType) {
+  void beginBuffers(uint32_t dstBinding, uint32_t dstArrayElement, vk::DescriptorType descriptorType) {
     vk::WriteDescriptorSet wdesc{};
     wdesc.dstSet = dstSet_;
     wdesc.dstBinding = dstBinding;
@@ -1508,18 +2172,19 @@ public:
     wdesc.descriptorType = descriptorType;
     wdesc.pBufferInfo = bufferInfo_.data() + numBuffers_;
     descriptorWrites_.push_back(wdesc);
-    return *this;
   }
 
   /// Call this to add a new buffer.
-  DescriptorSetUpdater& buffer(vk::Buffer buffer, vk::DeviceSize offset, vk::DeviceSize range) {
+  void buffer(vk::Buffer buffer, vk::DeviceSize offset, vk::DeviceSize range) {
     if (!descriptorWrites_.empty() && numBuffers_ != bufferInfo_.size() && descriptorWrites_.back().pBufferInfo) {
       descriptorWrites_.back().descriptorCount++;
       bufferInfo_[numBuffers_++] = vk::DescriptorBufferInfo{buffer, offset, range};
     } else {
+#ifndef NDEBUG
+		fmt::print(fg(fmt::color::red), "\n limit reached, cap of {:d} buffers\n", numBuffers_);
+#endif
       ok_ = false;
     }
-    return *this;
   }
 
   /// Call this to start adding buffer views. (for example, writable images).
@@ -1536,10 +2201,13 @@ public:
 
   /// Call this to add a buffer view. (Texel images)
   void bufferView(vk::BufferView view) {
-    if (!descriptorWrites_.empty() && numBufferViews_ != bufferViews_.size() && descriptorWrites_.back().pImageInfo) {
+    if (!descriptorWrites_.empty() && numBufferViews_ != bufferViews_.size() && descriptorWrites_.back().pTexelBufferView) {
       descriptorWrites_.back().descriptorCount++;
       bufferViews_[numBufferViews_++] = view;
     } else {
+#ifndef NDEBUG
+		fmt::print(fg(fmt::color::red), "\n limit reached, cap of {:d} buffer views\n", numBufferViews_);
+#endif
       ok_ = false;
     }
   }
@@ -1575,41 +2243,27 @@ public:
   DescriptorSetLayoutMaker() {
   }
 
-  DescriptorSetLayoutMaker& buffer(uint32_t binding, vk::DescriptorType descriptorType, vk::ShaderStageFlags stageFlags, uint32_t descriptorCount) {
+  void buffer(uint32_t binding, vk::DescriptorType descriptorType, vk::ShaderStageFlags stageFlags, uint32_t descriptorCount) {
     s.bindings.emplace_back(binding, descriptorType, descriptorCount, stageFlags, nullptr);
-    return *this;
   }
 
-  DescriptorSetLayoutMaker& image(uint32_t binding, vk::DescriptorType descriptorType, vk::ShaderStageFlags stageFlags, uint32_t descriptorCount) {
-    s.bindings.emplace_back(binding, descriptorType, descriptorCount, stageFlags, nullptr);
-    return *this;
+  void image(uint32_t binding, vk::DescriptorType descriptorType, vk::ShaderStageFlags stageFlags, uint32_t descriptorCount, vk::Sampler const* const __restrict immutableSamplers = nullptr) {
+    s.bindings.emplace_back(binding, descriptorType, descriptorCount, stageFlags, immutableSamplers);
   }
 
-  DescriptorSetLayoutMaker& samplers(uint32_t binding, vk::DescriptorType descriptorType, vk::ShaderStageFlags stageFlags, const std::vector<vk::Sampler> immutableSamplers) {
-    s.samplers.push_back(immutableSamplers);
-    auto pImmutableSamplers = s.samplers.back().data();
-    s.bindings.emplace_back(binding, descriptorType, (uint32_t)immutableSamplers.size(), stageFlags, pImmutableSamplers);
-    return *this;
-  }
-
-  DescriptorSetLayoutMaker& bufferView(uint32_t binding, vk::DescriptorType descriptorType, vk::ShaderStageFlags stageFlags, uint32_t descriptorCount) {
+  void bufferView(uint32_t binding, vk::DescriptorType descriptorType, vk::ShaderStageFlags stageFlags, uint32_t descriptorCount) {
     s.bindings.emplace_back(binding, descriptorType, descriptorCount, stageFlags, nullptr);
-    return *this;
   }
 
   /// Create a self-deleting descriptor set object.
   vk::UniqueDescriptorSetLayout createUnique(vk::Device device) const {
-    vk::DescriptorSetLayoutCreateInfo dsci{};
-    dsci.bindingCount = (uint32_t)s.bindings.size();
-    dsci.pBindings = s.bindings.data();
-    return device.createDescriptorSetLayoutUnique(dsci);
+    
+    return ( device.createDescriptorSetLayoutUnique(vk::DescriptorSetLayoutCreateInfo((vk::DescriptorSetLayoutCreateFlags const)0U, (uint32_t const)s.bindings.size(), s.bindings.data()) ).value );
   }
 
 private:
   struct State {
     std::vector<vk::DescriptorSetLayoutBinding> bindings;
-    std::vector<std::vector<vk::Sampler> > samplers;
-    int numSamplers = 0;
   };
 
   State s;
@@ -1623,9 +2277,8 @@ public:
   }
 
   /// Add another layout describing a descriptor set.
-  DescriptorSetMaker &layout(vk::DescriptorSetLayout layout) {
-    s.layouts.push_back(layout);
-    return *this;
+  void layout(vk::DescriptorSetLayout layout) {
+    s.layouts.emplace_back(layout);
   }
 
   /// Allocate a vector of non-self-deleting descriptor sets
@@ -1635,17 +2288,18 @@ public:
     dsai.descriptorPool = descriptorPool;
     dsai.descriptorSetCount = (uint32_t)s.layouts.size();
     dsai.pSetLayouts = s.layouts.data();
-    return device.allocateDescriptorSets(dsai);
+    return device.allocateDescriptorSets(dsai).value;
   }
 
   /// Allocate a vector of self-deleting descriptor sets.
+  /*
   std::vector<vk::UniqueDescriptorSet> createUnique(vk::Device device, vk::DescriptorPool descriptorPool) const {
     vk::DescriptorSetAllocateInfo dsai{};
     dsai.descriptorPool = descriptorPool;
     dsai.descriptorSetCount = (uint32_t)s.layouts.size();
     dsai.pSetLayouts = s.layouts.data();
     return device.allocateDescriptorSetsUnique(dsai);
-  }
+  }*/
 
 private:
   struct State {
@@ -1662,45 +2316,86 @@ public:
   GenericImage() {
   }
 
-  GenericImage(vk::Device device, const vk::PhysicalDeviceMemoryProperties &memprops, const vk::ImageCreateInfo &info, vk::ImageViewType viewType, vk::ImageAspectFlags aspectMask, bool makeHostImage) {
-    create(device, memprops, info, viewType, aspectMask, makeHostImage);
+  GenericImage(vk::Device device, const vk::ImageCreateInfo &info, vk::ImageViewType viewType, vk::ImageAspectFlags aspectMask, bool makeHostImage) {
+    create(device, info, viewType, aspectMask, makeHostImage);
   }
 
-  vk::Image image() const { return *s.image; }
-  vk::ImageView imageView() const { return *s.imageView; }
-  vk::DeviceMemory mem() const { return *s.mem; }
+  __inline vk::Image const& __restrict image() const { return(s.image); }
+  __inline vk::ImageView const imageView() const { return(*s.imageView); }
 
-  /// Clear the colour of an image.
-  void clear(vk::CommandBuffer cb, const std::array<float,4> colour = {1, 1, 1, 1}) {
-    setLayout(cb, vk::ImageLayout::eTransferDstOptimal);
-    vk::ClearColorValue ccv(colour);
-    vk::ImageSubresourceRange range{vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1};
-    cb.clearColorImage(*s.image, vk::ImageLayout::eTransferDstOptimal, ccv, range);
+  // Ondemand creation of view specific to mip level - texture arrays not supported
+  // *** lazy function - assumes it will be called in ascending order of mip levels, starrting at mip level 1
+  // *** otherwise the mipViews will not correspond to the correct mip level, function could also crash accessing out of bounds index
+  __inline vk::ImageView const mipView(uint32_t const mipLevel, vk::Device const& __restrict device, vk::ImageAspectFlags const aspectMask = vk::ImageAspectFlagBits::eColor) {
+		
+	vk::ImageViewCreateInfo viewInfo{};
+	viewInfo.image = s.image;
+	viewInfo.viewType = (vk::ImageViewType) s.info.imageType;  // only works for 1D, 2D, 3D , ImageType enum integer levels match ImageViewType
+	viewInfo.format = s.info.format;
+	viewInfo.components = { vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eG, vk::ComponentSwizzle::eB, vk::ComponentSwizzle::eA };
+	viewInfo.subresourceRange = vk::ImageSubresourceRange{ aspectMask, mipLevel, 1, 0, 1 };
+	s.mipView.emplace_back(device.createImageViewUnique(viewInfo).value);
+
+	return(*s.mipView[mipLevel]);
+  }
+  void create_mipViews(vk::Device const& __restrict device, vk::ImageAspectFlags const aspectMask = vk::ImageAspectFlagBits::eColor) // creates and stores image views for all mips in s.mipView
+  {
+	  for (uint32_t i = 0; i < s.info.mipLevels; ++i) {
+		  mipView(i, device, aspectMask);
+	  }
   }
 
-  /// Update the image with an array of pixels. (Currently 2D only)
-  void update(vk::Device device, const void *data, vk::DeviceSize bytesPerPixel) {
-    const uint8_t *src = (const uint8_t *)data;
-    for (uint32_t mipLevel = 0; mipLevel != info().mipLevels; ++mipLevel) {
-      // Array images are layed out horizontally. eg. [left][front][right] etc.
-      for (uint32_t arrayLayer = 0; arrayLayer != info().arrayLayers; ++arrayLayer) {
-        vk::ImageSubresource subresource{vk::ImageAspectFlagBits::eColor, mipLevel, arrayLayer};
-        auto srlayout = device.getImageSubresourceLayout(*s.image, subresource);
-        uint8_t *dest = (uint8_t *)device.mapMemory(*s.mem, 0, s.size, vk::MemoryMapFlags{}) + srlayout.offset;
-        size_t bytesPerLine = s.info.extent.width * bytesPerPixel;
-        size_t srcStride = bytesPerLine * info().arrayLayers;
-        for (int y = 0; y != s.info.extent.height; ++y) {
-          memcpy(dest, src + arrayLayer * bytesPerLine, bytesPerLine);
-          src += srcStride;
-          dest += srlayout.rowPitch;
-        }
-      }
-    }
-    device.unmapMemory(*s.mem);
+  // **** lazy function - assumes mipView has already been created, that mipLevel passed in is valid (not greater than image mip levels) etc etc
+  __inline vk::ImageView const mipView(uint32_t const mipLevel) const {  
+
+	  return(*s.mipView[mipLevel]);
+  }
+  
+  // *** note this is the slow way of clearing an image in vulkan, do not use every frame - good for startup and periodic loading only *** //
+  
+  // Clear the colour of an image. sets the transferdstoptimal layout by default, can be false for batching, etc
+  template<bool const bSetLayout = true>
+  void clear(vk::CommandBuffer& __restrict cb, std::array<uint32_t,4> const color = {0, 0, 0, 0}) {
+
+	  if constexpr (bSetLayout) {
+		  setLayout(cb, vk::ImageLayout::eTransferDstOptimal);
+	  }
+	  vk::ImageSubresourceRange const range{vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1};
+      cb.clearColorImage(s.image, vk::ImageLayout::eTransferDstOptimal, vk::ClearColorValue(color), range);
+  }
+  
+  // *** note this is the slow way of clearing an image in vulkan, do not use every frame - good for startup and periodic loading only *** //
+ 
+  // *** vk::ImageUsageFlagBits::eTransferDst REQUIRED *** does not require a command buffer, executes immediately, good for clearing images that have just been created. (ensure 100% clear image, not random noise. GPU ZeroMemory)
+  // leaves image in the layout it was originally in before the clear (no change)
+  void clear(vk::Device const& __restrict device, vk::CommandPool const& __restrict commandPool, vk::Queue const& __restrict queue, std::array<uint32_t, 4> const color = { 0, 0, 0, 0 }) {
+
+	  vku::executeImmediately(device, commandPool, queue, [&](vk::CommandBuffer cb) {
+
+		  auto const original_layout(s.currentLayout);
+
+		  setLayout<true>(cb, vk::ImageLayout::eTransferDstOptimal);
+		  vk::ImageSubresourceRange const range{ vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 };
+		  cb.clearColorImage(s.image, vk::ImageLayout::eTransferDstOptimal, vk::ClearColorValue(color), range);
+		  setLayout(cb, original_layout);
+
+	  });
+  }
+  /// Copy another image to this one. This also changes the layout. SPECIFIC MIPLEVEL
+  void copy(vk::CommandBuffer& __restrict cb, vku::GenericImage& __restrict srcImage, uint32_t const mipLevel) {
+	  srcImage.setLayout(cb, vk::ImageLayout::eTransferSrcOptimal);
+	  setLayout(cb, vk::ImageLayout::eTransferDstOptimal);
+
+	  vk::ImageCopy region{};
+	  region.srcSubresource = { vk::ImageAspectFlagBits::eColor, mipLevel, 0, 1 };
+	  region.dstSubresource = { vk::ImageAspectFlagBits::eColor, mipLevel, 0, 1 };
+	  region.extent = s.info.extent;
+	  cb.copyImage(srcImage.image(), vk::ImageLayout::eTransferSrcOptimal, s.image, vk::ImageLayout::eTransferDstOptimal, region);
+	  
   }
 
   /// Copy another image to this one. This also changes the layout.
-  void copy(vk::CommandBuffer cb, vku::GenericImage &srcImage) {
+  void copy(vk::CommandBuffer& __restrict cb, vku::GenericImage & __restrict srcImage) {
     srcImage.setLayout(cb, vk::ImageLayout::eTransferSrcOptimal);
     setLayout(cb, vk::ImageLayout::eTransferDstOptimal);
     for (uint32_t mipLevel = 0; mipLevel != info().mipLevels; ++mipLevel) {
@@ -1708,12 +2403,12 @@ public:
       region.srcSubresource = {vk::ImageAspectFlagBits::eColor, mipLevel, 0, 1};
       region.dstSubresource = {vk::ImageAspectFlagBits::eColor, mipLevel, 0, 1};
       region.extent = s.info.extent;
-      cb.copyImage(srcImage.image(), vk::ImageLayout::eTransferSrcOptimal, *s.image, vk::ImageLayout::eTransferDstOptimal, region);
+      cb.copyImage(srcImage.image(), vk::ImageLayout::eTransferSrcOptimal, s.image, vk::ImageLayout::eTransferDstOptimal, region);
     }
   }
 
   /// Copy a subimage in a buffer to this image.
-  void copy(vk::CommandBuffer cb, vk::Buffer buffer, uint32_t mipLevel, uint32_t arrayLayer, uint32_t width, uint32_t height, uint32_t depth, uint32_t offset) {
+  void copy(vk::CommandBuffer& __restrict cb, vk::Buffer const& __restrict  buffer, uint32_t const mipLevel, uint32_t const arrayLayer, uint32_t const width, uint32_t const height, uint32_t const depth, uint32_t const offset) { 
     setLayout(cb, vk::ImageLayout::eTransferDstOptimal);
     vk::BufferImageCopy region{};
     region.bufferOffset = offset;
@@ -1723,51 +2418,436 @@ public:
     extent.depth = depth;
     region.imageSubresource = {vk::ImageAspectFlagBits::eColor, mipLevel, arrayLayer, 1};
     region.imageExtent = extent;
-    cb.copyBufferToImage(buffer, *s.image, vk::ImageLayout::eTransferDstOptimal, region);
+    cb.copyBufferToImage(buffer, s.image, vk::ImageLayout::eTransferDstOptimal, region);
   }
 
-  void upload(vk::Device device, std::vector<uint8_t> &bytes, vk::CommandPool commandPool, vk::PhysicalDeviceMemoryProperties memprops, vk::Queue queue, vk::ImageLayout finalLayout=vk::ImageLayout::eShaderReadOnlyOptimal) {
-	return upload(device, bytes.data(), bytes.size(), commandPool, memprops, queue, finalLayout);
+  // for a single layer upload, mipmapping levels not supported - only the source size for a layer of n bytes is considered. the target texture for upload must not have mipmaps, and should also enough layers (total layers > targetLayer)
+  template< bool const DoSetFinalLayout = true, vk::ImageLayout const FinalLayout = vk::ImageLayout::eShaderReadOnlyOptimal, typename T >
+  void upload(vk::Device device, T const* const __restrict bytes, size_t const sizeLayer, uint32_t const targetLayer, vk::CommandPool const& __restrict commandPool, vk::Queue const& __restrict queue) {
+	  vku::GenericBuffer stagingBuffer((vk::BufferUsageFlags)vk::BufferUsageFlagBits::eTransferSrc, (vk::DeviceSize)sizeLayer, vk::MemoryPropertyFlagBits::eHostCoherent | vk::MemoryPropertyFlagBits::eHostVisible, VMA_MEMORY_USAGE_AUTO_PREFER_HOST, vku::eMappedAccess::Sequential);
+	  stagingBuffer.updateLocal<T>(bytes, sizeLayer);
+
+	  // Copy the staging buffer to the GPU texture and set the layout.
+	  vku::executeImmediately<false>(device, commandPool, queue, [&](vk::CommandBuffer cb) {
+		  auto bp = getBlockParams(s.info.format);
+		  vk::Buffer buf = stagingBuffer.buffer();
+		  
+		  auto width = mipScale(s.info.extent.width, 0);
+		  auto height = mipScale(s.info.extent.height, 0);
+		  auto depth = mipScale(s.info.extent.depth, 0);
+
+		  copy(cb, buf, 0, targetLayer, width, height, depth, 0);
+		
+		  if constexpr (DoSetFinalLayout) {
+
+			  setLayout(cb, FinalLayout);
+		  }
+	  });
   }
 
-  void upload(vk::Device device, const uint8_t *bytes, size_t bytesSize, vk::CommandPool commandPool, vk::PhysicalDeviceMemoryProperties memprops, vk::Queue queue, vk::ImageLayout finalLayout=vk::ImageLayout::eShaderReadOnlyOptimal) {
-    vku::GenericBuffer stagingBuffer(device, memprops, (vk::BufferUsageFlags)vk::BufferUsageFlagBits::eTransferSrc, (vk::DeviceSize)bytesSize, vk::MemoryPropertyFlagBits::eHostVisible);
-    stagingBuffer.updateLocal(device, (const void*)bytes, bytesSize);
+  // for a single layer upload, mipmapping levels not supported - only the source size for a layer of n bytes is considered. the target texture for upload must not have mipmaps, and should also enough layers (total layers > targetLayer)
+  template< bool const DoSetFinalLayout = true, vk::ImageLayout const FinalLayout = vk::ImageLayout::eShaderReadOnlyOptimal >
+  void upload(vk::Device device, vku::GenericBuffer const& __restrict stagingBuffer, uint32_t const targetLayer, vk::CommandPool const& __restrict commandPool, vk::Queue const& __restrict queue) {
 
-    // Copy the staging buffer to the GPU texture and set the layout.
-    vku::executeImmediately(device, commandPool, queue, [&](vk::CommandBuffer cb) {
-      auto bp = getBlockParams(s.info.format);
-      vk::Buffer buf = stagingBuffer.buffer();
-      uint32_t offset = 0;
-      for (uint32_t mipLevel = 0; mipLevel != s.info.mipLevels; ++mipLevel) {
-        auto width = mipScale(s.info.extent.width, mipLevel);
-        auto height = mipScale(s.info.extent.height, mipLevel);
-        auto depth = mipScale(s.info.extent.depth, mipLevel);
-        for (uint32_t face = 0; face != s.info.arrayLayers; ++face) {
-          copy(cb, buf, mipLevel, face, width, height, depth, offset);
-          offset += ((bp.bytesPerBlock + 3) & ~3) * (width * height);
-        }
+	  // Copy the staging buffer to the GPU texture and set the layout.
+	  vku::executeImmediately(device, commandPool, queue, [&](vk::CommandBuffer cb) {
+		  auto bp = getBlockParams(s.info.format);
+		  vk::Buffer buf = stagingBuffer.buffer();
+
+		  auto width = mipScale(s.info.extent.width, 0);
+		  auto height = mipScale(s.info.extent.height, 0);
+		  auto depth = mipScale(s.info.extent.depth, 0);
+
+		  copy(cb, buf, 0, targetLayer, width, height, depth, 0);
+
+		  if constexpr (DoSetFinalLayout) {
+
+			  setLayout(cb, FinalLayout);
+		  }
+		  });
+  }
+
+  template< bool const DoSetFinalLayout = true, vk::ImageLayout const FinalLayout = vk::ImageLayout::eShaderReadOnlyOptimal, typename T >
+  void upload(vk::Device device, T const* const __restrict bytes, size_t const size, vk::CommandPool const& __restrict commandPool, vk::Queue const& __restrict queue) {
+	  vku::GenericBuffer stagingBuffer((vk::BufferUsageFlags)vk::BufferUsageFlagBits::eTransferSrc, (vk::DeviceSize)size, vk::MemoryPropertyFlagBits::eHostCoherent | vk::MemoryPropertyFlagBits::eHostVisible, VMA_MEMORY_USAGE_AUTO_PREFER_HOST, vku::eMappedAccess::Sequential);
+	  stagingBuffer.updateLocal<T>(bytes, size);
+
+	  // Copy the staging buffer to the GPU texture and set the layout.
+	  vku::executeImmediately<false>(device, commandPool, queue, [&](vk::CommandBuffer cb) {
+		  auto bp = getBlockParams(s.info.format);
+		  vk::Buffer buf = stagingBuffer.buffer();
+		  uint32_t offset = 0;
+		  for (uint32_t mipLevel = 0; mipLevel != s.info.mipLevels; ++mipLevel) {
+			  auto width = mipScale(s.info.extent.width, mipLevel);
+			  auto height = mipScale(s.info.extent.height, mipLevel);
+			  auto depth = mipScale(s.info.extent.depth, mipLevel);
+			  for (uint32_t face = 0; face != s.info.arrayLayers; ++face) {
+				  copy(cb, buf, mipLevel, face, width, height, depth, offset);
+				  offset += ((bp.bytesPerBlock + 3) & ~3) * (width * height);
+			  }
+		  }
+		  
+		  if constexpr (DoSetFinalLayout) {
+
+			  setLayout(cb, FinalLayout);
+		  }
+	  });
+  }
+
+  template< bool const DoSetFinalLayout = true, vk::ImageLayout const FinalLayout = vk::ImageLayout::eShaderReadOnlyOptimal >
+  void upload(vk::Device const& __restrict device, vku::GenericBuffer const& __restrict stagingBuffer, vk::CommandPool const& __restrict commandPool, vk::Queue const& __restrict queue) {
+
+	  // Copy the staging buffer to the GPU texture and set the layout.
+	  vku::executeImmediately(device, commandPool, queue, [&](vk::CommandBuffer cb) {
+		  auto bp = getBlockParams(s.info.format);
+		  vk::Buffer buf = stagingBuffer.buffer();
+		  uint32_t offset = 0;
+		  for (uint32_t mipLevel = 0; mipLevel != s.info.mipLevels; ++mipLevel) {
+			  auto width = mipScale(s.info.extent.width, mipLevel);
+			  auto height = mipScale(s.info.extent.height, mipLevel);
+			  auto depth = mipScale(s.info.extent.depth, mipLevel);
+			  for (uint32_t face = 0; face != s.info.arrayLayers; ++face) {
+				  copy(cb, buf, mipLevel, face, width, height, depth, offset);
+				  offset += ((bp.bytesPerBlock + 3) & ~3) * (width * height);
+			  }
+		  }
+
+		  if constexpr (DoSetFinalLayout) {
+
+			  setLayout(cb, FinalLayout);
+		  }
+	  });
+  }
+
+  template< bool const DoSetFinalLayout = true, vk::ImageLayout const FinalLayout = vk::ImageLayout::eShaderReadOnlyOptimal >
+  void uploadDeferred(vk::CommandBuffer& __restrict cb, vku::GenericBuffer const& __restrict stagingBuffer) {
+
+	  auto bp = getBlockParams(s.info.format);
+	  vk::Buffer buf = stagingBuffer.buffer();
+	  uint32_t offset = 0;
+	  for (uint32_t mipLevel = 0; mipLevel != s.info.mipLevels; ++mipLevel) {
+		  auto width = mipScale(s.info.extent.width, mipLevel);
+		  auto height = mipScale(s.info.extent.height, mipLevel);
+		  auto depth = mipScale(s.info.extent.depth, mipLevel);
+		  for (uint32_t face = 0; face != s.info.arrayLayers; ++face) {
+			  copy(cb, buf, mipLevel, face, width, height, depth, offset);
+			  offset += ((bp.bytesPerBlock + 3) & ~3) * (width * height);
+		  }
+	  }
+
+	  if constexpr (DoSetFinalLayout) {
+
+		  setLayout(cb, FinalLayout);
+	  }
+  }
+
+  template< bool const DoSetFinalLayout = true, vk::ImageLayout const FinalLayout = vk::ImageLayout::eShaderReadOnlyOptimal >
+  void upload(vk::Device device, std::vector<uint8_t> &bytes, vk::CommandPool commandPool, vk::Queue queue) {
+	  upload< DoSetFinalLayout, FinalLayout >(device, bytes.data(), bytes.size(), commandPool, queue);
+  }
+
+  template< bool const DoSetFinalLayout = true, vk::ImageLayout const FinalLayout = vk::ImageLayout::eShaderReadOnlyOptimal, typename T>
+  void upload(vk::Device const& __restrict device, T const* const __restrict bytes, vk::CommandPool const& __restrict commandPool, vk::Queue const& __restrict queue) {
+	  upload< DoSetFinalLayout, FinalLayout >(device, bytes, s.size, commandPool, queue);
+  }
+
+  void finalizeUpload(vk::Device const& __restrict device, vk::CommandPool const& __restrict commandPool, vk::Queue const& __restrict queue,
+	  vk::ImageLayout const FinalLayout = vk::ImageLayout::eShaderReadOnlyOptimal) 
+  {
+	  vku::executeImmediately(device, commandPool, queue, [&](vk::CommandBuffer cb) {
+		 
+		setLayout(cb, FinalLayout);
+
+	  });
+  }
+  /* These constants are defined in vku_addon.hpp
+  static constexpr int32_t const
+	  ACCESS_READONLY(0),
+	  ACCESS_READWRITE(1),
+	  ACCESS_WRITEONLY(-1)
+  */
+  template< bool const bDontCareSrcUndefined = false>
+  void setLayoutCompute(vk::CommandBuffer const& __restrict cb, int32_t const ComputeAccessRequired, vk::ImageAspectFlags aspectMask = vk::ImageAspectFlagBits::eColor) {
+	  
+	  // Put barrier on  top (default) - invalid for many access types
+	  vk::PipelineStageFlags srcStageMask{ vk::PipelineStageFlagBits::eTopOfPipe };
+	  vk::PipelineStageFlags dstStageMask{ vk::PipelineStageFlagBits::eTopOfPipe };
+	  vk::DependencyFlags dependencyFlags{};
+	  vk::AccessFlags srcMask{};
+	  vk::AccessFlags dstMask{};
+	  typedef vk::PipelineStageFlagBits psfb;
+	  typedef vk::AccessFlagBits afb;
+	  typedef vk::ImageLayout il;
+
+	  /* newLayout */
+      vk::ImageLayout oldLayout = s.currentLayout;
+
+	  // input layout can be undefined if the contents are not needed to persist between frames
+      if constexpr (bDontCareSrcUndefined) {
+          oldLayout = s.currentLayout = il::eUndefined; // bugfix, ensure that layout for compute is set, regardless of currentLayout state. Fixes validation error at startup.
       }
-      setLayout(cb, finalLayout);
-    });
+
+      dstStageMask = psfb::eComputeShader;
+	  if (0 == ComputeAccessRequired) {		// read only //
+		  
+		  if (il::eShaderReadOnlyOptimal == s.currentLayout) return;
+		  s.currentLayout = il::eShaderReadOnlyOptimal;
+
+		  dstMask = afb::eShaderRead;
+	  }
+	  else if (ComputeAccessRequired < 0) { // write only //
+		  
+		  if (il::eGeneral == s.currentLayout) return;
+		  s.currentLayout = il::eGeneral;
+
+		  dstMask = afb::eShaderWrite;
+	  }
+	  else {							    // read-write //
+		  
+		  if (il::eGeneral == s.currentLayout) return;
+		  s.currentLayout = il::eGeneral;
+
+		  dstMask = afb::eShaderWrite | afb::eShaderRead;
+	  }
+
+	  vk::ImageMemoryBarrier imageMemoryBarriers = {};
+	  imageMemoryBarriers.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	  imageMemoryBarriers.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	  imageMemoryBarriers.oldLayout = oldLayout;
+	  imageMemoryBarriers.newLayout = s.currentLayout;
+	  imageMemoryBarriers.image = s.image;
+	  imageMemoryBarriers.subresourceRange = { aspectMask, 0, s.info.mipLevels, 0, s.info.arrayLayers };
+
+	  // Is it me, or are these the same?
+	  switch (oldLayout) {
+	  case il::eUndefined: break;
+	  case il::eGeneral: 
+		  srcMask = afb::eShaderWrite;	// assumes only compute and it was write-only
+		  srcStageMask = psfb::eComputeShader;
+		  break;
+	  case il::eColorAttachmentOptimal: srcMask = afb::eColorAttachmentWrite; srcStageMask = psfb::eColorAttachmentOutput; dependencyFlags = vk::DependencyFlagBits::eByRegion; break;
+	  case il::eDepthStencilAttachmentOptimal: srcMask = afb::eDepthStencilAttachmentWrite; srcStageMask = psfb::eEarlyFragmentTests | psfb::eLateFragmentTests; dependencyFlags = vk::DependencyFlagBits::eByRegion; break;
+	  case il::eDepthStencilReadOnlyOptimal: srcMask = afb::eDepthStencilAttachmentRead; srcStageMask = psfb::eEarlyFragmentTests | psfb::eLateFragmentTests; dependencyFlags = vk::DependencyFlagBits::eByRegion; break;
+	  case il::eShaderReadOnlyOptimal: srcMask = afb::eShaderRead; srcStageMask = psfb::eFragmentShader | psfb::eComputeShader; /*assumes frag or compute shader*/ dependencyFlags = vk::DependencyFlagBits::eByRegion; break;
+	  case il::eTransferSrcOptimal: srcMask = afb::eTransferRead; srcStageMask = psfb::eTransfer;  break;
+	  case il::eTransferDstOptimal: srcMask = afb::eTransferWrite; srcStageMask = psfb::eTransfer; break;
+	  case il::ePreinitialized: srcMask = afb::eTransferWrite | afb::eHostWrite; break;
+	  case il::ePresentSrcKHR: srcMask = afb::eMemoryRead; srcStageMask = psfb::eBottomOfPipe; dependencyFlags = vk::DependencyFlagBits::eByRegion; break;
+	  }
+
+	  imageMemoryBarriers.srcAccessMask = srcMask;
+	  imageMemoryBarriers.dstAccessMask = dstMask;
+	  auto memoryBarriers = nullptr;
+	  auto bufferMemoryBarriers = nullptr;
+
+	  if (srcStageMask != dstStageMask || (srcStageMask == dstStageMask && (srcMask != dstMask))) {
+		  cb.pipelineBarrier(srcStageMask, dstStageMask, dependencyFlags, memoryBarriers, bufferMemoryBarriers, imageMemoryBarriers);
+	  }
   }
 
-  /// Change the layout of this image using a memory barrier.
-  void setLayout(vk::CommandBuffer cb, vk::ImageLayout newLayout, vk::ImageAspectFlags aspectMask = vk::ImageAspectFlagBits::eColor) {
-    if (newLayout == s.currentLayout) return;
-    vk::ImageLayout oldLayout = s.currentLayout;
-    s.currentLayout = newLayout;
+  void setLayoutFragmentFromCompute(vk::CommandBuffer const& __restrict cb, int32_t const ComputeAccessUsed, vk::ImageAspectFlags aspectMask = vk::ImageAspectFlagBits::eColor) {
+	  typedef vk::ImageLayout il;
+	  if (il::eShaderReadOnlyOptimal == s.currentLayout) return;
+	  vk::ImageLayout oldLayout = s.currentLayout;
+	  s.currentLayout = il::eShaderReadOnlyOptimal;
+
+	  // 	case il::eShaderReadOnlyOptimal: dstMask = afb::eShaderRead; dstStageMask = psfb::eFragmentShader | psfb::eComputeShader; break; // assumes not texture access in vertex shader, etc
+	  vk::ImageMemoryBarrier imageMemoryBarriers = {};
+	  imageMemoryBarriers.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	  imageMemoryBarriers.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	  imageMemoryBarriers.oldLayout = oldLayout;
+	  imageMemoryBarriers.newLayout = s.currentLayout;
+	  imageMemoryBarriers.image = s.image;
+	  imageMemoryBarriers.subresourceRange = { aspectMask, 0, s.info.mipLevels, 0, s.info.arrayLayers };
+
+	  // Put barrier on  top (default) - invalid for many access types
+	  vk::PipelineStageFlags srcStageMask{ vk::PipelineStageFlagBits::eTopOfPipe };
+	  vk::PipelineStageFlags dstStageMask{ vk::PipelineStageFlagBits::eTopOfPipe };
+	  vk::DependencyFlags const dependencyFlags{ vk::DependencyFlagBits::eByRegion };
+	  vk::AccessFlags srcMask{};
+	  vk::AccessFlags dstMask{};
+
+	  typedef vk::PipelineStageFlagBits psfb;
+	  typedef vk::AccessFlagBits afb;
+
+	  dstMask = afb::eShaderRead; dstStageMask = psfb::eFragmentShader; // assumes not texture access in vertex shader, etc
+
+	  /* oldLayout */
+	  switch (oldLayout) {
+		 case il::eUndefined: break;
+		 case il::eGeneral: 
+		 {
+			 srcStageMask = psfb::eComputeShader;
+			 if (0 == ComputeAccessUsed) {		// read only //
+#ifndef NDEBUG
+				 assert_print(false, "setLayoutFragmentFromCompute logical error, old layout cannot be General while AccessUsed is readonly");
+#endif
+			 }
+			 else if (ComputeAccessUsed < 0) { // write only //
+				 srcMask = afb::eShaderWrite;
+			 }
+			 else {							    // read-write //
+				 srcMask = afb::eShaderWrite | afb::eShaderRead;
+			 }
+			 break;
+		 }
+	  }
+	
+	  imageMemoryBarriers.srcAccessMask = srcMask;
+	  imageMemoryBarriers.dstAccessMask = dstMask;
+	  auto memoryBarriers = nullptr;
+	  auto bufferMemoryBarriers = nullptr;
+
+	  if (srcStageMask != dstStageMask || (srcStageMask == dstStageMask && (srcMask != dstMask))) {
+		  cb.pipelineBarrier(srcStageMask, dstStageMask, dependencyFlags, memoryBarriers, bufferMemoryBarriers, imageMemoryBarriers);
+	  }
+  }
+
+  // For specifying the specific source and destination stages  vk::PipelineStageFlagBits (advanced usage):
+  template< bool const bDontCareSrcUndefined = false>
+  void setLayout(vk::CommandBuffer const& __restrict cb, vk::ImageLayout newLayout, vk::PipelineStageFlags srcStageMask, int32_t const AccessUsed, vk::PipelineStageFlags dstStageMask, int32_t const AccessRequired, vk::ImageAspectFlags aspectMask = vk::ImageAspectFlagBits::eColor, vk::ImageLayout const ForceLayoutUpdate = vk::ImageLayout::eUndefined) {
+
+	  vk::ImageLayout oldLayout;
+
+	  if constexpr (bDontCareSrcUndefined) {
+		  oldLayout = vk::ImageLayout::eUndefined;
+		  srcStageMask = vk::PipelineStageFlagBits::eTopOfPipe;
+	  }
+	  else {
+		  if (vk::ImageLayout::eUndefined == ForceLayoutUpdate) {
+			  if (newLayout == s.currentLayout && AccessUsed == AccessRequired) return;
+
+			  oldLayout = s.currentLayout;
+		  }
+		  else {
+			  if (vk::ImageLayout::eUndefined != s.currentLayout)
+				  oldLayout = ForceLayoutUpdate;
+			  else
+				  oldLayout = s.currentLayout;
+		  }
+	  }
+
+	  s.currentLayout = newLayout;
+
+	  vk::ImageMemoryBarrier imageMemoryBarriers = {};
+	  imageMemoryBarriers.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	  imageMemoryBarriers.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	  imageMemoryBarriers.oldLayout = oldLayout;
+	  imageMemoryBarriers.newLayout = newLayout;
+	  imageMemoryBarriers.image = s.image;
+	  imageMemoryBarriers.subresourceRange = { aspectMask, 0, s.info.mipLevels, 0, s.info.arrayLayers };
+
+	  vk::DependencyFlags dependencyFlags{};
+	  vk::AccessFlags srcMask{};
+	  vk::AccessFlags dstMask{};
+
+	  typedef vk::ImageLayout il;
+	  typedef vk::PipelineStageFlagBits psfb;
+	  typedef vk::AccessFlagBits afb;
+
+	  // Is it me, or are these the same?
+	  switch (oldLayout) {
+	  case il::eUndefined: break;
+	  case il::eGeneral: 
+		  if (0 == AccessUsed) {		// read only //
+			  /*case il::eGeneral:*/ srcMask = afb::eShaderRead;
+		  }
+		  else if (AccessUsed < 0) { // write only //
+			  /*case il::eGeneral:*/ srcMask = afb::eShaderWrite;
+		  }
+		  else {							    // read-write //
+			  /*case il::eGeneral:*/ srcMask = afb::eShaderWrite | afb::eShaderRead;
+		  }
+		  dependencyFlags = vk::DependencyFlagBits::eByRegion;
+		  break; // srcstagemask must be suitably set
+	  case il::eColorAttachmentOptimal: srcMask = afb::eColorAttachmentWrite; srcStageMask = psfb::eColorAttachmentOutput; dependencyFlags = vk::DependencyFlagBits::eByRegion; break;
+	  case il::eDepthStencilAttachmentOptimal: srcMask = afb::eDepthStencilAttachmentWrite; srcStageMask = psfb::eEarlyFragmentTests | psfb::eLateFragmentTests; dependencyFlags = vk::DependencyFlagBits::eByRegion; break;
+	  case il::eDepthStencilReadOnlyOptimal: srcMask = afb::eDepthStencilAttachmentRead; srcStageMask = psfb::eEarlyFragmentTests | psfb::eLateFragmentTests; dependencyFlags = vk::DependencyFlagBits::eByRegion; break;
+	  case il::eShaderReadOnlyOptimal: // this is compatible w/compute and fragment by using correct passed in srcStageMask
+		  srcMask = afb::eShaderRead; 
+		  dependencyFlags = vk::DependencyFlagBits::eByRegion; 
+		  break; // srcstagemask must be suitably set
+	  case il::eTransferSrcOptimal: srcMask = afb::eTransferRead; srcStageMask = psfb::eTransfer;  break;
+	  case il::eTransferDstOptimal: srcMask = afb::eTransferWrite; srcStageMask = psfb::eTransfer; break;
+	  case il::ePreinitialized: srcMask = afb::eTransferWrite | afb::eHostWrite; break;
+	  case il::ePresentSrcKHR: srcMask = afb::eMemoryRead; srcStageMask = psfb::eBottomOfPipe; dependencyFlags = vk::DependencyFlagBits::eByRegion; break;
+	  }
+
+	  switch (newLayout) {
+	  case il::eUndefined: break;
+	  case il::eGeneral: 
+		  if (0 == AccessRequired) {		// read only //
+#ifndef NDEBUG
+			  assert_print(false, "setLayout logical error, new layout cannot be General while AccessRequired is readonly");
+#endif
+		  }
+		  else if (AccessRequired < 0) { // write only //
+			  /*case il::eGeneral:*/ dstMask = afb::eShaderWrite;
+		  }
+		  else {							    // read-write //
+			  /*case il::eGeneral:*/ dstMask = afb::eShaderWrite | afb::eShaderRead;
+		  }
+		  dependencyFlags = vk::DependencyFlagBits::eByRegion;
+		  break; // dststagemask must be suitably set
+	  case il::eColorAttachmentOptimal: dstMask = afb::eColorAttachmentWrite; dstStageMask = psfb::eColorAttachmentOutput; dependencyFlags = vk::DependencyFlagBits::eByRegion; break;
+	  case il::eDepthStencilAttachmentOptimal: dstMask = afb::eDepthStencilAttachmentWrite; dstStageMask = psfb::eEarlyFragmentTests | psfb::eLateFragmentTests; dependencyFlags = vk::DependencyFlagBits::eByRegion; break;
+	  case il::eDepthStencilReadOnlyOptimal: dstMask = afb::eDepthStencilAttachmentRead; dstStageMask = psfb::eEarlyFragmentTests | psfb::eLateFragmentTests; dependencyFlags = vk::DependencyFlagBits::eByRegion; break;
+	  case il::eShaderReadOnlyOptimal: // this is compatible w/compute and fragment by using correct passed in dstStageMask
+		  dstMask = afb::eShaderRead; 
+		  dependencyFlags = vk::DependencyFlagBits::eByRegion; 
+		  break; // dststagemask must be suitably set
+	  case il::eTransferSrcOptimal: dstMask = afb::eTransferRead; dstStageMask = psfb::eTransfer;  break;
+	  case il::eTransferDstOptimal: dstMask = afb::eTransferWrite; dstStageMask = psfb::eTransfer; break;
+	  case il::ePreinitialized: dstMask = afb::eTransferWrite | afb::eHostWrite; break;
+	  case il::ePresentSrcKHR: dstMask = afb::eMemoryRead; dstStageMask = psfb::eBottomOfPipe; dependencyFlags = vk::DependencyFlagBits::eByRegion;  break;
+	  }
+
+	  imageMemoryBarriers.srcAccessMask = srcMask;
+	  imageMemoryBarriers.dstAccessMask = dstMask;
+	  auto memoryBarriers = nullptr;
+	  auto bufferMemoryBarriers = nullptr;
+
+	  if (srcStageMask != dstStageMask || (srcStageMask == dstStageMask && (srcMask != dstMask))) {
+		  cb.pipelineBarrier(srcStageMask, dstStageMask, dependencyFlags, memoryBarriers, bufferMemoryBarriers, imageMemoryBarriers);
+	  }
+  }
+
+  /// Change the layout of this image using a memory barrier. (simple automatic usage - covers most cases)
+  // ForceLayoutUpdate s good for recording those pesky cbs hat wont set the layout properly due to this classes state tracking
+  // ForceLayoutUpdate should be set to the expected OLD layout being transitioned from
+  template< bool const bDontCareSrcUndefined = false>
+  void setLayout(vk::CommandBuffer const& __restrict cb, vk::ImageLayout newLayout, vk::ImageAspectFlags aspectMask = vk::ImageAspectFlagBits::eColor, vk::ImageLayout const ForceLayoutUpdate = vk::ImageLayout::eUndefined) {
+    
+	  vk::ImageLayout oldLayout;
+
+	  if constexpr (bDontCareSrcUndefined) {
+		  oldLayout = vk::ImageLayout::eUndefined;
+	  }
+	  else {
+		  if (vk::ImageLayout::eUndefined == ForceLayoutUpdate) {
+			  if (newLayout == s.currentLayout) return;
+
+			  oldLayout = s.currentLayout;
+		  }
+		  else {
+			  if (vk::ImageLayout::eUndefined != s.currentLayout)
+				  oldLayout = ForceLayoutUpdate;
+			  else
+				  oldLayout = s.currentLayout;
+		  }
+	  }
+    
+	s.currentLayout = newLayout;
 
     vk::ImageMemoryBarrier imageMemoryBarriers = {};
     imageMemoryBarriers.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
     imageMemoryBarriers.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
     imageMemoryBarriers.oldLayout = oldLayout;
     imageMemoryBarriers.newLayout = newLayout;
-    imageMemoryBarriers.image = *s.image;
+    imageMemoryBarriers.image = s.image;
     imageMemoryBarriers.subresourceRange = {aspectMask, 0, s.info.mipLevels, 0, s.info.arrayLayers};
 
-    // Put barrier on top
-    // https://www.khronos.org/registry/vulkan/specs/1.2/html/chap7.html#synchronization-access-types-supported
+    // Put barrier on  top (default) - invalid for many access types
     vk::PipelineStageFlags srcStageMask{vk::PipelineStageFlagBits::eTopOfPipe};
     vk::PipelineStageFlags dstStageMask{vk::PipelineStageFlagBits::eTopOfPipe};
     vk::DependencyFlags dependencyFlags{};
@@ -1775,95 +2855,393 @@ public:
     vk::AccessFlags dstMask{};
 
     typedef vk::ImageLayout il;
+	typedef vk::PipelineStageFlagBits psfb;
     typedef vk::AccessFlagBits afb;
 
     // Is it me, or are these the same?
     switch (oldLayout) {
       case il::eUndefined: break;
-      case il::eGeneral: srcMask = afb::eTransferWrite; srcStageMask=vk::PipelineStageFlagBits::eTransfer; break;
-      case il::eColorAttachmentOptimal: srcMask = afb::eColorAttachmentWrite; srcStageMask=vk::PipelineStageFlagBits::eColorAttachmentOutput; break;
-      case il::eDepthStencilAttachmentOptimal: srcMask = afb::eDepthStencilAttachmentWrite; srcStageMask=vk::PipelineStageFlagBits::eEarlyFragmentTests; break;
-      case il::eDepthStencilReadOnlyOptimal: srcMask = afb::eDepthStencilAttachmentRead; srcStageMask=vk::PipelineStageFlagBits::eEarlyFragmentTests; break;
-      case il::eShaderReadOnlyOptimal: srcMask = afb::eShaderRead; srcStageMask=vk::PipelineStageFlagBits::eVertexShader; break;
-      case il::eTransferSrcOptimal: srcMask = afb::eTransferRead; srcStageMask=vk::PipelineStageFlagBits::eTransfer; break;
-      case il::eTransferDstOptimal: srcMask = afb::eTransferWrite; srcStageMask=vk::PipelineStageFlagBits::eTransfer; break;
-      case il::ePreinitialized: srcMask = afb::eTransferWrite|afb::eHostWrite; srcStageMask=vk::PipelineStageFlagBits::eTransfer|vk::PipelineStageFlagBits::eHost; break;
-      case il::ePresentSrcKHR: srcMask = afb::eMemoryRead; break;
+	  case il::eGeneral: srcMask = afb::eShaderWrite | afb::eShaderRead; srcStageMask = psfb::eComputeShader; dependencyFlags = vk::DependencyFlagBits::eByRegion; break;
+	  case il::eColorAttachmentOptimal: srcMask = afb::eColorAttachmentWrite; srcStageMask = psfb::eColorAttachmentOutput; dependencyFlags = vk::DependencyFlagBits::eByRegion;  break;
+	  case il::eDepthStencilAttachmentOptimal: srcMask = afb::eDepthStencilAttachmentWrite; srcStageMask = psfb::eEarlyFragmentTests | psfb::eLateFragmentTests; dependencyFlags = vk::DependencyFlagBits::eByRegion; break;
+      case il::eDepthStencilReadOnlyOptimal: srcMask = afb::eDepthStencilAttachmentRead; srcStageMask = psfb::eEarlyFragmentTests | psfb::eLateFragmentTests; dependencyFlags = vk::DependencyFlagBits::eByRegion; break;
+	  case il::eShaderReadOnlyOptimal: srcMask = afb::eShaderRead; srcStageMask = psfb::eFragmentShader; dependencyFlags = vk::DependencyFlagBits::eByRegion; break; // assumes not texture access in vertex shader, etc
+	  case il::eTransferSrcOptimal: srcMask = afb::eTransferRead; srcStageMask = psfb::eTransfer;  break;
+      case il::eTransferDstOptimal: srcMask = afb::eTransferWrite; srcStageMask = psfb::eTransfer; break;
+      case il::ePreinitialized: srcMask = afb::eTransferWrite|afb::eHostWrite; break;
+	  case il::ePresentSrcKHR: srcMask = afb::eMemoryRead; srcStageMask = psfb::eBottomOfPipe; dependencyFlags = vk::DependencyFlagBits::eByRegion;  break;
     }
 
-    switch (newLayout) {
-      case il::eUndefined: break;
-      case il::eGeneral: dstMask = afb::eTransferWrite; dstStageMask=vk::PipelineStageFlagBits::eTransfer; break;
-      case il::eColorAttachmentOptimal: dstMask = afb::eColorAttachmentWrite; dstStageMask=vk::PipelineStageFlagBits::eColorAttachmentOutput; break;
-      case il::eDepthStencilAttachmentOptimal: dstMask = afb::eDepthStencilAttachmentWrite; dstStageMask=vk::PipelineStageFlagBits::eEarlyFragmentTests; break;
-      case il::eDepthStencilReadOnlyOptimal: dstMask = afb::eDepthStencilAttachmentRead; dstStageMask=vk::PipelineStageFlagBits::eEarlyFragmentTests; break;
-      case il::eShaderReadOnlyOptimal: dstMask = afb::eShaderRead; dstStageMask=vk::PipelineStageFlagBits::eVertexShader; break;
-      case il::eTransferSrcOptimal: dstMask = afb::eTransferRead; dstStageMask=vk::PipelineStageFlagBits::eTransfer; break;
-      case il::eTransferDstOptimal: dstMask = afb::eTransferWrite; dstStageMask=vk::PipelineStageFlagBits::eTransfer; break;
-      case il::ePreinitialized: dstMask = afb::eTransferWrite; dstStageMask=vk::PipelineStageFlagBits::eTransfer; break;
-      case il::ePresentSrcKHR: dstMask = afb::eMemoryRead; break;
-    }
-//printf("%08x %08x\n", (VkFlags)srcMask, (VkFlags)dstMask);
+	switch (newLayout) {
+	case il::eUndefined: break;
+	case il::eGeneral: dstMask = afb::eShaderWrite; dstStageMask = psfb::eComputeShader; dependencyFlags = vk::DependencyFlagBits::eByRegion; break;
+	case il::eColorAttachmentOptimal: dstMask = afb::eColorAttachmentWrite; dstStageMask = psfb::eColorAttachmentOutput; dependencyFlags = vk::DependencyFlagBits::eByRegion; break;
+	case il::eDepthStencilAttachmentOptimal: dstMask = afb::eDepthStencilAttachmentWrite; dstStageMask = psfb::eEarlyFragmentTests | psfb::eLateFragmentTests; dependencyFlags = vk::DependencyFlagBits::eByRegion; break;
+	case il::eDepthStencilReadOnlyOptimal: dstMask = afb::eDepthStencilAttachmentRead; dstStageMask = psfb::eEarlyFragmentTests | psfb::eLateFragmentTests; dependencyFlags = vk::DependencyFlagBits::eByRegion; break;
+	case il::eShaderReadOnlyOptimal: dstMask = afb::eShaderRead; dstStageMask = psfb::eFragmentShader; dependencyFlags = vk::DependencyFlagBits::eByRegion; break; // assumes not texture access in vertex shader, etc
+	case il::eTransferSrcOptimal: dstMask = afb::eTransferRead; dstStageMask = psfb::eTransfer;  break;
+	case il::eTransferDstOptimal: dstMask = afb::eTransferWrite; dstStageMask = psfb::eTransfer; break;
+	case il::ePreinitialized: dstMask = afb::eTransferWrite | afb::eHostWrite; break;
+	case il::ePresentSrcKHR: dstMask = afb::eMemoryRead; dstStageMask = psfb::eBottomOfPipe; dependencyFlags = vk::DependencyFlagBits::eByRegion; break;
+	}
 
     imageMemoryBarriers.srcAccessMask = srcMask;
     imageMemoryBarriers.dstAccessMask = dstMask;
     auto memoryBarriers = nullptr;
     auto bufferMemoryBarriers = nullptr;
-    cb.pipelineBarrier(srcStageMask, dstStageMask, dependencyFlags, memoryBarriers, bufferMemoryBarriers, imageMemoryBarriers);
+
+	if (srcStageMask != dstStageMask || (srcStageMask == dstStageMask && (srcMask != dstMask))) {
+		cb.pipelineBarrier(srcStageMask, dstStageMask, dependencyFlags, memoryBarriers, bufferMemoryBarriers, imageMemoryBarriers);
+	}
   }
 
+  // batched / multiple barriers stages src and dst are same for all images in batch
+  // For specifying the specific source and destination stages  vk::PipelineStageFlagBits (advanced usage):
+  template<size_t const image_count, bool const bDontCareSrcUndefined = false>
+  static void setLayout(std::array<vku::GenericImage* const, image_count> const& __restrict images, 
+	  vk::CommandBuffer const& __restrict cb, vk::ImageLayout const newLayout, vk::PipelineStageFlags srcStageMask, int32_t const AccessUsed, vk::PipelineStageFlags const dstStageMask, int32_t const AccessRequired, vk::ImageAspectFlags const aspectMask = vk::ImageAspectFlagBits::eColor, vk::ImageLayout const ForceLayoutUpdate = vk::ImageLayout::eUndefined) {
+
+	  vk::DependencyFlags dependencyFlags{};
+	  std::array<vk::ImageMemoryBarrier, image_count> imbs;
+	  uint32_t used_image_count(0);
+	  bool bDstMaskSrcMask(false);
+
+	  for (uint32_t i = 0; i < image_count; ++i) {
+
+		  vk::ImageLayout oldLayout;
+
+		  if constexpr (bDontCareSrcUndefined) {
+			  oldLayout = vk::ImageLayout::eUndefined;
+			  srcStageMask = vk::PipelineStageFlagBits::eTopOfPipe;
+		  }
+		  else {
+			  if (vk::ImageLayout::eUndefined == ForceLayoutUpdate) {
+				  if (newLayout == images[i]->s.currentLayout && AccessUsed == AccessRequired) continue;
+
+				  oldLayout = images[i]->s.currentLayout;
+			  }
+			  else {
+				  if (vk::ImageLayout::eUndefined != images[i]->s.currentLayout)
+					  oldLayout = ForceLayoutUpdate;
+				  else
+					  oldLayout = images[i]->s.currentLayout;
+			  }
+		  }
+
+		  images[i]->s.currentLayout = newLayout;
+
+		  imbs[used_image_count].srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+		  imbs[used_image_count].dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+		  imbs[used_image_count].oldLayout = oldLayout;
+		  imbs[used_image_count].newLayout = newLayout;
+		  imbs[used_image_count].image = images[i]->s.image;
+		  imbs[used_image_count].subresourceRange = { aspectMask, 0, images[i]->s.info.mipLevels, 0, images[i]->s.info.arrayLayers };
+		
+		  vk::AccessFlags srcMask{};
+		  vk::AccessFlags dstMask{};
+
+		  typedef vk::ImageLayout il;
+		  typedef vk::PipelineStageFlagBits psfb;
+		  typedef vk::AccessFlagBits afb;
+
+		  // Is it me, or are these the same?
+		  switch (oldLayout) {
+		  case il::eUndefined: break;
+		  case il::eGeneral:
+			  if (0 == AccessUsed) {		// read only //
+#ifndef NDEBUG
+				  assert_print(false, "setLayout logical error, old layout cannot be General while AccessUsed is readonly");
+#endif
+			  }
+			  else if (AccessUsed < 0) { // write only //
+				  /*case il::eGeneral:*/ srcMask = afb::eShaderWrite;
+			  }
+			  else {							    // read-write //
+				  /*case il::eGeneral:*/ srcMask = afb::eShaderWrite | afb::eShaderRead;
+			  }
+			  dependencyFlags = vk::DependencyFlagBits::eByRegion;
+			  break; // srcstagemask must be suitably set
+		  case il::eColorAttachmentOptimal: srcMask = afb::eColorAttachmentWrite; /*srcStageMask = psfb::eColorAttachmentOutput;*/ dependencyFlags = vk::DependencyFlagBits::eByRegion; break;
+		  case il::eDepthStencilAttachmentOptimal: srcMask = afb::eDepthStencilAttachmentWrite; /*srcStageMask = psfb::eEarlyFragmentTests | psfb::eLateFragmentTests;*/ dependencyFlags = vk::DependencyFlagBits::eByRegion; break;
+		  case il::eDepthStencilReadOnlyOptimal: srcMask = afb::eDepthStencilAttachmentRead; /*srcStageMask = psfb::eEarlyFragmentTests | psfb::eLateFragmentTests;*/ dependencyFlags = vk::DependencyFlagBits::eByRegion; break;
+		  case il::eShaderReadOnlyOptimal: // this is compatible w/compute and fragment by using correct passed in srcStageMask
+			  srcMask = afb::eShaderRead;
+			  dependencyFlags = vk::DependencyFlagBits::eByRegion;
+			  break; // srcstagemask must be suitably set
+		  case il::eTransferSrcOptimal: srcMask = afb::eTransferRead; /*srcStageMask = psfb::eTransfer;*/  break;
+		  case il::eTransferDstOptimal: srcMask = afb::eTransferWrite; /*srcStageMask = psfb::eTransfer;*/ break;
+		  case il::ePreinitialized: srcMask = afb::eTransferWrite | afb::eHostWrite; break;
+		  case il::ePresentSrcKHR: srcMask = afb::eMemoryRead; /*srcStageMask = psfb::eBottomOfPipe;*/ dependencyFlags = vk::DependencyFlagBits::eByRegion; break;
+		  }
+
+		  switch (newLayout) {
+		  case il::eUndefined: break;
+		  case il::eGeneral:
+			  if (0 == AccessRequired) {		// read only //
+#ifndef NDEBUG
+				  assert_print(false, "setLayout logical error, new layout cannot be General while AccessRequired is readonly");
+#endif
+			  }
+			  else if (AccessRequired < 0) { // write only //
+				  /*case il::eGeneral:*/ dstMask = afb::eShaderWrite;
+			  }
+			  else {							    // read-write //
+				  /*case il::eGeneral:*/ dstMask = afb::eShaderWrite | afb::eShaderRead;
+			  }
+			  dependencyFlags = vk::DependencyFlagBits::eByRegion;
+			  break; // dststagemask must be suitably set
+		  case il::eColorAttachmentOptimal: dstMask = afb::eColorAttachmentWrite; /*dstStageMask = psfb::eColorAttachmentOutput;*/ dependencyFlags = vk::DependencyFlagBits::eByRegion; break;
+		  case il::eDepthStencilAttachmentOptimal: dstMask = afb::eDepthStencilAttachmentWrite; /*dstStageMask = psfb::eEarlyFragmentTests | psfb::eLateFragmentTests;*/ dependencyFlags = vk::DependencyFlagBits::eByRegion; break;
+		  case il::eDepthStencilReadOnlyOptimal: dstMask = afb::eDepthStencilAttachmentRead; /*dstStageMask = psfb::eEarlyFragmentTests | psfb::eLateFragmentTests;*/ dependencyFlags = vk::DependencyFlagBits::eByRegion; break;
+		  case il::eShaderReadOnlyOptimal: // this is compatible w/compute and fragment by using correct passed in dstStageMask
+			  dstMask = afb::eShaderRead;
+			  dependencyFlags = vk::DependencyFlagBits::eByRegion;
+			  break; // dststagemask must be suitably set
+		  case il::eTransferSrcOptimal: dstMask = afb::eTransferRead; /*dstStageMask = psfb::eTransfer;*/  break;
+		  case il::eTransferDstOptimal: dstMask = afb::eTransferWrite; /*dstStageMask = psfb::eTransfer;*/ break;
+		  case il::ePreinitialized: dstMask = afb::eTransferWrite | afb::eHostWrite; break;
+		  case il::ePresentSrcKHR: dstMask = afb::eMemoryRead; /*dstStageMask = psfb::eBottomOfPipe;*/ dependencyFlags = vk::DependencyFlagBits::eByRegion;  break;
+		  }
+
+		  imbs[used_image_count].srcAccessMask = srcMask;
+		  imbs[used_image_count].dstAccessMask = dstMask;
+		  bDstMaskSrcMask |= (srcMask == dstMask);
+
+		  ++used_image_count;
+	  }
+	  
+	  if (srcStageMask != dstStageMask || (srcStageMask == dstStageMask && !bDstMaskSrcMask)) {
+		  cb.pipelineBarrier(srcStageMask, dstStageMask, dependencyFlags, 0, nullptr, 0, nullptr, used_image_count, imbs.data());
+	  }
+  }
+
+  // **** use these for "undefined" / "don't care" source instances:
+  // 
+  // setlayout when the data is in a don't care state (undefined)
+  void setLayoutFromUndefined(vk::CommandBuffer const& __restrict cb, vk::ImageLayout const newLayout, vk::ImageAspectFlags const aspectMask = vk::ImageAspectFlagBits::eColor) {
+	  setLayout<true>(cb, newLayout, aspectMask);
+  }
+  // batched version
+  template<size_t const image_count>
+  static void setLayoutFromUndefined(std::array<vku::GenericImage* const, image_count> const& __restrict images,
+									 vk::CommandBuffer const& __restrict cb, vk::ImageLayout const newLayout, vk::PipelineStageFlags const dstStageMask, int32_t const AccessRequired, vk::ImageAspectFlags const aspectMask = vk::ImageAspectFlagBits::eColor) {
+	  GenericImage::setLayout<image_count, true>(images, cb, newLayout, vk::PipelineStageFlagBits::eTopOfPipe, 0/*N/A*/, dstStageMask, AccessRequired, aspectMask);
+  }
   /// Set what the image thinks is its current layout (ie. the old layout in an image barrier).
   void setCurrentLayout(vk::ImageLayout oldLayout) {
     s.currentLayout = oldLayout;
   }
 
-  vk::Format format() const { return s.info.format; }
-  vk::Extent3D extent() const { return s.info.extent; }
-  const vk::ImageCreateInfo &info() const { return s.info; }
+
+  vk::Format format() const { return(s.info.format); }
+  vk::Extent3D extent() const { return(s.info.extent); }
+  vk::ImageCreateInfo const& __restrict info() const { return(s.info); }
+  vk::DeviceSize const& __restrict size() const { return(s.size); }
 protected:
-  void create(vk::Device device, const vk::PhysicalDeviceMemoryProperties &memprops, const vk::ImageCreateInfo &info, vk::ImageViewType viewType, vk::ImageAspectFlags aspectMask, bool hostImage) {
+  void create(vk::Device device, const vk::ImageCreateInfo &info, vk::ImageViewType const viewType, vk::ImageAspectFlags const aspectMask, bool const hostImage = false, bool const bDedicatedMemory = false) {
     s.currentLayout = info.initialLayout;
     s.info = info;
-    s.image = device.createImageUnique(info);
 
-    // Find out how much memory and which heap to allocate from.
-    auto memreq = device.getImageMemoryRequirements(*s.image);
-    vk::MemoryPropertyFlags search{};
-    if (hostImage) search = vk::MemoryPropertyFlagBits::eHostCoherent | vk::MemoryPropertyFlagBits::eHostVisible;
+#ifndef NDEBUG
+	if (vk::ImageUsageFlagBits::eStorage == (info.usage & vk::ImageUsageFlagBits::eStorage)) {
+		assert_print(vk::SampleCountFlagBits::e1 == info.samples, "Storage bit enabled for multisampled image incorrectly\n");
+	}
+#endif
 
-    // Create a memory object to bind to the buffer.
-    // Note: we don't expect to be able to map the buffer.
-    vk::MemoryAllocateInfo mai{};
-    mai.allocationSize = s.size = memreq.size;
-    mai.memoryTypeIndex = vku::findMemoryTypeIndex(memprops, memreq.memoryTypeBits, search);
-    s.mem = device.allocateMemoryUnique(mai);
+	VmaAllocationCreateInfo allocInfo{};
+	allocInfo.usage = (hostImage ? VMA_MEMORY_USAGE_AUTO_PREFER_HOST : VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE);  // default to gpu only if 0/unknown is passed in
+	allocInfo.requiredFlags = (VkMemoryPropertyFlags)(hostImage ? (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT|VK_MEMORY_PROPERTY_HOST_COHERENT_BIT) : VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+	allocInfo.preferredFlags = allocInfo.requiredFlags;
+	allocInfo.flags = (bDedicatedMemory ? VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT : (VmaAllocationCreateFlags)0);
 
-    device.bindImageMemory(*s.image, *s.mem, 0);
+	VmaAllocationInfo image_alloc_info{};
+	vmaCreateImage(vma_, (VkImageCreateInfo const* const)&s.info, &allocInfo, (VkImage*)&s.image, &s.allocation, &image_alloc_info);
+
+	s.size = image_alloc_info.size;
 
     if (!hostImage) {
       vk::ImageViewCreateInfo viewInfo{};
-      viewInfo.image = *s.image;
+      viewInfo.image = s.image;
       viewInfo.viewType = viewType;
       viewInfo.format = info.format;
       viewInfo.components = { vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eG, vk::ComponentSwizzle::eB, vk::ComponentSwizzle::eA };
       viewInfo.subresourceRange = vk::ImageSubresourceRange{aspectMask, 0, info.mipLevels, 0, info.arrayLayers};
-      s.imageView = device.createImageViewUnique(viewInfo);
+      s.imageView = device.createImageViewUnique(viewInfo).value;
     }
   }
 
+  public:
+	vk::UniqueImageView createImageView(vk::Device const& __restrict device, vk::ImageViewType const viewType, uint32_t const baseMipLevel = 0, vk::ImageAspectFlags const aspectMask = vk::ImageAspectFlagBits::eColor)
+	{
+		vk::ImageViewCreateInfo viewInfo{};
+		viewInfo.image = s.image;
+		viewInfo.viewType = viewType;
+		viewInfo.format = s.info.format;
+		viewInfo.components = { vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eG, vk::ComponentSwizzle::eB, vk::ComponentSwizzle::eA };
+		viewInfo.subresourceRange = vk::ImageSubresourceRange{ aspectMask, baseMipLevel, s.info.mipLevels, 0, s.info.arrayLayers };
+
+		return(device.createImageViewUnique(viewInfo).value);
+	}
+	void changeImageView(vk::Device const& __restrict device, vk::ImageViewType const viewType, uint32_t const baseMipLevel = 0, vk::ImageAspectFlags const aspectMask = vk::ImageAspectFlagBits::eColor)
+	{
+		// overloaded assignment opeator works on && reference, releasing the old image view and replacing it with the new one via std::move
+		s.imageView = std::move(createImageView(device, viewType, baseMipLevel, aspectMask));
+	}
+
+  protected:
   struct State {
-    vk::UniqueImage image;
+    vk::Image image;
     vk::UniqueImageView imageView;
-    vk::UniqueDeviceMemory mem;
-    vk::DeviceSize size;
+	std::vector<vk::UniqueImageView> mipView;
+    VmaAllocation allocation;
+	vk::DeviceSize size{};
     vk::ImageLayout currentLayout;
     vk::ImageCreateInfo info;
+		
+	void release()
+	{
+		size = 0;
+		for (auto& mip : mipView) {
+			mip.release();
+		}
+		imageView.release();
+
+		if (allocation) {
+			vmaDestroyImage(vma_, image, allocation);
+			image = nullptr;
+			allocation = nullptr;
+		}
+	}
 
   };
 
   State s;
+
+ public:
+	  GenericImage & operator=(GenericImage && other)
+	  {
+		  s = std::move(other.s);
+
+		  other.s.size = 0;
+		  for (auto& mip : other.s.mipView) {
+			  mip.reset(nullptr);
+		  }
+		  other.s.imageView.reset(nullptr);
+		  other.s.image = nullptr;
+		  other.s.allocation = nullptr;
+
+		  return(*this);
+	  }
+	  void release()
+	  {
+		  s.release();
+	  }
+	  ~GenericImage()
+	  {
+		  release();
+	  }
+private:
 };
 
+class TextureImage1DArray : public GenericImage {
+public:
+	TextureImage1DArray() {
+	}
+
+	// For Immutable Simple 1D Texture Array resource
+	TextureImage1DArray(vk::Device device, uint32_t const width, uint32_t const layers, vk::Format format = vk::Format::eB8G8R8A8Unorm, bool hostImage = false, bool const bDedicatedMemory = false) {
+		vk::ImageCreateInfo info;
+		info.flags = {};
+		info.imageType = vk::ImageType::e1D;
+		info.format = format;
+		info.extent = vk::Extent3D{ width, 1U, 1U };
+		info.mipLevels = 1;
+		info.arrayLayers = layers;
+		info.samples = vk::SampleCountFlagBits::e1;
+		info.tiling = hostImage ? vk::ImageTiling::eLinear : vk::ImageTiling::eOptimal;
+		info.usage = vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferDst;
+		info.sharingMode = vk::SharingMode::eExclusive;
+		info.queueFamilyIndexCount = 0;
+		info.pQueueFamilyIndices = nullptr;
+		info.initialLayout = hostImage ? vk::ImageLayout::ePreinitialized : vk::ImageLayout::eUndefined;
+		create(device, info, vk::ImageViewType::e1DArray, vk::ImageAspectFlagBits::eColor, hostImage, bDedicatedMemory);
+	}
+private:
+};
+
+
+class TextureImage2DArray : public GenericImage {
+public:
+	TextureImage2DArray() {
+	}
+
+	// For Immutable Simple 2D Texture Array resource
+	TextureImage2DArray(vk::Device device, uint32_t const width, uint32_t const height, uint32_t const layers, vk::Format format = vk::Format::eB8G8R8A8Unorm, bool hostImage = false, bool const bDedicatedMemory = false) {
+		vk::ImageCreateInfo info;
+		info.flags = {};
+		info.imageType = vk::ImageType::e2D;
+		info.format = format;
+		info.extent = vk::Extent3D{ width, height, 1U };
+		info.mipLevels = 1;
+		info.arrayLayers = layers;
+		info.samples = vk::SampleCountFlagBits::e1;
+		info.tiling = hostImage ? vk::ImageTiling::eLinear : vk::ImageTiling::eOptimal;
+		info.usage = vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferDst;
+		info.sharingMode = vk::SharingMode::eExclusive;
+		info.queueFamilyIndexCount = 0;
+		info.pQueueFamilyIndices = nullptr;
+		info.initialLayout = hostImage ? vk::ImageLayout::ePreinitialized : vk::ImageLayout::eUndefined;
+		create(device, info, vk::ImageViewType::e2DArray, vk::ImageAspectFlagBits::eColor, hostImage, bDedicatedMemory);
+	}
+private:
+};
+
+/// A 2D texture image living on the GPU or a staging buffer visible to the CPU.
+class TextureImage1D : public GenericImage {
+public:
+    TextureImage1D() {
+    }
+
+    // For Immutable Simple 2D Texture resource
+    TextureImage1D(vk::Device device, uint32_t const width, vk::Format const format = vk::Format::eB8G8R8A8Unorm, bool const hostImage = false, bool const bDedicatedMemory = false) {
+        vk::ImageCreateInfo info;
+        info.flags = {};
+        info.imageType = vk::ImageType::e1D;
+        info.format = format;
+        info.extent = vk::Extent3D{ width, 1U, 1U };
+        info.mipLevels = 1;
+        info.arrayLayers = 1;
+        info.samples = vk::SampleCountFlagBits::e1;
+        info.tiling = hostImage ? vk::ImageTiling::eLinear : vk::ImageTiling::eOptimal;
+        info.usage = vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferDst;
+        info.sharingMode = vk::SharingMode::eExclusive;
+        info.queueFamilyIndexCount = 0;
+        info.pQueueFamilyIndices = nullptr;
+        info.initialLayout = hostImage ? vk::ImageLayout::ePreinitialized : vk::ImageLayout::eUndefined;
+        create(device, info, vk::ImageViewType::e1D, vk::ImageAspectFlagBits::eColor, hostImage, bDedicatedMemory);
+    }
+
+    TextureImage1D(vk::Device device, uint32_t const width, uint32_t const mipLevels = 1, vk::Format const format = vk::Format::eB8G8R8A8Unorm, bool const hostImage = false, bool const bDedicatedMemory = false) {
+        vk::ImageCreateInfo info;
+        info.flags = {};
+        info.imageType = vk::ImageType::e2D;
+        info.format = format;
+        info.extent = vk::Extent3D{ width, 1U, 1U };
+        info.mipLevels = mipLevels;
+        info.arrayLayers = 1;
+        info.samples = vk::SampleCountFlagBits::e1;
+        info.tiling = hostImage ? vk::ImageTiling::eLinear : vk::ImageTiling::eOptimal;
+        info.usage = vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferDst;
+        info.sharingMode = vk::SharingMode::eExclusive;
+        info.queueFamilyIndexCount = 0;
+        info.pQueueFamilyIndices = nullptr;
+        info.initialLayout = hostImage ? vk::ImageLayout::ePreinitialized : vk::ImageLayout::eUndefined;
+        create(device, info, vk::ImageViewType::e1D, vk::ImageAspectFlagBits::eColor, hostImage, bDedicatedMemory);
+    }
+private:
+};
+
+// TextureImageStorage1DArray was tested - very fucking slow in compute shader vs a combined sampler equivalent
 
 /// A 2D texture image living on the GPU or a staging buffer visible to the CPU.
 class TextureImage2D : public GenericImage {
@@ -1871,7 +3249,26 @@ public:
   TextureImage2D() {
   }
 
-  TextureImage2D(vk::Device device, const vk::PhysicalDeviceMemoryProperties &memprops, uint32_t width, uint32_t height, uint32_t mipLevels=1, vk::Format format = vk::Format::eR8G8B8A8Unorm, bool hostImage = false) {
+  // For Immutable Simple 2D Texture resource
+  TextureImage2D(vk::Device const& __restrict device, uint32_t const width, uint32_t const height, vk::Format const format = vk::Format::eB8G8R8A8Unorm, bool hostImage = false, bool const bDedicatedMemory = false) {
+	  vk::ImageCreateInfo info;
+	  info.flags = {};
+	  info.imageType = vk::ImageType::e2D;
+	  info.format = format;
+	  info.extent = vk::Extent3D{ width, height, 1U };
+	  info.mipLevels = 1;
+	  info.arrayLayers = 1;
+	  info.samples = vk::SampleCountFlagBits::e1;
+	  info.tiling = hostImage ? vk::ImageTiling::eLinear : vk::ImageTiling::eOptimal;
+	  info.usage = vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferDst;
+	  info.sharingMode = vk::SharingMode::eExclusive;
+	  info.queueFamilyIndexCount = 0;
+	  info.pQueueFamilyIndices = nullptr;
+	  info.initialLayout = hostImage ? vk::ImageLayout::ePreinitialized : vk::ImageLayout::eUndefined;
+	  create(device, info, vk::ImageViewType::e2D, vk::ImageAspectFlagBits::eColor, hostImage, bDedicatedMemory);
+  }
+
+  TextureImage2D(vk::Device const& __restrict device, uint32_t const width, uint32_t const height, uint32_t const mipLevels=1, vk::Format const format = vk::Format::eB8G8R8A8Unorm, bool hostImage = false, bool const bDedicatedMemory = false) {
     vk::ImageCreateInfo info;
     info.flags = {};
     info.imageType = vk::ImageType::e2D;
@@ -1881,13 +3278,125 @@ public:
     info.arrayLayers = 1;
     info.samples = vk::SampleCountFlagBits::e1;
     info.tiling = hostImage ? vk::ImageTiling::eLinear : vk::ImageTiling::eOptimal;
-    info.usage = vk::ImageUsageFlagBits::eSampled|vk::ImageUsageFlagBits::eTransferSrc|vk::ImageUsageFlagBits::eTransferDst;
+    info.usage = vk::ImageUsageFlagBits::eSampled|vk::ImageUsageFlagBits::eTransferDst;
     info.sharingMode = vk::SharingMode::eExclusive;
     info.queueFamilyIndexCount = 0;
     info.pQueueFamilyIndices = nullptr;
     info.initialLayout = hostImage ? vk::ImageLayout::ePreinitialized : vk::ImageLayout::eUndefined;
-    create(device, memprops, info, vk::ImageViewType::e2D, vk::ImageAspectFlagBits::eColor, hostImage);
+    create(device, info, vk::ImageViewType::e2D, vk::ImageAspectFlagBits::eColor, hostImage, bDedicatedMemory);
   }
+private:
+};
+
+/// A 3D texture image living on the GPU or a staging buffer visible to the CPU.
+class TextureImage3D : public GenericImage {
+public:
+	TextureImage3D() {
+	}
+
+	// For Immutable Simple 3D Texture resource
+	TextureImage3D(vk::Device const& __restrict device, uint32_t const width, uint32_t const height, uint32_t const depth, vk::Format format = vk::Format::eB8G8R8A8Unorm, bool hostImage = false, bool const bDedicatedMemory = false) {
+		vk::ImageCreateInfo info;
+		info.flags = {};
+		info.imageType = vk::ImageType::e3D;
+		info.format = format;
+		info.extent = vk::Extent3D{ width, height, depth };
+		info.mipLevels = 1;
+		info.arrayLayers = 1;
+		info.samples = vk::SampleCountFlagBits::e1;
+		info.tiling = hostImage ? vk::ImageTiling::eLinear : vk::ImageTiling::eOptimal;
+		info.usage = vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferDst;
+		info.sharingMode = vk::SharingMode::eExclusive;
+		info.queueFamilyIndexCount = 0;
+		info.pQueueFamilyIndices = nullptr;
+		info.initialLayout = hostImage ? vk::ImageLayout::ePreinitialized : vk::ImageLayout::eUndefined;
+		create(device, info, vk::ImageViewType::e3D, vk::ImageAspectFlagBits::eColor, hostImage, bDedicatedMemory);
+	}
+
+	// vk::ImageUsageFlagBits::eSampled (if image will be read from pixel shader)
+	// vk::ImageUsageFlagBits::eTransferSrc (if image is a source for a transfer/copy from/... image operation)
+	// vk::ImageUsageFlagBits::eTransferDst (if image is a destination for a transfer/copy to/clear image operation)
+	TextureImage3D(vk::ImageUsageFlags const ImageUsage, vk::Device device, uint32_t width, uint32_t height, uint32_t depth, uint32_t mipLevels = 1U, vk::Format format = vk::Format::eB8G8R8A8Unorm, bool hostImage = false, bool const bDedicatedMemory = false) {
+		vk::ImageCreateInfo info;
+		info.flags = {};
+		info.imageType = vk::ImageType::e3D;
+		info.format = format;
+		info.extent = vk::Extent3D{ width, height, depth };
+		info.mipLevels = mipLevels;
+		info.arrayLayers = 1;
+		info.samples = vk::SampleCountFlagBits::e1;
+		info.tiling = hostImage ? vk::ImageTiling::eLinear : vk::ImageTiling::eOptimal;
+		info.usage = ImageUsage;
+		info.sharingMode = vk::SharingMode::eExclusive;
+		info.queueFamilyIndexCount = 0;
+		info.pQueueFamilyIndices = nullptr;
+		info.initialLayout = hostImage ? vk::ImageLayout::ePreinitialized : vk::ImageLayout::eUndefined;
+		create(device, info, vk::ImageViewType::e3D, vk::ImageAspectFlagBits::eColor, hostImage, bDedicatedMemory);
+	}
+
+private:
+};
+class TextureImageStorage2D : public GenericImage {
+public:
+	TextureImageStorage2D() {
+	}
+
+	// Image Usage can be a combination of
+	// vk::ImageUsageFlagBits::eSampled (if image will be read from pixel shader)
+	// vk::ImageUsageFlagBits::eStorage (if image will be read or written to in computer shader)
+	// vk::ImageUsageFlagBits::eTransferSrc (if image is a source for a transfer/copy from/... image operation)
+	// vk::ImageUsageFlagBits::eTransferDst (if image is a destination for a transfer/copy to/clear image operation)
+	// TextureImageStorage2D is specific for compute shaders
+	// and the Image Usage should be specific aswell to optimize access to image resource
+	TextureImageStorage2D(vk::ImageUsageFlags const ImageUsage, vk::Device device, uint32_t const width, uint32_t const height, uint32_t const mipLevels = 1U, vk::SampleCountFlagBits const msaaSamples = vk::SampleCountFlagBits::e1, vk::Format format = vk::Format::eB8G8R8A8Unorm, bool hostImage = false, bool const bDedicatedMemory = false) {
+		vk::ImageCreateInfo info;
+		info.flags = {};
+		info.imageType = vk::ImageType::e2D;
+		info.format = format;
+		info.extent = vk::Extent3D{ width, height, 1U };
+		info.mipLevels = mipLevels;
+		info.arrayLayers = 1;
+		info.samples = msaaSamples;
+		info.tiling = hostImage ? vk::ImageTiling::eLinear : vk::ImageTiling::eOptimal;
+		info.usage = ImageUsage | vk::ImageUsageFlagBits::eStorage;
+		info.sharingMode = vk::SharingMode::eExclusive;
+		info.queueFamilyIndexCount = 0;
+		info.pQueueFamilyIndices = nullptr;
+		info.initialLayout = hostImage ? vk::ImageLayout::ePreinitialized : vk::ImageLayout::eUndefined;
+		create(device, info, vk::ImageViewType::e2D, vk::ImageAspectFlagBits::eColor, hostImage, bDedicatedMemory);
+	}
+private:
+};
+
+class TextureImageStorage3D : public GenericImage {
+public:
+	TextureImageStorage3D() {
+	}
+
+	// Image Usage can be a combination of
+	// vk::ImageUsageFlagBits::eSampled (if image will be read from pixel shader)
+	// vk::ImageUsageFlagBits::eStorage (if image will be read or written to in computer shader)
+	// vk::ImageUsageFlagBits::eTransferSrc (if image is a source for a transfer/copy from/... image operation)
+	// vk::ImageUsageFlagBits::eTransferDst (if image is a destination for a transfer/copy to/clear image operation)
+	// TextureImageStorage3D is specific for compute shaders
+	// and the Image Usage should be specific aswell to optimize access to image resource
+	TextureImageStorage3D(vk::ImageUsageFlags const ImageUsage, vk::Device device, uint32_t width, uint32_t height, uint32_t depth, uint32_t mipLevels = 1U, vk::Format format = vk::Format::eB8G8R8A8Unorm, bool hostImage = false, bool const bDedicatedMemory = false) {
+		vk::ImageCreateInfo info;
+		info.flags = {};
+		info.imageType = vk::ImageType::e3D;
+		info.format = format;
+		info.extent = vk::Extent3D{ width, height, depth };
+		info.mipLevels = mipLevels;
+		info.arrayLayers = 1;
+		info.samples = vk::SampleCountFlagBits::e1;
+		info.tiling = hostImage ? vk::ImageTiling::eLinear : vk::ImageTiling::eOptimal;
+		info.usage = ImageUsage | vk::ImageUsageFlagBits::eStorage;
+		info.sharingMode = vk::SharingMode::eExclusive;
+		info.queueFamilyIndexCount = 0;
+		info.pQueueFamilyIndices = nullptr;
+		info.initialLayout = hostImage ? vk::ImageLayout::ePreinitialized : vk::ImageLayout::eUndefined;
+		create(device, info, vk::ImageViewType::e3D, vk::ImageAspectFlagBits::eColor, hostImage, bDedicatedMemory);
+	}
 private:
 };
 
@@ -1897,7 +3406,7 @@ public:
   TextureImageCube() {
   }
 
-  TextureImageCube(vk::Device device, const vk::PhysicalDeviceMemoryProperties &memprops, uint32_t width, uint32_t height, uint32_t mipLevels=1, vk::Format format = vk::Format::eR8G8B8A8Unorm, bool hostImage = false) {
+  TextureImageCube(vk::Device device, uint32_t width, uint32_t height, uint32_t mipLevels=1, vk::Format format = vk::Format::eB8G8R8A8Unorm, bool hostImage = false) {
     vk::ImageCreateInfo info;
     info.flags = {vk::ImageCreateFlagBits::eCubeCompatible};
     info.imageType = vk::ImageType::e2D;
@@ -1907,42 +3416,113 @@ public:
     info.arrayLayers = 6;
     info.samples = vk::SampleCountFlagBits::e1;
     info.tiling = hostImage ? vk::ImageTiling::eLinear : vk::ImageTiling::eOptimal;
-    info.usage = vk::ImageUsageFlagBits::eColorAttachment|vk::ImageUsageFlagBits::eSampled|vk::ImageUsageFlagBits::eTransferSrc|vk::ImageUsageFlagBits::eTransferDst;
+    info.usage = vk::ImageUsageFlagBits::eSampled|vk::ImageUsageFlagBits::eTransferDst;
     info.sharingMode = vk::SharingMode::eExclusive;
     info.queueFamilyIndexCount = 0;
     info.pQueueFamilyIndices = nullptr;
     info.initialLayout = hostImage ? vk::ImageLayout::ePreinitialized : vk::ImageLayout::eUndefined;
-    //info.initialLayout = vk::ImageLayout::ePreinitialized;
-    create(device, memprops, info, vk::ImageViewType::eCube, vk::ImageAspectFlagBits::eColor, hostImage);
+    create(device, info, vk::ImageViewType::eCube, vk::ImageAspectFlagBits::eColor, hostImage);
   }
 private:
 };
 
 /// An image to use as a depth buffer on a renderpass.
-class DepthStencilImage : public GenericImage {
+class DepthAttachmentImage : public GenericImage {	// default format is 32bit float depth, no stencil
 public:
-  DepthStencilImage() {
+	DepthAttachmentImage() {
   }
-
-  DepthStencilImage(vk::Device device, const vk::PhysicalDeviceMemoryProperties &memprops, uint32_t width, uint32_t height, vk::Format format = vk::Format::eD24UnormS8Uint) {
+	// D32 FLOAT is the best choice, as in most cases it is faster than D16 !!! due to DCC (Compression) 
+	// note: ** if sampled, subsequent operations (test/writes) on depth buffer are uncompressed for the current frame, resulting in a performance hit
+    // D32 FLOAT format is same performance as D24 INT formats on GCN gpu hardware.
+	// also noticed that D32 FLOAT with or without stencil is the only depth formats that can use "optimal" image memory (vulkan caps viewer)
+    // D16 has a slight performance boost due to requiring less memory bandwidth
+	// D16 Precision seems to be enough for orthographic projection (linear z buffer!!!) - noticed some artifacts while raymarching - switch to 32bit float instead
+	DepthAttachmentImage(vk::Device device, uint32_t const width, uint32_t const height, vk::SampleCountFlagBits const msaaSamples, vk::CommandPool const& __restrict commandPool, vk::Queue const& __restrict queue, bool const isSampled = false, bool const isInputAttachment = false) {
     vk::ImageCreateInfo info;
     info.flags = {};
 
     info.imageType = vk::ImageType::e2D;
-    info.format = format;
+    info.format = vk::Format::eD32Sfloat;
     info.extent = vk::Extent3D{ width, height, 1U };
     info.mipLevels = 1;
     info.arrayLayers = 1;
-    info.samples = vk::SampleCountFlagBits::e1;
+    info.samples = msaaSamples;
     info.tiling = vk::ImageTiling::eOptimal;
-    info.usage = vk::ImageUsageFlagBits::eDepthStencilAttachment|vk::ImageUsageFlagBits::eTransferSrc|vk::ImageUsageFlagBits::eSampled;
-    info.sharingMode = vk::SharingMode::eExclusive;
+	info.usage = vk::ImageUsageFlagBits::eDepthStencilAttachment | (isSampled ? vk::ImageUsageFlagBits::eSampled : vk::ImageUsageFlagBits::eTransientAttachment) | (isInputAttachment ? vk::ImageUsageFlagBits::eInputAttachment : (vk::ImageUsageFlagBits)0);
+	info.sharingMode = vk::SharingMode::eExclusive;
     info.queueFamilyIndexCount = 0;
     info.pQueueFamilyIndices = nullptr;
     info.initialLayout = vk::ImageLayout::eUndefined;
+	
     typedef vk::ImageAspectFlagBits iafb;
-    create(device, memprops, info, vk::ImageViewType::e2D, iafb::eDepth, false);
+    create(device, info, vk::ImageViewType::e2D, iafb::eDepth, false, true);
+
+	vku::executeImmediately(device, commandPool, queue, [&](vk::CommandBuffer cb) {
+		setLayout(cb, vk::ImageLayout::eDepthStencilAttachmentOptimal, vk::ImageAspectFlagBits::eDepth);
+	});
   }
+private:
+};
+
+/// An image to use as a stencil buffer on a renderpass.
+class StencilAttachmentImage : public GenericImage {	// default format is stencil nothing else
+public:
+	StencilAttachmentImage() {
+	}
+	StencilAttachmentImage(vk::Device device, uint32_t const width, uint32_t const height, vk::CommandPool const& __restrict commandPool, vk::Queue const& __restrict queue) {
+		vk::ImageCreateInfo info;
+		info.flags = {};
+
+		info.imageType = vk::ImageType::e2D;
+		info.format = vk::Format::eS8Uint;
+		info.extent = vk::Extent3D{ width, height, 1U };
+		info.mipLevels = 1;
+		info.arrayLayers = 1;
+		info.samples = vk::SampleCountFlagBits::e1;
+		info.tiling = vk::ImageTiling::eOptimal;
+		info.usage = vk::ImageUsageFlagBits::eDepthStencilAttachment;
+		info.sharingMode = vk::SharingMode::eExclusive;
+		info.queueFamilyIndexCount = 0;
+		info.pQueueFamilyIndices = nullptr;
+		info.initialLayout = vk::ImageLayout::eUndefined;
+
+		typedef vk::ImageAspectFlagBits iafb;
+		create(device, info, vk::ImageViewType::e2D, iafb::eStencil, false, true);
+
+		vku::executeImmediately(device, commandPool, queue, [&](vk::CommandBuffer cb) {
+			setLayout(cb, vk::ImageLayout::eDepthReadOnlyStencilAttachmentOptimal, vk::ImageAspectFlagBits::eStencil);
+		});
+	}
+private:
+};
+
+
+// for down sampled copy and full resolution copy too
+class DepthImage : public GenericImage {	// default format is 32bit float color
+public:
+	DepthImage() {
+	}
+	// R32F
+	DepthImage(vk::Device device, uint32_t const width, uint32_t const height, vk::CommandPool const& __restrict commandPool, vk::Queue const& __restrict queue, bool const isColorAttachment, bool const isStorage, vk::Format const format = vk::Format::eR32Sfloat) {
+		vk::ImageCreateInfo info;
+		info.flags = {};
+
+		info.imageType = vk::ImageType::e2D;
+		info.format = format;
+		info.extent = vk::Extent3D{ width, height, 1U };
+		info.mipLevels = 1U;
+		info.arrayLayers = 1;
+		info.samples = vk::SampleCountFlagBits::e1;
+		info.tiling = vk::ImageTiling::eOptimal;
+		info.usage = vk::ImageUsageFlagBits::eInputAttachment | vk::ImageUsageFlagBits::eSampled | (isColorAttachment ? vk::ImageUsageFlagBits::eColorAttachment : (vk::ImageUsageFlagBits)0) | (isStorage ? vk::ImageUsageFlagBits::eStorage : (vk::ImageUsageFlagBits)0);
+		info.sharingMode = vk::SharingMode::eExclusive;
+		info.queueFamilyIndexCount = 0;
+		info.pQueueFamilyIndices = nullptr;
+		info.initialLayout = vk::ImageLayout::eUndefined;
+
+		typedef vk::ImageAspectFlagBits iafb;
+		create(device, info, vk::ImageViewType::e2D, iafb::eColor, false, true);
+	}
 private:
 };
 
@@ -1952,7 +3532,7 @@ public:
   ColorAttachmentImage() {
   }
 
-  ColorAttachmentImage(vk::Device device, const vk::PhysicalDeviceMemoryProperties &memprops, uint32_t width, uint32_t height, vk::Format format = vk::Format::eR8G8B8A8Unorm) {
+  ColorAttachmentImage(vk::Device device, uint32_t const width, uint32_t const height, vk::SampleCountFlagBits const msaaSamples, vk::CommandPool const& __restrict commandPool, vk::Queue const& __restrict queue, bool const isSampled = false, bool const isInputAttachment = false, bool const isCopyable = false, vk::Format const format = vk::Format::eB8G8R8A8Unorm, vk::ImageUsageFlags const additional_flags = (vk::ImageUsageFlagBits)0 ) {
     vk::ImageCreateInfo info;
     info.flags = {};
 
@@ -1961,15 +3541,36 @@ public:
     info.extent = vk::Extent3D{ width, height, 1U };
     info.mipLevels = 1;
     info.arrayLayers = 1;
-    info.samples = vk::SampleCountFlagBits::e1;
+    info.samples = msaaSamples;
     info.tiling = vk::ImageTiling::eOptimal;
-    info.usage = vk::ImageUsageFlagBits::eColorAttachment|vk::ImageUsageFlagBits::eTransferSrc|vk::ImageUsageFlagBits::eTransferDst|vk::ImageUsageFlagBits::eSampled;
-    info.sharingMode = vk::SharingMode::eExclusive;
+	
+	info.usage = vk::ImageUsageFlagBits::eColorAttachment | additional_flags;
+	if (isSampled) {
+		info.usage |= vk::ImageUsageFlagBits::eSampled;
+	}
+	if (isInputAttachment) {
+		info.usage |= vk::ImageUsageFlagBits::eInputAttachment;
+	}
+	if (isCopyable) {
+		info.usage |= vk::ImageUsageFlagBits::eTransferSrc;
+	}
+
+	if (!isSampled && !isCopyable) {
+		info.usage |= vk::ImageUsageFlagBits::eTransientAttachment;
+	}
+
+	info.sharingMode = vk::SharingMode::eExclusive;
     info.queueFamilyIndexCount = 0;
     info.pQueueFamilyIndices = nullptr;
     info.initialLayout = vk::ImageLayout::eUndefined;
     typedef vk::ImageAspectFlagBits iafb;
-    create(device, memprops, info, vk::ImageViewType::e2D, iafb::eColor, false);
+    create(device, info, vk::ImageViewType::e2D, iafb::eColor, false, true);
+	// bug fix - transition to colorattachmentoptimal immediately 
+	// so that render target can be "loaded" instead of cleared if need be
+	vku::executeImmediately(device, commandPool, queue, [&](vk::CommandBuffer cb) {
+		setLayout(cb, vk::ImageLayout::eColorAttachmentOptimal);
+	});
+
   }
 private:
 };
@@ -1986,16 +3587,16 @@ public:
     s.info.magFilter = vk::Filter::eNearest;
     s.info.minFilter = vk::Filter::eNearest;
     s.info.mipmapMode = vk::SamplerMipmapMode::eNearest;
-    s.info.addressModeU = vk::SamplerAddressMode::eRepeat;
-    s.info.addressModeV = vk::SamplerAddressMode::eRepeat;
-    s.info.addressModeW = vk::SamplerAddressMode::eRepeat;
+    s.info.addressModeU = vk::SamplerAddressMode::eClampToEdge;
+    s.info.addressModeV = vk::SamplerAddressMode::eClampToEdge;
+    s.info.addressModeW = vk::SamplerAddressMode::eClampToEdge;
     s.info.mipLodBias = 0.0f;
-    s.info.anisotropyEnable = 0;
+    s.info.anisotropyEnable = VK_FALSE;
     s.info.maxAnisotropy = 0.0f;
     s.info.compareEnable = 0;
-    s.info.compareOp = vk::CompareOp::eNever;
+    s.info.compareOp = vk::CompareOp::eAlways;
     s.info.minLod = 0;
-    s.info.maxLod = 0;
+    s.info.maxLod = 5.0f;
     s.info.borderColor = vk::BorderColor{};
     s.info.unnormalizedCoordinates = 0;
   }
@@ -2020,6 +3621,7 @@ public:
   SamplerMaker &addressModeU(vk::SamplerAddressMode value) { s.info.addressModeU = value; return *this; }
   SamplerMaker &addressModeV(vk::SamplerAddressMode value) { s.info.addressModeV = value; return *this; }
   SamplerMaker &addressModeW(vk::SamplerAddressMode value) { s.info.addressModeW = value; return *this; }
+  SamplerMaker& addressModeUVW(vk::SamplerAddressMode const value) { s.info.addressModeU = s.info.addressModeV = s.info.addressModeW = value; return *this; }
   SamplerMaker &mipLodBias(float value) { s.info.mipLodBias = value; return *this; }
   SamplerMaker &anisotropyEnable(vk::Bool32 value) { s.info.anisotropyEnable = value; return *this; }
   SamplerMaker &maxAnisotropy(float value) { s.info.maxAnisotropy = value; return *this; }
@@ -2032,12 +3634,12 @@ public:
 
   /// Allocate a self-deleting image.
   vk::UniqueSampler createUnique(vk::Device device) const {
-    return device.createSamplerUnique(s.info);
+    return device.createSamplerUnique(s.info).value;
   }
 
   /// Allocate a non self-deleting Sampler.
   vk::Sampler create(vk::Device device) const {
-    return device.createSampler(s.info);
+    return device.createSampler(s.info).value;
   }
 
 private:
@@ -2049,14 +3651,27 @@ private:
 };
 
 /// KTX files use OpenGL format values. This converts some common ones to Vulkan equivalents.
-inline vk::Format GLtoVKFormat(uint32_t glFormat) {
+STATIC_INLINE_PURE vk::Format const GLtoVKFormat(uint32_t const glFormat) {
   switch (glFormat) {
+    case 0x8229: return vk::Format::eR8Unorm;
+    case 0x1903: return vk::Format::eR8Unorm;
+
+	case 0x822B: return vk::Format::eR8G8Unorm;
+	case 0x8227: return vk::Format::eR8G8Unorm;
+
     case 0x1907: return vk::Format::eR8G8B8Unorm; // GL_RGB
+	case 0x8C41: return vk::Format::eR8G8B8Srgb;  // GL_RGB
+
+	case 0x8058: return vk::Format::eR8G8B8A8Unorm; // GL_RGBA
     case 0x1908: return vk::Format::eR8G8B8A8Unorm; // GL_RGBA
+	case 0x8C43: return vk::Format::eR8G8B8A8Srgb; // GL_RGBA
+
     case 0x83F0: return vk::Format::eBc1RgbUnormBlock; // GL_COMPRESSED_RGB_S3TC_DXT1_EXT
     case 0x83F1: return vk::Format::eBc1RgbaUnormBlock; // GL_COMPRESSED_RGBA_S3TC_DXT1_EXT
     case 0x83F2: return vk::Format::eBc3UnormBlock; // GL_COMPRESSED_RGBA_S3TC_DXT3_EXT
     case 0x83F3: return vk::Format::eBc5UnormBlock; // GL_COMPRESSED_RGBA_S3TC_DXT5_EXT
+	case 0x8E8C: return vk::Format::eBc7UnormBlock;	// GL_COMPRESSED_RGBA_BPTC_UNORM_ARB
+	case 0x8E8D: return vk::Format::eBc7SrgbBlock;
   }
   return vk::Format::eUndefined;
 }
@@ -2064,25 +3679,26 @@ inline vk::Format GLtoVKFormat(uint32_t glFormat) {
 
 
 /// Layout of a KTX file in a buffer.
+template<bool const WorkaroundLayerSizeDoubledInFileBug = false>
 class KTXFileLayout {
 public:
   KTXFileLayout() {
   }
 
-  KTXFileLayout(uint8_t *begin, uint8_t *end) {
-    uint8_t *p = begin;
+  KTXFileLayout(uint8_t const* const __restrict begin, uint8_t const* const __restrict end) {
+    uint8_t const * p = begin;
     if (p + sizeof(Header) > end) return;
     header = *(Header*)p;
-    static const uint8_t magic[] = {
+    static constexpr uint8_t magic[] = {
       0xAB, 0x4B, 0x54, 0x58, 0x20, 0x31, 0x31, 0xBB, 0x0D, 0x0A, 0x1A, 0x0A
     };
-
-
+    
     if (memcmp(magic, header.identifier, sizeof(magic))) {
       return;
     }
 
-    if (header.endianness != 0x04030201) {
+	static constexpr uint32_t const KTX_ENDIAN_REF(0x04030201);
+    if (KTX_ENDIAN_REF != header.endianness) {
       swap(header.glType);
       swap(header.glTypeSize);
       swap(header.glFormat);
@@ -2102,7 +3718,7 @@ public:
     header.numberOfMipmapLevels = std::max(1U, header.numberOfMipmapLevels);
     header.pixelDepth = std::max(1U, header.pixelDepth);
 
-    format_ = GLtoVKFormat(header.glFormat);
+    format_ = GLtoVKFormat(header.glInternalFormat);
     if (format_ == vk::Format::eUndefined) return;
 
     p += sizeof(Header);
@@ -2110,7 +3726,7 @@ public:
 
     for (uint32_t i = 0; i < header.bytesOfKeyValueData; ) {
       uint32_t keyAndValueByteSize = *(uint32_t*)(p + i);
-      if (header.endianness != 0x04030201) swap(keyAndValueByteSize);
+      if (KTX_ENDIAN_REF != header.endianness) swap(keyAndValueByteSize);
       std::string kv(p + i + 4, p + i + 4 + keyAndValueByteSize);
       i += keyAndValueByteSize + 4;
       i = (i + 3) & ~3;
@@ -2118,31 +3734,46 @@ public:
 
     p += header.bytesOfKeyValueData;
     for (uint32_t mipLevel = 0; mipLevel != header.numberOfMipmapLevels; ++mipLevel) {
-      uint32_t imageSize = *(uint32_t*)(p);
-      imageSize = (imageSize + 3) & ~3;
-      uint32_t incr = imageSize * header.numberOfFaces * header.numberOfArrayElements;
-      incr = (incr + 3) & ~3;
 
-      if (p + incr > end) {
-        // see https://www.khronos.org/registry/OpenGL-Refpages/gl4/html/glPixelStore.xhtml
-        // fix bugs... https://github.com/dariomanesku/cmft/issues/29
-        header.numberOfMipmapLevels = mipLevel;
-        break;
-      }
+		// bugfix for arraylayers and faces not being factored into final size for this mip
+        uint32_t layerImageSize;
+        if constexpr (WorkaroundLayerSizeDoubledInFileBug) {  // KTX ImageViewer export array texture doubles layer size written to file, sometimes...
+            layerImageSize = *(uint32_t*)(p) / header.numberOfArrayElements;
+        }
+        else {
+            layerImageSize = *(uint32_t*)(p);
+        }
 
-      if (header.endianness != 0x04030201) swap(imageSize);
-      //printf("%08x: is=%08x / %08x\n", p-begin, imageSize, end - begin);
-      p += 4;
+	  layerImageSize = (layerImageSize + 3) & ~3;
+	  if (KTX_ENDIAN_REF != header.endianness) swap(layerImageSize);
+
+	  layerImageSizes_.push_back(layerImageSize);
+	  
+      uint32_t imageSize = layerImageSize * header.numberOfFaces * header.numberOfArrayElements;
+
+	  imageSize = (imageSize + 3) & ~3;
+	  if (KTX_ENDIAN_REF != header.endianness) swap(imageSize);
+
+	  imageSizes_.push_back(imageSize);
+	       
+      p += 4; // offset for reading layer imagesize above
       imageOffsets_.push_back((uint32_t)(p - begin));
-      imageSizes_.push_back(imageSize);
-      p += incr;
+
+      if (p + imageSize > end) {
+          // see https://www.khronos.org/registry/OpenGL-Refpages/gl4/html/glPixelStore.xhtml
+          // fix bugs... https://github.com/dariomanesku/cmft/issues/29
+          header.numberOfMipmapLevels = mipLevel + 1;
+          break;
+      }
+      p += imageSize; // next mip offset if there is one
     }
 
     ok_ = true;
   }
 
-  uint32_t offset(uint32_t mipLevel, uint32_t arrayLayer, uint32_t face) {
-    return imageOffsets_[mipLevel] + (arrayLayer * header.numberOfFaces + face) * imageSizes_[mipLevel];
+  uint32_t offset(uint32_t mipLevel, uint32_t arrayLayer, uint32_t face) const {
+
+    return imageOffsets_[mipLevel] + (arrayLayer * header.numberOfFaces + face) * layerImageSizes_[mipLevel];
   }
 
   uint32_t size(uint32_t mipLevel) {
@@ -2158,25 +3789,49 @@ public:
   uint32_t height(uint32_t mipLevel) const { return mipScale(header.pixelHeight, mipLevel); }
   uint32_t depth(uint32_t mipLevel) const { return mipScale(header.pixelDepth, mipLevel); }
 
-  void upload(vk::Device device, vku::GenericImage &image, std::vector<uint8_t> &bytes, vk::CommandPool commandPool, vk::PhysicalDeviceMemoryProperties memprops, vk::Queue queue) {
-    vku::GenericBuffer stagingBuffer(device, memprops, (vk::BufferUsageFlags)vk::BufferUsageFlagBits::eTransferSrc, (vk::DeviceSize)bytes.size(), vk::MemoryPropertyFlagBits::eHostVisible);
-    stagingBuffer.updateLocal(device, (const void*)bytes.data(), bytes.size());
+  void upload(vk::Device device, vku::GenericImage & __restrict image, uint8_t const* const __restrict pFileBegin, vk::CommandPool commandPool, vk::Queue queue) const {
+	  uint32_t totalActualSize(0);
+
+	  for (auto const& size : imageSizes_) {
+		  totalActualSize += size;
+	  }
+
+	  if (0 == totalActualSize)
+		  return;
+
+	  // bugfix: sometimes the image size is greater than the actual binary size of the data, due to an "upgrade" in alignment
+	  // so source buffer must have the same size as the image being copied too. The copy into the source buffer only copies the actual size of data,
+	  // with the rest being zeroed out.
+	  vk::DeviceSize const alignedSize(std::max(image.size(), (vk::DeviceSize)totalActualSize));
+
+	vku::GenericBuffer stagingBuffer((vk::BufferUsageFlags)vk::BufferUsageFlagBits::eTransferSrc, alignedSize, vk::MemoryPropertyFlagBits::eHostCoherent | vk::MemoryPropertyFlagBits::eHostVisible, VMA_MEMORY_USAGE_AUTO_PREFER_HOST, vku::eMappedAccess::Sequential);
+    
+	uint32_t const baseOffset = offset(0, 0, 0);
+	stagingBuffer.updateLocal(pFileBegin + baseOffset, totalActualSize);
 
     // Copy the staging buffer to the GPU texture and set the layout.
-    vku::executeImmediately(device, commandPool, queue, [&](vk::CommandBuffer cb) {
+    vku::executeImmediately<false>(device, commandPool, queue, [&](vk::CommandBuffer cb) {
       vk::Buffer buf = stagingBuffer.buffer();
       for (uint32_t mipLevel = 0; mipLevel != mipLevels(); ++mipLevel) {
-        auto width = this->width(mipLevel);
-        auto height = this->height(mipLevel);
-        auto depth = this->depth(mipLevel);
-        for (uint32_t face = 0; face != faces(); ++face) {
-          image.copy(cb, buf, mipLevel, face, width, height, depth, offset(mipLevel, 0, face));
+        auto width = this->width(mipLevel); 
+        auto height = this->height(mipLevel); 
+        auto depth = this->depth(mipLevel); 
+        for (uint32_t face = 0; face != arrayLayers(); ++face) {
+          image.copy(cb, buf, mipLevel, face, width, height, depth, (offset(mipLevel, face, 0) - baseOffset));
         }
       }
-      image.setLayout(cb, vk::ImageLayout::eShaderReadOnlyOptimal);
     });
   }
+  void finalizeUpload(vk::Device const& __restrict device, vku::GenericImage& __restrict image, vk::CommandPool const& __restrict commandPool, vk::Queue const& __restrict queue,
+	  vk::ImageLayout const FinalLayout = vk::ImageLayout::eShaderReadOnlyOptimal) const
+  {
 
+	  vku::executeImmediately(device, commandPool, queue, [&](vk::CommandBuffer cb) {
+
+		  image.setLayout(cb, FinalLayout);
+
+	  });
+  }
 private:
   static void swap(uint32_t &value) {
     value = value >> 24 | (value & 0xff0000) >> 8 | (value & 0xff00) << 8 | value << 24;
@@ -2204,6 +3859,7 @@ private:
   bool ok_ = false;
   std::vector<uint32_t> imageOffsets_;
   std::vector<uint32_t> imageSizes_;
+  std::vector<uint32_t> layerImageSizes_;
 };
 
 
