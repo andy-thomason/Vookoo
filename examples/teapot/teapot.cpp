@@ -44,6 +44,7 @@ int main(int argc, char *argv[]) {
   auto glfwwindow = glfwCreateWindow(800, 600, title, nullptr, nullptr);
 
   {
+    // Initialise the Vookoo demo framework.
     vku::Framework fw{title};
     if (!fw.ok()) {
       std::cout << "Framework creation failed" << std::endl;
@@ -52,7 +53,14 @@ int main(int argc, char *argv[]) {
 
     vk::Device device = fw.device();
 
-    vku::Window window{fw.instance(), fw.device(), fw.physicalDevice(), fw.graphicsQueueFamilyIndex(), glfwwindow};
+    // Create a window to draw into
+    vku::Window window(
+      fw.instance(),
+      fw.device(),
+      fw.physicalDevice(),
+      fw.graphicsQueueFamilyIndex(),
+      glfwwindow
+    );
     if (!window.ok()) {
       std::cout << "Window creation failed" << std::endl;
       exit(1);

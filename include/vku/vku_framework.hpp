@@ -51,31 +51,47 @@
 
 namespace vku {
 
+struct FrameworkOptions
+{
+	int deviceID = 0;
+	bool useCompute = false;
+	bool useTessellationShader = false;
+	bool useGeometryShader = false;
+	bool useMultiView = false;
+};
+
 /// This class provides an optional interface to the vulkan instance, devices and queues.
 /// It is not used by any of the other classes directly and so can be safely ignored if Vookoo
 /// is embedded in an engine.
 /// See https://vulkan-tutorial.com for details of many operations here.
 class Framework {
 public:
+
+  FrameworkOptions options;
+
   Framework() {
   }
 
   // Construct a framework containing the instance, a device and one or more queues.
-  Framework(const std::string &name, const int deviceId=0) {
+  Framework(const std::string &name, const FrameworkOptions &options_ = FrameworkOptions{}) : options(options_) {
     vku::InstanceMaker im{};
-    im.defaultLayers();
-    im.extension(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME); // added for multiview extension
-    instance_ = im.createUnique();
+    instance_ = im
+      .defaultLayers()
+      .layer("VK_LAYER_KHRONOS_validation")
+      //.extension(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME) // added for multiview extension with vulkan 1.0.0
+      .apiVersion(VK_MAKE_VERSION(1,1,0))
+      .createUnique();
 
     callback_ = DebugCallback(*instance_);
 
     auto pds = instance_->enumeratePhysicalDevices();
-    physical_device_ = pds[deviceId];
+    physical_device_ = pds[options.deviceID];
     auto qprops = physical_device_.getQueueFamilyProperties();
     const auto badQueue = ~(uint32_t)0;
     graphicsQueueFamilyIndex_ = badQueue;
     computeQueueFamilyIndex_ = badQueue;
-    vk::QueueFlags search = vk::QueueFlagBits::eGraphics|vk::QueueFlagBits::eCompute;
+    vk::QueueFlags search = vk::QueueFlagBits::eGraphics;
+    if (options.useCompute) { search |= vk::QueueFlagBits::eCompute; }
 
     // Look for an omnipurpose queue family first
     // It is better if we can schedule operations without barriers and semaphores.
@@ -90,13 +106,18 @@ public:
       std::cout << vk::to_string(qprop.queueFlags) << "\n";
       if ((qprop.queueFlags & search) == search) {
         graphicsQueueFamilyIndex_ = qi;
-        computeQueueFamilyIndex_ = qi;
+        if (options.useCompute) { computeQueueFamilyIndex_ = qi; }
         break;
       }
     }
 
-    if (graphicsQueueFamilyIndex_ == badQueue || computeQueueFamilyIndex_ == badQueue) {
-      std::cout << "oops, missing a queue\n";
+   if (graphicsQueueFamilyIndex_ == badQueue) {
+      std::cout << "oops, missing a graphicsQueue\n";
+      return;
+    }
+
+    if (options.useCompute && computeQueueFamilyIndex_ == badQueue) {
+      std::cout << "oops, missing a computeQueue\n";
       return;
     }
 
@@ -106,10 +127,13 @@ public:
     // auto rgbaprops = physical_device_.getFormatProperties(vk::Format::eR8G8B8A8Unorm);
 
     vku::DeviceMaker dm{};
-    dm.defaultLayers();
-    dm.queue(graphicsQueueFamilyIndex_);
-    dm.extension(VK_KHR_MULTIVIEW_EXTENSION_NAME); // added for multiview extension
-    if (computeQueueFamilyIndex_ != graphicsQueueFamilyIndex_) dm.queue(computeQueueFamilyIndex_);
+    dm.defaultLayers()
+      .layer("VK_LAYER_LUNARG_standard_validation")
+      .queue(graphicsQueueFamilyIndex_)
+      .enableGeometryShader( options.useGeometryShader )
+      .enableTessellationShader( options.useTessellationShader )
+      .enableMultiView( options.useMultiView );
+    if (options.useCompute && computeQueueFamilyIndex_ != graphicsQueueFamilyIndex_) dm.queue(computeQueueFamilyIndex_);
     device_ = dm.createUnique(physical_device_);
 
     vk::PipelineCacheCreateInfo pipelineCacheInfo{};
@@ -420,7 +444,7 @@ public:
 
 
     vk::Fence rpcbFence = dynamicCommandBufferFences_[imageIndex];
-    device.waitForFences(rpcbFence, 1, umax);
+    {vk::Result result = device.waitForFences(rpcbFence, 1, umax);} // TODO use result
     device.resetFences(rpcbFence);
 
 
@@ -442,11 +466,11 @@ public:
     submit.pCommandBuffers = &pscb;
     submit.signalSemaphoreCount = 1;
     submit.pSignalSemaphores = &psSema;
-    graphicsQueue.submit(1, &submit, rpcbFence);
+    {vk::Result result = graphicsQueue.submit(1, &submit, rpcbFence);} // TODO use result
 
 
     vk::Fence cbFence = commandBufferFences_[imageIndex];
-    device.waitForFences(cbFence, 1, umax);
+    {vk::Result result = device.waitForFences(cbFence, 1, umax);} // TODO use result
     device.resetFences(cbFence);
 
 
@@ -457,7 +481,7 @@ public:
     submit.pCommandBuffers = &cb;
     submit.signalSemaphoreCount = 1;
     submit.pSignalSemaphores = &ccSema;
-    graphicsQueue.submit(1, &submit, cbFence);
+    {vk::Result result = graphicsQueue.submit(1, &submit, cbFence);} // TODO use result
 
     vk::PresentInfoKHR presentInfo;
     vk::SwapchainKHR swapchain = *swapchain_;
@@ -467,7 +491,7 @@ public:
     presentInfo.waitSemaphoreCount = 1;
     presentInfo.pWaitSemaphores = &ccSema;
     try {
-	    presentQueue().presentKHR(presentInfo);
+	    {vk::Result result = presentQueue().presentKHR(presentInfo);} // TODO use result
     } catch (const vk::OutOfDateKHRError) {
     	recreate();
     }
@@ -656,8 +680,7 @@ public:
   }
 
   void recreate() {
-    device_.waitForFences(commandBufferFences_, VK_TRUE,
-                          std::numeric_limits<uint64_t>::max());
+    {vk::Result result = device_.waitForFences(commandBufferFences_, VK_TRUE, std::numeric_limits<uint64_t>::max());} // TODO use result
 
     createSwapchain();
 

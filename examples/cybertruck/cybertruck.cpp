@@ -28,13 +28,14 @@ int main() {
 
   auto device = fw.device();
 
-  vku::Window window{
-    .instance = fw.instance(),
-    .device = device,
-    .physicalDevice = fw.physicalDevice(),
-    .graphicsQueueFamilyIndex = fw.graphicsQueueFamilyIndex(),
-    .window = glfwwindow
-  };
+  // Create a window to draw into
+  vku::Window window(
+    fw.instance(),
+    device,
+    fw.physicalDevice(),
+    fw.graphicsQueueFamilyIndex(),
+    glfwwindow
+  );
   if (!window.ok()) {
     std::cout << "Window creation failed" << std::endl;
     exit(1);
@@ -124,14 +125,14 @@ int main() {
     // Note above miss fact that minDepth = 0.5f also needs to be set
     // flip viewport to match opengl ( +x > Right, +y ^ UP, +z towards viewer from screen ), instead of vulkan default
     // also requires pipeline set with cullMode:BACK and frontFace:CounterClockWise
-    auto viewport = vk::Viewport{
-      .x = 0.0f,                                     //Vulkan default:0
-      .y = static_cast<float>(window.height()),      //Vulkan default:0
-      .width = static_cast<float>(window.width()),   //Vulkan default:width
-      .height = -static_cast<float>(window.height()),//Vulkan default:height
-      .minDepth = 0.5f,                              //Vulkan default:0
-      .maxDepth = 1.0f                               //Vulkan default:1
-    };
+    auto viewport = vku::ViewPortMaker{}
+      .x(0.0f)                                      //Vulkan default:0       OpenGL default:0
+      .y(static_cast<float>(window.height()))       //Vulkan default:0       OpenGL default:height
+      .width(static_cast<float>(window.width()))    //Vulkan default:width   OpenGL default:width
+      .height(-static_cast<float>(window.height())) //Vulkan default:height  OpenGL default:-height
+      .minDepth(0.5f)                               //Vulkan default:0       OpenGL default:0.5
+      .maxDepth(1.0f)                               //Vulkan default:1       OpenGL default:1
+      .createUnique();
   
     vku::PipelineMaker pm{window.width(), window.height()};
     pm.shader(vk::ShaderStageFlagBits::eVertex, vert)

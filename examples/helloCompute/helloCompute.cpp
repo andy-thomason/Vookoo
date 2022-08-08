@@ -12,7 +12,14 @@
 #include <algorithm>
 
 int main() {
-  vku::Framework fw{"Hello compute"};
+
+  // Define framework options
+  vku::FrameworkOptions fo = {
+    .useCompute = true
+  };
+
+  // Initialise the Vookoo demo framework.
+  vku::Framework fw{"Hello compute", fo};
   if (!fw.ok()) {
     std::cout << "Framework creation failed" << std::endl;
     exit(1);
@@ -51,35 +58,31 @@ int main() {
   //
   // Build the descriptor sets
   // Shader has access to a single storage buffer.
-  vku::DescriptorSetLayoutMaker dsetlm{};
-  dsetlm.buffer(0U, vk::DescriptorType::eStorageBuffer, vk::ShaderStageFlagBits::eCompute, 1);
-
-  auto dsetLayout = dsetlm.createUnique(device);
+  auto dsetLayout = vku::DescriptorSetLayoutMaker{}
+    .buffer(0U, vk::DescriptorType::eStorageBuffer, vk::ShaderStageFlagBits::eCompute, 1)
+    .createUnique(device);
 
   // The descriptor set itself.
-  vku::DescriptorSetMaker dsm{};
-  dsm.layout(*dsetLayout);
-
-  auto dsets = dsm.create(device, descriptorPool);
+  auto dsets = vku::DescriptorSetMaker{} 
+    .layout(*dsetLayout)
+    .create(device, descriptorPool);
   auto descriptorSet = dsets[0];
 
   // Pipeline layout.
   // Shader has one descriptor set and some push constants.
-  vku::PipelineLayoutMaker plm{};
-  plm.descriptorSetLayout(*dsetLayout)
-     .pushConstantRange(vk::ShaderStageFlagBits::eCompute, 0, sizeof(PushConstants));
-
-  auto pipelineLayout = plm.createUnique(device);
+  auto pipelineLayout = vku::PipelineLayoutMaker{}
+    .descriptorSetLayout(*dsetLayout)
+    .pushConstantRange(vk::ShaderStageFlagBits::eCompute, 0, sizeof(PushConstants))
+    .createUnique(device);
  
   ////////////////////////////////////////
   //
   // Build the final pipeline 
   auto shader = vku::ShaderModule{device, BINARY_DIR "helloCompute.comp.spv"};
 
-  vku::ComputePipelineMaker cpm{};
-  cpm.shader(vk::ShaderStageFlagBits::eCompute, shader);
-
-  auto pipeline = cpm.createUnique(device, cache, *pipelineLayout);
+  auto pipeline = vku::ComputePipelineMaker{}
+    .shader(vk::ShaderStageFlagBits::eCompute, shader)
+    .createUnique(device, cache, *pipelineLayout);
 
   ////////////////////////////////////////
   //
@@ -94,12 +97,10 @@ int main() {
   //
   // Create Command Pool
   //
-  vk::CommandPoolCreateInfo cpci{ 
-    .flags = vk::CommandPoolCreateFlagBits::eTransient 
-           | vk::CommandPoolCreateFlagBits::eResetCommandBuffer, 
-    .queueFamilyIndex = fw.computeQueueFamilyIndex()
-  };
-  auto commandPool = device.createCommandPoolUnique(cpci);
+  auto commandPool = vku::CommandPoolMaker{}
+    .flags(vk::CommandPoolCreateFlagBits::eTransient | vk::CommandPoolCreateFlagBits::eResetCommandBuffer)
+    .queueFamilyIndex(fw.computeQueueFamilyIndex())
+    .createUnique(device);
 
   ////////////////////////////////////////
   //

@@ -21,27 +21,28 @@ int main() {
 
   vk::Device device = fw.device();
 
-  vku::Window window{
-    .instance = fw.instance(),
-    .device = device,
-    .physicalDevice = fw.physicalDevice(),
-    .graphicsQueueFamilyIndex = fw.graphicsQueueFamilyIndex(),
-    .window = glfwwindow
-  };
+  // Create a window to draw into
+  vku::Window window(
+    fw.instance(),
+    device,
+    fw.physicalDevice(),
+    fw.graphicsQueueFamilyIndex(),
+    glfwwindow
+  );
   if (!window.ok()) {
     std::cout << "Window creation failed" << std::endl;
     exit(1);
   }
   window.dumpCaps(std::cout, fw.physicalDevice());
 
-  auto viewport = vk::Viewport{
-    .x = 0.0f, 
-    .y = 0.0f,
-    .width = (float)window.width(),
-    .height = (float)window.height(),
-    .minDepth = 0.0f,
-    .maxDepth = 1.0f
-  };
+  auto viewport = vku::ViewPortMaker{}
+    .x(0.0f)                                      //Vulkan default:0       OpenGL default:0
+    .y(0.0f)                                      //Vulkan default:0       OpenGL default:height
+    .width(static_cast<float>(window.width()))    //Vulkan default:width   OpenGL default:width
+    .height(static_cast<float>(window.height()))  //Vulkan default:height  OpenGL default:-height
+    .minDepth(0.0f)                               //Vulkan default:0       OpenGL default:0.5
+    .maxDepth(1.0f)                               //Vulkan default:1       OpenGL default:1
+    .createUnique();
 
   ////////////////////////////////////////
   //
@@ -424,38 +425,44 @@ int main() {
   // sets the framebuffer and renderpass
 
   // Begin rendering using the framebuffer and renderpass
-  vk::RenderPassBeginInfo pass0Rpbi[]={{
-    .renderPass = *RenderPass0Ping,
-    .framebuffer = *FrameBufferPass0Ping,
-    .renderArea = vk::Rect2D{{0, 0}, {fdtdDomainSize, fdtdDomainSize}},
-    .clearValueCount = (uint32_t) clearColours.size(),
-    .pClearValues = clearColours.data()
-  },{
-    .renderPass = *RenderPass0Pong,
-    .framebuffer = *FrameBufferPass0Pong,
-    .renderArea = vk::Rect2D{{0, 0}, {fdtdDomainSize, fdtdDomainSize}},
-    .clearValueCount = (uint32_t) clearColours.size(),
-    .pClearValues = clearColours.data()
-  }};
+  vk::RenderPassBeginInfo pass0Rpbi[]={
+    vku::RenderPassBeginInfoMaker{}
+      .renderPass( *RenderPass0Ping )
+      .framebuffer( *FrameBufferPass0Ping )
+      .renderArea( vk::Rect2D{{0, 0}, {fdtdDomainSize, fdtdDomainSize}} )
+      .clearValueCount( (uint32_t) clearColours.size() )
+      .pClearValues( clearColours.data() )
+      .createUnique(),
+    vku::RenderPassBeginInfoMaker{}
+      .renderPass( *RenderPass0Pong )
+      .framebuffer( *FrameBufferPass0Pong )
+      .renderArea( vk::Rect2D{{0, 0}, {fdtdDomainSize, fdtdDomainSize}} )
+      .clearValueCount( (uint32_t) clearColours.size() )
+      .pClearValues( clearColours.data() )
+      .createUnique()
+  };
 
   ////////////////////////////////////////
   //
   // Build a RenderPassBeginInfo for pass1
   // sets the framebuffer and renderpass
  
-  vk::RenderPassBeginInfo pass1Rpbi[]={{
-    .renderPass = *RenderPass1Ping,
-    .framebuffer = *FrameBufferPass1Ping,
-    .renderArea = vk::Rect2D{{0, 0}, {fdtdDomainSize, fdtdDomainSize}},
-    .clearValueCount = (uint32_t) clearColours.size(),
-    .pClearValues = clearColours.data()
-  },{
-    .renderPass = *RenderPass1Pong,
-    .framebuffer = *FrameBufferPass1Pong,
-    .renderArea = vk::Rect2D{{0, 0}, {fdtdDomainSize, fdtdDomainSize}},
-    .clearValueCount = (uint32_t) clearColours.size(),
-    .pClearValues = clearColours.data()
-  }};
+  vk::RenderPassBeginInfo pass1Rpbi[]={
+    vku::RenderPassBeginInfoMaker{}
+      .renderPass( *RenderPass1Ping )
+      .framebuffer( *FrameBufferPass1Ping )
+      .renderArea( vk::Rect2D{{0, 0}, {fdtdDomainSize, fdtdDomainSize}} )
+      .clearValueCount( (uint32_t) clearColours.size() )
+      .pClearValues( clearColours.data() )
+      .createUnique(),
+    vku::RenderPassBeginInfoMaker{}
+      .renderPass( *RenderPass1Pong )
+      .framebuffer( *FrameBufferPass1Pong )
+      .renderArea( vk::Rect2D{{0, 0}, {fdtdDomainSize, fdtdDomainSize}} )
+      .clearValueCount( (uint32_t) clearColours.size() )
+      .pClearValues( clearColours.data() )
+      .createUnique()
+  };
 
   int iFrame = 0;
   while (!glfwWindowShouldClose(glfwwindow)) {

@@ -309,7 +309,6 @@ public:
 
   /// Set the default layers and extensions.
   InstanceMaker &defaultLayers() {
-    layers_.push_back("VK_LAYER_KHRONOS_validation");
     instance_extensions_.push_back(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);
     #ifdef VKU_SURFACE
       instance_extensions_.push_back(VKU_SURFACE);
@@ -393,11 +392,10 @@ public:
 
   /// Set the default layers and extensions.
   DeviceMaker &defaultLayers() {
-    layers_.push_back("VK_LAYER_LUNARG_standard_validation");
-    device_extensions_.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
+    extension(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
     // VK_KHR_MAINTENANCE1 is required for using negative viewport heights
     // Note: This is core as of Vulkan 1.1. So if you target 1.1 you don't have to explicitly enable this
-    device_extensions_.push_back(VK_KHR_MAINTENANCE1_EXTENSION_NAME);
+    //extension(VK_KHR_MAINTENANCE1_EXTENSION_NAME);
     return *this;
   }
 
@@ -426,6 +424,27 @@ public:
     return *this;
   }
 
+  /// required to enable and use geometry shader
+  DeviceMaker &enableGeometryShader(bool value)
+  {
+	  physicalDeviceFeatures_.setGeometryShader(value);
+	  return *this;
+  }
+
+  /// required to enable and use tesselation shaders
+  DeviceMaker &enableTessellationShader(bool value)
+  {
+	  physicalDeviceFeatures_.setTessellationShader(value);
+	  return *this;
+  }
+
+  /// required to enable and use multiview
+  DeviceMaker &enableMultiView(bool value)
+  {
+	  physicalDeviceMultiviewFeatures_.setMultiview(value);
+	  return *this;
+  }
+
   /// Create a new logical device.
   vk::UniqueDevice createUnique(vk::PhysicalDevice physical_device) {
     auto dci = vk::DeviceCreateInfo{
@@ -435,16 +454,11 @@ public:
       (uint32_t)device_extensions_.size(), device_extensions_.data()
     };
 
-    //
-    vk::PhysicalDeviceFeatures pdfs;
-    pdfs.setGeometryShader(true); // required to enable and use geometry shader
-    pdfs.setTessellationShader(true); // required to enable and use tesselation shaders
-    dci.setPEnabledFeatures(&pdfs);
+    // see vk::PhysicalDeviceFeatures for things that can be enabled like geometry and tesselation shaders
+    dci.setPEnabledFeatures(&physicalDeviceFeatures_);
 
-    // required to enable and use multiview
-    vk::PhysicalDeviceMultiviewFeatures physicalDeviceMultiviewFeatures;
-    physicalDeviceMultiviewFeatures.setMultiview(true);
-    dci.pNext = &physicalDeviceMultiviewFeatures;
+    // see vk::PhysicalDeviceMultiviewFeatures for options when enabling multiview
+    dci.pNext = &physicalDeviceMultiviewFeatures_;
 
     return physical_device.createDeviceUnique(dci);
   }
@@ -453,7 +467,8 @@ private:
   std::vector<const char *> device_extensions_;
   std::vector<std::vector<float> > queue_priorities_;
   std::vector<vk::DeviceQueueCreateInfo> qci_;
-  vk::ApplicationInfo app_info_;
+  vk::PhysicalDeviceFeatures physicalDeviceFeatures_;
+  vk::PhysicalDeviceMultiviewFeatures physicalDeviceMultiviewFeatures_;
 };
 
 class DebugCallback {
@@ -924,7 +939,9 @@ public:
     pipelineInfo.subpass = subpass_;
     pipelineInfo.pTessellationState = &tessellationState_;
 
-    return device.createGraphicsPipelineUnique(pipelineCache, pipelineInfo);
+    auto [result, pipeline] = device.createGraphicsPipelineUnique(pipelineCache, pipelineInfo);
+    // TODO check result for vk::Result::ePipelineCompileRequiredEXT
+    return std::move(pipeline);
   }
 
   /// Add a shader module to the pipeline.
@@ -1214,7 +1231,9 @@ public:
     pipelineInfo.stage = stage_;
     pipelineInfo.layout = pipelineLayout;
 
-    return device.createComputePipelineUnique(pipelineCache, pipelineInfo);
+    auto [ result, pipeline ] = device.createComputePipelineUnique(pipelineCache, pipelineInfo);
+    // TODO check result for vk::Result::ePipelineCompileRequiredEXT
+    return std::move(pipeline);
   }
 private:
   vk::PipelineShaderStageCreateInfo stage_;
@@ -2118,6 +2137,140 @@ private:
   std::vector<uint32_t> imageSizes_;
 };
 
+/// Factory for CommandPool.
+class CommandPoolMaker {
+public:
+
+  /// Set pointer to a structure extending this structure.
+  CommandPoolMaker &pNext(const void *pNext) {
+    cpci_.pNext = pNext;
+    return *this;
+  }
+
+  /// Set flags indicating usage behavior for the pool and command buffers allocated from it
+  CommandPoolMaker &flags(vk::CommandPoolCreateFlags flags) {
+    cpci_.flags = flags;
+    return *this;
+  }
+
+  /// Set queue family
+  CommandPoolMaker &queueFamilyIndex(uint32_t queueFamilyIndex) {
+    cpci_.queueFamilyIndex = queueFamilyIndex;
+    return *this;
+  }
+
+  /// Create a new command pool
+  vk::UniqueCommandPool createUnique(const vk::Device &device) const {
+    return device.createCommandPoolUnique(cpci_);
+  }
+
+private:
+  vk::CommandPoolCreateInfo cpci_;
+};
+
+/// Factory for ViewPort.
+class ViewPortMaker {
+public:
+
+  /// Set viewport origin x.
+  ViewPortMaker &x(float x) {
+    viewport_.x = x;
+    return *this;
+  }
+
+  /// Set viewport origin y.
+  ViewPortMaker &y(float y) {
+    viewport_.y = y;
+    return *this;
+  }
+
+  /// Set viewport width.
+  ViewPortMaker &width(float width) {
+    viewport_.width = width;
+    return *this;
+  }
+
+  /// Set viewport height.
+  ViewPortMaker &height(float height) {
+    viewport_.height = height;
+    return *this;
+  }
+
+  /// Set viewport minDepth.
+  ViewPortMaker &minDepth(float minDepth) {
+    viewport_.minDepth = minDepth;
+    return *this;
+  }
+
+  /// Set viewport maxDepth.
+  ViewPortMaker &maxDepth(float maxDepth) {
+    viewport_.maxDepth = maxDepth;
+    return *this;
+  }
+
+  /// Create a new Viewport
+  vk::Viewport createUnique() const {
+    //.x        : Vulkan default:0      OpenGL default:0
+    //.y        : Vulkan default:0      OpenGL default:0
+    //.width    : Vulkan default:width  OpenGL default:width
+    //.height   : Vulkan default:height OpenGL default:-height
+    //.minDepth : Vulkan default:0      OpenGL default:0.5f
+    //.maxDepth : Vulkan default:1      OpenGL default:1.0f
+    return viewport_;
+  }
+
+private:
+  vk::Viewport viewport_;
+};
+
+/// Factory for RenderPassBeginInfo.
+class RenderPassBeginInfoMaker {
+public:
+
+  /// Set pNext.
+  RenderPassBeginInfoMaker &pNext(const void* pNext) {
+    renderPassBeginInfo_.pNext = pNext;
+    return *this;
+  }
+
+  /// Set renderPass.
+  RenderPassBeginInfoMaker &renderPass(VkRenderPass renderPass) {
+    renderPassBeginInfo_.renderPass = renderPass;
+    return *this;
+  }
+
+  /// Set framebuffer.
+  RenderPassBeginInfoMaker &framebuffer(VkFramebuffer framebuffer) {
+    renderPassBeginInfo_.framebuffer = framebuffer;
+    return *this;
+  }
+
+  /// Set renderArea.
+  RenderPassBeginInfoMaker &renderArea(VkRect2D renderArea) {
+    renderPassBeginInfo_.renderArea = renderArea;
+    return *this;
+  }
+
+  /// Set clearValueCount.
+  RenderPassBeginInfoMaker &clearValueCount(uint32_t clearValueCount) {
+    renderPassBeginInfo_.clearValueCount = clearValueCount;
+    return *this;
+  }
+
+  /// Set pClearValues.
+  RenderPassBeginInfoMaker &pClearValues(const vk::ClearValue* pClearValues) {
+    renderPassBeginInfo_.pClearValues = pClearValues;
+    return *this;
+  }
+
+  /// Create a new RenderPassBeginInfo
+  vk::RenderPassBeginInfo createUnique() const {
+    return renderPassBeginInfo_;
+  }
+
+private:
+  vk::RenderPassBeginInfo renderPassBeginInfo_;
+};
 
 } // namespace vku
 

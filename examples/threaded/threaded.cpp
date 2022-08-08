@@ -34,13 +34,13 @@ int main() {
   }
 
   // Create a window to draw into
-  vku::Window window{
-    .instance = fw.instance(),
-    .device = fw.device(),
-    .physicalDevice = fw.physicalDevice(),
-    .graphicsQueueFamilyIndex = fw.graphicsQueueFamilyIndex(),
-    .window = glfwwindow
-  };
+  vku::Window window(
+    fw.instance(),
+    fw.device(),
+    fw.physicalDevice(),
+    fw.graphicsQueueFamilyIndex(),
+    glfwwindow
+  );
   if (!window.ok()) {
     std::cout << "Window creation failed" << std::endl;
     exit(1);
@@ -110,7 +110,7 @@ int main() {
   std::cout << "Nthreads = " << Nthreads << std::endl;
 
   // allocate array of threads to be reused from frame to frame
-  std::thread v[Nthreads];
+  std::vector<std::thread> v( Nthreads );
 
   // allocate command pools and secondary buffers, required to be separate pools per thread
   std::vector<vk::UniqueCommandPool> scp;
