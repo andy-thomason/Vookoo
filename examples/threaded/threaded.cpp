@@ -111,7 +111,7 @@ int main() {
 
   // allocate array of threads to be reused from frame to frame
   std::vector<std::thread> v( Nthreads );
-
+  
   // allocate command pools and secondary buffers, required to be separate pools per thread
   std::vector<vk::UniqueCommandPool> scp;
   std::vector<std::vector<vk::UniqueCommandBuffer>> scb;

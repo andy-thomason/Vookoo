@@ -57,7 +57,6 @@ int main() {
   }
 
   // Create a window to draw into
-    // Create a window to draw into
   vku::Window window(
     fw.instance(),
     fw.device(),
