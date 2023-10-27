@@ -28,9 +28,11 @@
 #include <chrono>
 #include <functional>
 #include <cstddef>
+#include <cmath>
 
 #ifdef VOOKOO_SPIRV_SUPPORT
-  #include <unified1/spirv.hpp11>
+  //#include <unified1/spirv.hpp11>
+  #include <spirv/unified1/spirv.hpp11>
 #endif
 
 #include <vulkan/vulkan.hpp>
@@ -308,14 +310,14 @@ public:
   }
 
   /// Set the default layers and extensions.
-  InstanceMaker &defaultLayers() {
-    instance_extensions_.push_back(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);
+  InstanceMaker &defaultLayersExtensions() {
+    extension(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);
     #ifdef VKU_SURFACE
-      instance_extensions_.push_back(VKU_SURFACE);
+      extension(VKU_SURFACE);
     #endif
-    instance_extensions_.push_back("VK_KHR_surface");
+    extension("VK_KHR_surface");
 #if defined( __APPLE__ ) && defined(VK_EXT_METAL_SURFACE_EXTENSION_NAME)
-    instance_extensions_.push_back(VK_EXT_METAL_SURFACE_EXTENSION_NAME);
+    extension(VK_EXT_METAL_SURFACE_EXTENSION_NAME);
 #endif //__APPLE__
     return *this;
   }
@@ -327,8 +329,8 @@ public:
   }
 
   /// Add an extension. eg. VK_EXT_DEBUG_REPORT_EXTENSION_NAME
-  InstanceMaker &extension(const char *layer) {
-    instance_extensions_.push_back(layer);
+  InstanceMaker &extension(const char *extension) {
+    instance_extensions_.push_back(extension);
     return *this;
   }
 
@@ -390,8 +392,8 @@ public:
   DeviceMaker() {
   }
 
-  /// Set the default layers and extensions.
-  DeviceMaker &defaultLayers() {
+  /// Set the default extensions.
+  DeviceMaker &defaultExtensions() {
     extension(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
     // VK_KHR_MAINTENANCE1 is required for using negative viewport heights
     // Note: This is core as of Vulkan 1.1. So if you target 1.1 you don't have to explicitly enable this
@@ -406,8 +408,8 @@ public:
   }
 
   /// Add an extension. eg. VK_EXT_DEBUG_REPORT_EXTENSION_NAME
-  DeviceMaker &extension(const char *layer) {
-    device_extensions_.push_back(layer);
+  DeviceMaker &extension(const char *extension) {
+    device_extensions_.push_back(extension);
     return *this;
   }
 
@@ -582,6 +584,18 @@ public:
     p->layout = layout;
     p->attachment = attachment;
     subpass.pDepthStencilAttachment = p;
+    return *this;
+  }
+
+  RenderpassMaker& subpassInputAttachment(vk::ImageLayout layout, uint32_t attachment) {
+    vk::SubpassDescription &subpass = s.subpassDescriptions.back();
+    auto *p = getAttachmentReference();
+    p->layout = layout;
+    p->attachment = attachment;
+    if (subpass.inputAttachmentCount == 0) {
+      subpass.pInputAttachments = p;
+    }
+    subpass.inputAttachmentCount++;
     return *this;
   }
 
@@ -1247,9 +1261,13 @@ public:
   }
 
   GenericBuffer(vk::Device device, const vk::PhysicalDeviceMemoryProperties &memprops, vk::BufferUsageFlags usage, vk::DeviceSize size, vk::MemoryPropertyFlags memflags = vk::MemoryPropertyFlagBits::eDeviceLocal) {
+    // GPU has requirment that buffer be a multiple of 256 bytes, aka nonCoherentAtomSize
+    // see https://vulkan.gpuinfo.org/displaydevicelimit.php?name=nonCoherentAtomSize&platform=all
+    int nonCoherentAtomSize = 256;
+    size_ = ceil(size/float(nonCoherentAtomSize))*nonCoherentAtomSize;
     // Create the buffer object without memory.
     vk::BufferCreateInfo ci{};
-    ci.size = size_ = size;
+    ci.size = size_;
     ci.usage = usage;
     ci.sharingMode = vk::SharingMode::eExclusive;
     buffer_ = device.createBufferUnique(ci);
@@ -1866,7 +1884,8 @@ public:
     info.arrayLayers = 1;
     info.samples = vk::SampleCountFlagBits::e1;
     info.tiling = vk::ImageTiling::eOptimal;
-    info.usage = vk::ImageUsageFlagBits::eDepthStencilAttachment|vk::ImageUsageFlagBits::eTransferSrc|vk::ImageUsageFlagBits::eSampled;
+    //TODO: wouldn't "usage" be better supplied as a user function parameter?
+    info.usage = vk::ImageUsageFlagBits::eInputAttachment|vk::ImageUsageFlagBits::eDepthStencilAttachment|vk::ImageUsageFlagBits::eTransferSrc|vk::ImageUsageFlagBits::eSampled;
     info.sharingMode = vk::SharingMode::eExclusive;
     info.queueFamilyIndexCount = 0;
     info.pQueueFamilyIndices = nullptr;
@@ -1894,7 +1913,8 @@ public:
     info.arrayLayers = 1;
     info.samples = vk::SampleCountFlagBits::e1;
     info.tiling = vk::ImageTiling::eOptimal;
-    info.usage = vk::ImageUsageFlagBits::eColorAttachment|vk::ImageUsageFlagBits::eTransferSrc|vk::ImageUsageFlagBits::eTransferDst|vk::ImageUsageFlagBits::eSampled;
+    //TODO: wouldn't "usage" be better supplied as a user function parameter?
+    info.usage = vk::ImageUsageFlagBits::eInputAttachment|vk::ImageUsageFlagBits::eColorAttachment|vk::ImageUsageFlagBits::eTransferSrc|vk::ImageUsageFlagBits::eTransferDst|vk::ImageUsageFlagBits::eSampled;
     info.sharingMode = vk::SharingMode::eExclusive;
     info.queueFamilyIndexCount = 0;
     info.pQueueFamilyIndices = nullptr;

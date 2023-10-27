@@ -58,10 +58,11 @@ int main() {
     // These are the parameters we are passing to the shaders
     // Note! be very careful when using vec3, vec2, float and vec4 together
     // as there are alignment rules you must follow.
+    // see https://vulkan.gpuinfo.org/displaydevicelimit.php?name=minUniformBufferOffsetAlignment&platform=all
     struct Uniform {
       glm::vec4 colour;
       glm::mat4 rotation;
-      glm::vec4 filler[3]; // filler to get overall size to required multiple of minUniformBufferOffsetAlignment (64bytes on my PC)
+      glm::vec4 filler[16-5]; // filler to get overall size to required multiple of minUniformBufferOffsetAlignment (256bytes)
     };
 
     std::vector<Uniform> U = { 

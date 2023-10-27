@@ -76,7 +76,7 @@ public:
   Framework(const std::string &name, const FrameworkOptions &options_ = FrameworkOptions{}) : options(options_) {
     vku::InstanceMaker im{};
     instance_ = im
-      .defaultLayers()
+      .defaultLayersExtensions()
       .layer("VK_LAYER_KHRONOS_validation")
       //.extension(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME) // added for multiview extension with vulkan 1.0.0
       .apiVersion(VK_MAKE_VERSION(1,1,0))
@@ -127,8 +127,7 @@ public:
     // auto rgbaprops = physical_device_.getFormatProperties(vk::Format::eR8G8B8A8Unorm);
 
     vku::DeviceMaker dm{};
-    dm.defaultLayers()
-      .layer("VK_LAYER_LUNARG_standard_validation")
+    dm.defaultExtensions()
       .queue(graphicsQueueFamilyIndex_)
       .enableGeometryShader( options.useGeometryShader )
       .enableTessellationShader( options.useTessellationShader )
@@ -242,7 +241,7 @@ public:
 
 #ifndef VKU_NO_GLFW
   /// Construct a window, surface and swapchain using a GLFW window.
-  Window(const vk::Instance &instance, const vk::Device &device, const vk::PhysicalDevice &physicalDevice, uint32_t graphicsQueueFamilyIndex, GLFWwindow *window) {
+  Window(const vk::Instance &instance, const vk::Device &device, const vk::PhysicalDevice &physicalDevice, uint32_t graphicsQueueFamilyIndex, GLFWwindow *window, vk::Format desiredSwapChainFormat = vk::Format::eB8G8R8A8Unorm) {
 #ifdef VK_USE_PLATFORM_WIN32_KHR
     auto module = GetModuleHandle(nullptr);
     auto handle = glfwGetWin32Window(window);
@@ -261,15 +260,15 @@ public:
 	                        nullptr,
 	                        reinterpret_cast<VkSurfaceKHR *>(&surface));
 #endif
-    init(instance, device, physicalDevice, graphicsQueueFamilyIndex, surface);
+    init(instance, device, physicalDevice, graphicsQueueFamilyIndex, surface, desiredSwapChainFormat);
   }
 #endif
 
-  Window(const vk::Instance &instance, const vk::Device &device, const vk::PhysicalDevice &physicalDevice, uint32_t graphicsQueueFamilyIndex, vk::SurfaceKHR surface) {
-    init(instance, device, physicalDevice, graphicsQueueFamilyIndex, surface);
+  Window(const vk::Instance &instance, const vk::Device &device, const vk::PhysicalDevice &physicalDevice, uint32_t graphicsQueueFamilyIndex, vk::SurfaceKHR surface, vk::Format desiredSwapChainFormat = vk::Format::eB8G8R8A8Unorm) {
+    init(instance, device, physicalDevice, graphicsQueueFamilyIndex, surface, desiredSwapChainFormat);
   }
 
-  void init(const vk::Instance &instance, const vk::Device &device, const vk::PhysicalDevice &physicalDevice, uint32_t graphicsQueueFamilyIndex, vk::SurfaceKHR surface) {
+  void init(const vk::Instance &instance, const vk::Device &device, const vk::PhysicalDevice &physicalDevice, uint32_t graphicsQueueFamilyIndex, vk::SurfaceKHR surface, vk::Format desiredSwapChainFormat) {
     //surface_ = vk::UniqueSurfaceKHR(surface);
     surface_ = vk::UniqueSurfaceKHR(surface, vk::ObjectDestroy<vk::Instance, vk::DispatchLoaderStatic>(instance));
     // surface_ = surface;
@@ -303,7 +302,7 @@ public:
       swapchainColorSpace_ = vk::ColorSpaceKHR::eSrgbNonlinear;
     } else {
       for (auto &fmt : fmts) {
-        if (fmt.format == vk::Format::eB8G8R8A8Unorm) {
+        if (fmt.format == desiredSwapChainFormat) {
           swapchainImageFormat_ = fmt.format;
           swapchainColorSpace_ = fmt.colorSpace;
         }

@@ -49,9 +49,11 @@ int main() {
   ////////////////////////////////////////
   //
   // Create Uniform Buffer
+  // see https://vulkan.gpuinfo.org/displaydevicelimit.php?name=minUniformBufferOffsetAlignment&platform=all
 
   struct PER_OBJECT {
     glm::mat4 MVP;
+    glm::vec4 filler[16-4]; // filler to get overall size to required multiple of minUniformBufferOffsetAlignment (256bytes)
   };
 
   // fill with values (local)
