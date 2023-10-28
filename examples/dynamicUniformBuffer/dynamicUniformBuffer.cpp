@@ -23,14 +23,8 @@ int main() {
   auto *title = "dynamicUniformBuffer";
   auto glfwwindow = glfwCreateWindow(800, 800, title, nullptr, nullptr);
 
-  // Initialize makers
-  vku::InstanceMaker im{};
-  im.defaultLayers();
-  vku::DeviceMaker dm{};
-  dm.defaultLayers();
-
   // Initialise the Vookoo demo framework.
-  vku::Framework fw{im, dm};
+  vku::Framework fw{title};
   if (!fw.ok()) {
     std::cout << "Framework creation failed" << std::endl;
     exit(1);
@@ -40,13 +34,13 @@ int main() {
   auto device = fw.device();
 
   // Create a window to draw into
-  vku::Window window{
+  vku::Window window(
     fw.instance(),
     device,
     fw.physicalDevice(),
     fw.graphicsQueueFamilyIndex(),
     glfwwindow
-  };
+  );
   if (!window.ok()) {
     std::cout << "Window creation failed" << std::endl;
     exit(1);
@@ -55,9 +49,11 @@ int main() {
   ////////////////////////////////////////
   //
   // Create Uniform Buffer
+  // see https://vulkan.gpuinfo.org/displaydevicelimit.php?name=minUniformBufferOffsetAlignment&platform=all
 
   struct PER_OBJECT {
     glm::mat4 MVP;
+    glm::vec4 filler[16-4]; // filler to get overall size to required multiple of minUniformBufferOffsetAlignment (256bytes)
   };
 
   // fill with values (local)

@@ -47,15 +47,18 @@
 #include <cstddef>
 
 #include <vulkan/vulkan.hpp>
-#include "vku.hpp"
+#include <vku/vku.hpp>
 
 namespace vku {
 
 struct FrameworkOptions
 {
 	int deviceID = 0;
-	bool useCompute = true;
-} ;
+	bool useCompute = false;
+	bool useTessellationShader = false;
+	bool useGeometryShader = false;
+	bool useMultiView = false;
+};
 
 /// This class provides an optional interface to the vulkan instance, devices and queues.
 /// It is not used by any of the other classes directly and so can be safely ignored if Vookoo
@@ -63,16 +66,21 @@ struct FrameworkOptions
 /// See https://vulkan-tutorial.com for details of many operations here.
 class Framework {
 public:
+
   FrameworkOptions options;
 
   Framework() {
   }
 
   // Construct a framework containing the instance, a device and one or more queues.
-  Framework(vku::InstanceMaker &im, vku::DeviceMaker &dm, const FrameworkOptions &options_ = FrameworkOptions{}) :
-	options(options_)
-  {
-    instance_ = im.createUnique();
+  Framework(const std::string &name, const FrameworkOptions &options_ = FrameworkOptions{}) : options(options_) {
+    vku::InstanceMaker im{};
+    instance_ = im
+      .defaultLayersExtensions()
+      .layer("VK_LAYER_KHRONOS_validation")
+      //.extension(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME) // added for multiview extension with vulkan 1.0.0
+      .apiVersion(VK_MAKE_VERSION(1,1,0))
+      .createUnique();
 
     callback_ = DebugCallback(*instance_);
 
@@ -82,10 +90,8 @@ public:
     const auto badQueue = ~(uint32_t)0;
     graphicsQueueFamilyIndex_ = badQueue;
     computeQueueFamilyIndex_ = badQueue;
-    
     vk::QueueFlags search = vk::QueueFlagBits::eGraphics;
-    if (options.useCompute)
-		search |= vk::QueueFlagBits::eCompute;
+    if (options.useCompute) { search |= vk::QueueFlagBits::eCompute; }
 
     // Look for an omnipurpose queue family first
     // It is better if we can schedule operations without barriers and semaphores.
@@ -99,22 +105,19 @@ public:
       auto &qprop = qprops[qi];
       std::cout << vk::to_string(qprop.queueFlags) << "\n";
       if ((qprop.queueFlags & search) == search) {
-      
         graphicsQueueFamilyIndex_ = qi;
-        if (options.useCompute)
-			computeQueueFamilyIndex_ = qi;
-
+        if (options.useCompute) { computeQueueFamilyIndex_ = qi; }
         break;
       }
     }
 
-    if (graphicsQueueFamilyIndex_ == badQueue) {
-      std::cout << "oops, missing a queue\n";
+   if (graphicsQueueFamilyIndex_ == badQueue) {
+      std::cout << "oops, missing a graphicsQueue\n";
       return;
     }
 
     if (options.useCompute && computeQueueFamilyIndex_ == badQueue) {
-      std::cout << "oops, missing a queue\n";
+      std::cout << "oops, missing a computeQueue\n";
       return;
     }
 
@@ -123,12 +126,13 @@ public:
     // todo: find optimal texture format
     // auto rgbaprops = physical_device_.getFormatProperties(vk::Format::eR8G8B8A8Unorm);
 
-    dm.queue(graphicsQueueFamilyIndex_);
-    
-	if (options.useCompute)
-		if (computeQueueFamilyIndex_ != graphicsQueueFamilyIndex_)
-			dm.queue(computeQueueFamilyIndex_);
-
+    vku::DeviceMaker dm{};
+    dm.defaultExtensions()
+      .queue(graphicsQueueFamilyIndex_)
+      .enableGeometryShader( options.useGeometryShader )
+      .enableTessellationShader( options.useTessellationShader )
+      .enableMultiView( options.useMultiView );
+    if (options.useCompute && computeQueueFamilyIndex_ != graphicsQueueFamilyIndex_) dm.queue(computeQueueFamilyIndex_);
     device_ = dm.createUnique(physical_device_);
 
     vk::PipelineCacheCreateInfo pipelineCacheInfo{};
@@ -237,7 +241,7 @@ public:
 
 #ifndef VKU_NO_GLFW
   /// Construct a window, surface and swapchain using a GLFW window.
-  Window(const vk::Instance &instance, const vk::Device &device, const vk::PhysicalDevice &physicalDevice, uint32_t graphicsQueueFamilyIndex, GLFWwindow *window) {
+  Window(const vk::Instance &instance, const vk::Device &device, const vk::PhysicalDevice &physicalDevice, uint32_t graphicsQueueFamilyIndex, GLFWwindow *window, vk::Format desiredSwapChainFormat = vk::Format::eB8G8R8A8Unorm) {
 #ifdef VK_USE_PLATFORM_WIN32_KHR
     auto module = GetModuleHandle(nullptr);
     auto handle = glfwGetWin32Window(window);
@@ -256,15 +260,15 @@ public:
 	                        nullptr,
 	                        reinterpret_cast<VkSurfaceKHR *>(&surface));
 #endif
-    init(instance, device, physicalDevice, graphicsQueueFamilyIndex, surface);
+    init(instance, device, physicalDevice, graphicsQueueFamilyIndex, surface, desiredSwapChainFormat);
   }
 #endif
 
-  Window(const vk::Instance &instance, const vk::Device &device, const vk::PhysicalDevice &physicalDevice, uint32_t graphicsQueueFamilyIndex, vk::SurfaceKHR surface) {
-    init(instance, device, physicalDevice, graphicsQueueFamilyIndex, surface);
+  Window(const vk::Instance &instance, const vk::Device &device, const vk::PhysicalDevice &physicalDevice, uint32_t graphicsQueueFamilyIndex, vk::SurfaceKHR surface, vk::Format desiredSwapChainFormat = vk::Format::eB8G8R8A8Unorm) {
+    init(instance, device, physicalDevice, graphicsQueueFamilyIndex, surface, desiredSwapChainFormat);
   }
 
-  void init(const vk::Instance &instance, const vk::Device &device, const vk::PhysicalDevice &physicalDevice, uint32_t graphicsQueueFamilyIndex, vk::SurfaceKHR surface) {
+  void init(const vk::Instance &instance, const vk::Device &device, const vk::PhysicalDevice &physicalDevice, uint32_t graphicsQueueFamilyIndex, vk::SurfaceKHR surface, vk::Format desiredSwapChainFormat) {
     //surface_ = vk::UniqueSurfaceKHR(surface);
     surface_ = vk::UniqueSurfaceKHR(surface, vk::ObjectDestroy<vk::Instance, vk::DispatchLoaderStatic>(instance));
     // surface_ = surface;
@@ -298,7 +302,7 @@ public:
       swapchainColorSpace_ = vk::ColorSpaceKHR::eSrgbNonlinear;
     } else {
       for (auto &fmt : fmts) {
-        if (fmt.format == vk::Format::eB8G8R8A8Unorm) {
+        if (fmt.format == desiredSwapChainFormat) {
           swapchainImageFormat_ = fmt.format;
           swapchainColorSpace_ = fmt.colorSpace;
         }
@@ -439,7 +443,7 @@ public:
 
 
     vk::Fence rpcbFence = dynamicCommandBufferFences_[imageIndex];
-    device.waitForFences(rpcbFence, 1, umax);
+    {vk::Result result = device.waitForFences(rpcbFence, 1, umax);} // TODO use result
     device.resetFences(rpcbFence);
 
 
@@ -461,11 +465,11 @@ public:
     submit.pCommandBuffers = &pscb;
     submit.signalSemaphoreCount = 1;
     submit.pSignalSemaphores = &psSema;
-    graphicsQueue.submit(1, &submit, rpcbFence);
+    {vk::Result result = graphicsQueue.submit(1, &submit, rpcbFence);} // TODO use result
 
 
     vk::Fence cbFence = commandBufferFences_[imageIndex];
-    device.waitForFences(cbFence, 1, umax);
+    {vk::Result result = device.waitForFences(cbFence, 1, umax);} // TODO use result
     device.resetFences(cbFence);
 
 
@@ -476,7 +480,7 @@ public:
     submit.pCommandBuffers = &cb;
     submit.signalSemaphoreCount = 1;
     submit.pSignalSemaphores = &ccSema;
-    graphicsQueue.submit(1, &submit, cbFence);
+    {vk::Result result = graphicsQueue.submit(1, &submit, cbFence);} // TODO use result
 
     vk::PresentInfoKHR presentInfo;
     vk::SwapchainKHR swapchain = *swapchain_;
@@ -486,7 +490,7 @@ public:
     presentInfo.waitSemaphoreCount = 1;
     presentInfo.pWaitSemaphores = &ccSema;
     try {
-	    presentQueue().presentKHR(presentInfo);
+	    {vk::Result result = presentQueue().presentKHR(presentInfo);} // TODO use result
     } catch (const vk::OutOfDateKHRError) {
     	recreate();
     }
@@ -675,8 +679,7 @@ public:
   }
 
   void recreate() {
-    device_.waitForFences(commandBufferFences_, VK_TRUE,
-                          std::numeric_limits<uint64_t>::max());
+    {vk::Result result = device_.waitForFences(commandBufferFences_, VK_TRUE, std::numeric_limits<uint64_t>::max());} // TODO use result
 
     createSwapchain();
 

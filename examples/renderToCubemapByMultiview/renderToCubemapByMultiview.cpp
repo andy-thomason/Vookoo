@@ -49,14 +49,13 @@ int main() {
 
   glfwSetCursorPosCallback(glfwwindow, mouse_callback);
 
-  // Initialize makers
-  vku::InstanceMaker im{};
-  im.defaultLayers();
-  vku::DeviceMaker dm{};
-  dm.defaultLayers();
+  // Define framework options
+  vku::FrameworkOptions fo = {
+    .useMultiView = true
+  };
 
   // Initialise the Vookoo demo framework.
-  vku::Framework fw{im, dm};
+  vku::Framework fw{title, fo};
   if (!fw.ok()) {
     std::cout << "Framework creation failed" << std::endl;
     exit(1);
@@ -66,7 +65,13 @@ int main() {
   vk::Device device = fw.device();
 
   // Create a window to draw into
-  vku::Window window{fw.instance(), device, fw.physicalDevice(), fw.graphicsQueueFamilyIndex(), glfwwindow};
+  vku::Window window(
+    fw.instance(),
+    device,
+    fw.physicalDevice(),
+    fw.graphicsQueueFamilyIndex(),
+    glfwwindow
+  );
   if (!window.ok()) {
     std::cout << "Window creation failed" << std::endl;
     exit(1);
@@ -78,14 +83,14 @@ int main() {
   // Note above miss fact that minDepth = 0.5f also needs to be set 
   // flip viewport to match opengl ( +x > Right, +y ^ UP, +z towards viewer from screen ), instead of vulkan default
   // also requires pipeline set with cullMode:BACK and frontFace:CounterClockWise
-  auto viewport = vk::Viewport{
-    0.0f,                                     //Vulkan default:0
-    static_cast<float>(window.height()),      //Vulkan default:0
-    static_cast<float>(window.width()),   //Vulkan default:width
-    -static_cast<float>(window.height()),//Vulkan default:height
-    0.5f,                              //Vulkan default:0
-    1.0f                               //Vulkan default:1
-  };
+  auto viewport = vku::ViewPortMaker{}
+    .x(0.0f)                                      //Vulkan default:0       OpenGL default:0
+    .y(static_cast<float>(window.height()))       //Vulkan default:0       OpenGL default:height
+    .width(static_cast<float>(window.width()))    //Vulkan default:width   OpenGL default:width
+    .height(-static_cast<float>(window.height())) //Vulkan default:height  OpenGL default:-height
+    .minDepth(0.5f)                               //Vulkan default:0       OpenGL default:0.5
+    .maxDepth(1.0f)                               //Vulkan default:1       OpenGL default:1
+    .createUnique();
 
   // Vulkan clip space has inverted Y and half Z compared to OpenGL
   // meant to post multiply perspective clip operation i.e. as invertYhalfZclipspace*perspective*view*model
@@ -392,18 +397,17 @@ int main() {
   
     // Match in order of attachments to clear; the image.
     std::array<vk::ClearValue, sizeof(attachments)/sizeof(vk::ImageView)> clearColors{
-      vk::ClearColorValue{std::array<float,4>{0.1, 0.2, 0.3, 1.0}}
+      vk::ClearColorValue{std::array<float,4>{0.703f, 0.602f, 0.5f, 0.0f}}
     };
   
     // Begin rendering using the framebuffer and renderpass
-    TriangleRpbi = vk::RenderPassBeginInfo{
-      *TriangleRenderPass,
-      *TriangleFrameBuffer,
-      vk::Rect2D{{0, 0}, {window.width(), window.height()}},
-      (uint32_t) clearColors.size(),
-      clearColors.data()
-    };
-
+    TriangleRpbi = vku::RenderPassBeginInfoMaker{}
+      .renderPass( *TriangleRenderPass )
+      .framebuffer( *TriangleFrameBuffer )
+      .renderArea( vk::Rect2D{{0, 0}, {window.width(), window.height()}} )
+      .clearValueCount( (uint32_t) clearColors.size() )
+      .pClearValues( clearColors.data() )
+      .createUnique();
   }
 
   ////////////////////////////////////////

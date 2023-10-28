@@ -63,6 +63,7 @@ public:
     attributes_[old_size+2] = glm::vec4(uv.x, uv.y, 0, 1);
     attributes_[old_size+3] = color;
     numVertices_++;
+    return attributes_.size();
   }
 
   size_t addIndex(size_t index) override {

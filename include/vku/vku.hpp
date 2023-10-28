@@ -28,9 +28,11 @@
 #include <chrono>
 #include <functional>
 #include <cstddef>
+#include <cmath>
 
 #ifdef VOOKOO_SPIRV_SUPPORT
-  #include <unified1/spirv.hpp11>
+  //#include <unified1/spirv.hpp11>
+  #include <spirv/unified1/spirv.hpp11>
 #endif
 
 #include <vulkan/vulkan.hpp>
@@ -307,38 +309,16 @@ public:
   InstanceMaker() {
   }
 
-  InstanceMaker &extensionMultiview ()
-  {
-	extension(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME); // added for multiview extension
-	return *this;
-  }
-
-  InstanceMaker &extensionValidation ()
-  {
-	layers_.push_back("VK_LAYER_KHRONOS_validation");
-	return *this;
-  }
-
   /// Set the default layers and extensions.
-  InstanceMaker &defaultLayers(int core=0)
-  {
-    instance_extensions_.push_back(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);
-
-#ifdef VKU_SURFACE
-      instance_extensions_.push_back(VKU_SURFACE);
-#endif
-
-    instance_extensions_.push_back(VK_KHR_SURFACE_EXTENSION_NAME);
-
+  InstanceMaker &defaultLayersExtensions() {
+    extension(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);
+    #ifdef VKU_SURFACE
+      extension(VKU_SURFACE);
+    #endif
+    extension("VK_KHR_surface");
 #if defined( __APPLE__ ) && defined(VK_EXT_METAL_SURFACE_EXTENSION_NAME)
-		instance_extensions_.push_back(VK_EXT_METAL_SURFACE_EXTENSION_NAME);
+    extension(VK_EXT_METAL_SURFACE_EXTENSION_NAME);
 #endif //__APPLE__
-
-	if (core > 0)
-	{
-
-	}
-	
     return *this;
   }
 
@@ -349,8 +329,8 @@ public:
   }
 
   /// Add an extension. eg. VK_EXT_DEBUG_REPORT_EXTENSION_NAME
-  InstanceMaker &extension(const char *layer) {
-    instance_extensions_.push_back(layer);
+  InstanceMaker &extension(const char *extension) {
+    instance_extensions_.push_back(extension);
     return *this;
   }
 
@@ -412,29 +392,12 @@ public:
   DeviceMaker() {
   }
 
-  DeviceMaker &extensionMultiview ()
-  {
-      extension(VK_KHR_MULTIVIEW_EXTENSION_NAME); // added for multiview extension
-      return *this;
-  }
-  
-  DeviceMaker &extensionValidation ()
-  {
-	layers_.push_back("VK_LAYER_LUNARG_standard_validation");
-	return *this;
-  }
-
-  /// Set the default layers and extensions.
-  DeviceMaker &defaultLayers(int core=0)
-  {
-	device_extensions_.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
-
-    if (core > 0)
-    {
- 		// VK_KHR_MAINTENANCE1 is required for using negative viewport heights
-		// Note: This is core as of Vulkan 1.1. So if you target 1.1 you don't have to explicitly enable this
-		device_extensions_.push_back(VK_KHR_MAINTENANCE1_EXTENSION_NAME);
-	}
+  /// Set the default extensions.
+  DeviceMaker &defaultExtensions() {
+    extension(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
+    // VK_KHR_MAINTENANCE1 is required for using negative viewport heights
+    // Note: This is core as of Vulkan 1.1. So if you target 1.1 you don't have to explicitly enable this
+    //extension(VK_KHR_MAINTENANCE1_EXTENSION_NAME);
     return *this;
   }
 
@@ -445,8 +408,8 @@ public:
   }
 
   /// Add an extension. eg. VK_EXT_DEBUG_REPORT_EXTENSION_NAME
-  DeviceMaker &extension(const char *layer) {
-    device_extensions_.push_back(layer);
+  DeviceMaker &extension(const char *extension) {
+    device_extensions_.push_back(extension);
     return *this;
   }
 
@@ -463,37 +426,25 @@ public:
     return *this;
   }
 
-  DeviceMaker &physicalDeviceFeatures(const vk::PhysicalDeviceFeatures &v = {})
+  /// required to enable and use geometry shader
+  DeviceMaker &enableGeometryShader(bool value)
   {
-	pdfs_.push_back(v);
-	return *this;
+	  physicalDeviceFeatures_.setGeometryShader(value);
+	  return *this;
   }
-  
-  DeviceMaker &enableGeometryShader ()
+
+  /// required to enable and use tesselation shaders
+  DeviceMaker &enableTessellationShader(bool value)
   {
-	// assert !pdfs_.empty()
-	pdfs_.back().setGeometryShader(true);
-	return *this;
+	  physicalDeviceFeatures_.setTessellationShader(value);
+	  return *this;
   }
-  
-  DeviceMaker &enableTessellationShader ()
+
+  /// required to enable and use multiview
+  DeviceMaker &enableMultiView(bool value)
   {
-	// assert !pdfs_.empty()
-	pdfs_.back().setTessellationShader(true);
-	return *this;
-  }
-  
-  DeviceMaker &multiviewFeatures (const vk::PhysicalDeviceMultiviewFeatures &v = {})
-  {
-	mvfs_.push_back(v);
-	return *this;
-  }
-  
-  DeviceMaker &enableMultiview ()
-  {
-	// assert !mvfs_.empty()
-	mvfs_.back().setMultiview(true);
-	return *this;
+	  physicalDeviceMultiviewFeatures_.setMultiview(value);
+	  return *this;
   }
 
   /// Create a new logical device.
@@ -505,13 +456,11 @@ public:
       (uint32_t)device_extensions_.size(), device_extensions_.data()
     };
 
-    //
-    if (!pdfs_.empty())
-		dci.setPEnabledFeatures(&pdfs_.front());
+    // see vk::PhysicalDeviceFeatures for things that can be enabled like geometry and tesselation shaders
+    dci.setPEnabledFeatures(&physicalDeviceFeatures_);
 
-    // required to enable and use multiview
-    if (!mvfs_.empty())
-		dci.pNext = &mvfs_.front();
+    // see vk::PhysicalDeviceMultiviewFeatures for options when enabling multiview
+    dci.pNext = &physicalDeviceMultiviewFeatures_;
 
     return physical_device.createDeviceUnique(dci);
   }
@@ -520,10 +469,8 @@ private:
   std::vector<const char *> device_extensions_;
   std::vector<std::vector<float> > queue_priorities_;
   std::vector<vk::DeviceQueueCreateInfo> qci_;
-  std::vector<vk::PhysicalDeviceFeatures> pdfs_;
-  std::vector<vk::PhysicalDeviceMultiviewFeatures> mvfs_;
-
-  vk::ApplicationInfo app_info_;
+  vk::PhysicalDeviceFeatures physicalDeviceFeatures_;
+  vk::PhysicalDeviceMultiviewFeatures physicalDeviceMultiviewFeatures_;
 };
 
 class DebugCallback {
@@ -637,6 +584,18 @@ public:
     p->layout = layout;
     p->attachment = attachment;
     subpass.pDepthStencilAttachment = p;
+    return *this;
+  }
+
+  RenderpassMaker& subpassInputAttachment(vk::ImageLayout layout, uint32_t attachment) {
+    vk::SubpassDescription &subpass = s.subpassDescriptions.back();
+    auto *p = getAttachmentReference();
+    p->layout = layout;
+    p->attachment = attachment;
+    if (subpass.inputAttachmentCount == 0) {
+      subpass.pInputAttachments = p;
+    }
+    subpass.inputAttachmentCount++;
     return *this;
   }
 
@@ -925,12 +884,13 @@ public:
     SpecData &operator=(const SpecData &) = delete;
   };
 public:
-  void init ()
-  {
+  PipelineMaker(uint32_t width, uint32_t height) {
     inputAssemblyState_.topology = vk::PrimitiveTopology::eTriangleList;
+    viewport_ = vk::Viewport{0.0f, 0.0f, (float)width, (float)height, 0.0f, 1.0f};
+    scissor_ = vk::Rect2D{{0, 0}, {width, height}};
     rasterizationState_.lineWidth = 1.0f;
 
-     // Set up depth test, but do not enable it.
+    // Set up depth test, but do not enable it.
     depthStencilState_.depthTestEnable = VK_FALSE;
     depthStencilState_.depthWriteEnable = VK_TRUE;
     depthStencilState_.depthCompareOp = vk::CompareOp::eLessOrEqual;
@@ -942,17 +902,6 @@ public:
     depthStencilState_.front = depthStencilState_.back;
   }
 
-  PipelineMaker() {
-	init();
-  }
-
-  PipelineMaker(uint32_t width, uint32_t height) {
-    viewport(vk::Viewport{0.0f, 0.0f, (float)width, (float)height, 0.0f, 1.0f});
-	scissor(vk::Rect2D{{0, 0}, {width, height}});
-	
-	init();
-  }
-  
   vk::UniquePipeline createUnique(const vk::Device &device,
                             const vk::PipelineCache &pipelineCache,
                             const vk::PipelineLayout &pipelineLayout,
@@ -978,7 +927,7 @@ public:
     colorBlendState_.pAttachments = count ? colorBlendAttachments_.data() : nullptr;
 
     vk::PipelineViewportStateCreateInfo viewportState{
-        {}, (uint32_t)viewport_.size(), viewport_.data(), (uint32_t)scissor_.size(), scissor_.data()};
+        {}, 1, &viewport_, 1, &scissor_};
 
     vk::PipelineVertexInputStateCreateInfo vertexInputState;
     vertexInputState.vertexAttributeDescriptionCount = (uint32_t)vertexAttributeDescriptions_.size();
@@ -1136,11 +1085,11 @@ public:
 
   /// Set the viewport value.
   /// Usually there is only one viewport, but you can have multiple viewports active for rendering cubemaps or VR stereo pair
-  PipelineMaker &viewport(const vk::Viewport &value) { viewport_.push_back(value); return *this; }
+  PipelineMaker &viewport(const vk::Viewport &value) { viewport_ = value; return *this; }
 
   /// Set the scissor value.
   /// This defines the area that the fragment shaders can write to. For example, if you are rendering a portal or a mirror.
-  PipelineMaker &scissor(const vk::Rect2D &value) { scissor_.push_back(value); return *this; }
+  PipelineMaker &scissor(const vk::Rect2D &value) { scissor_ = value; return *this; }
 
   /// Set a whole rasterization state.
   /// Note you can set individual values with their own call
@@ -1190,8 +1139,8 @@ public:
   PipelineMaker &dynamicState(vk::DynamicState value) { dynamicState_.push_back(value); return *this; }
 private:
   vk::PipelineInputAssemblyStateCreateInfo inputAssemblyState_;
-  std::vector<vk::Viewport> viewport_;
-  std::vector<vk::Rect2D> scissor_;
+  vk::Viewport viewport_;
+  vk::Rect2D scissor_;
   vk::PipelineRasterizationStateCreateInfo rasterizationState_;
   vk::PipelineMultisampleStateCreateInfo multisampleState_;
   vk::PipelineDepthStencilStateCreateInfo depthStencilState_;
@@ -1312,9 +1261,13 @@ public:
   }
 
   GenericBuffer(vk::Device device, const vk::PhysicalDeviceMemoryProperties &memprops, vk::BufferUsageFlags usage, vk::DeviceSize size, vk::MemoryPropertyFlags memflags = vk::MemoryPropertyFlagBits::eDeviceLocal) {
+    // GPU has requirment that buffer be a multiple of 256 bytes, aka nonCoherentAtomSize
+    // see https://vulkan.gpuinfo.org/displaydevicelimit.php?name=nonCoherentAtomSize&platform=all
+    int nonCoherentAtomSize = 256;
+    size_ = ceil(size/float(nonCoherentAtomSize))*nonCoherentAtomSize;
     // Create the buffer object without memory.
     vk::BufferCreateInfo ci{};
-    ci.size = size_ = size;
+    ci.size = size_;
     ci.usage = usage;
     ci.sharingMode = vk::SharingMode::eExclusive;
     buffer_ = device.createBufferUnique(ci);
@@ -1727,12 +1680,8 @@ public:
   }
 
   void upload(vk::Device device, std::vector<uint8_t> &bytes, vk::CommandPool commandPool, vk::PhysicalDeviceMemoryProperties memprops, vk::Queue queue, vk::ImageLayout finalLayout=vk::ImageLayout::eShaderReadOnlyOptimal) {
-	return upload(device, bytes.data(), bytes.size(), commandPool, memprops, queue, finalLayout);
-  }
-
-  void upload(vk::Device device, const uint8_t *bytes, size_t bytesSize, vk::CommandPool commandPool, vk::PhysicalDeviceMemoryProperties memprops, vk::Queue queue, vk::ImageLayout finalLayout=vk::ImageLayout::eShaderReadOnlyOptimal) {
-    vku::GenericBuffer stagingBuffer(device, memprops, (vk::BufferUsageFlags)vk::BufferUsageFlagBits::eTransferSrc, (vk::DeviceSize)bytesSize, vk::MemoryPropertyFlagBits::eHostVisible);
-    stagingBuffer.updateLocal(device, (const void*)bytes, bytesSize);
+    vku::GenericBuffer stagingBuffer(device, memprops, (vk::BufferUsageFlags)vk::BufferUsageFlagBits::eTransferSrc, (vk::DeviceSize)bytes.size(), vk::MemoryPropertyFlagBits::eHostVisible);
+    stagingBuffer.updateLocal(device, (const void*)bytes.data(), bytes.size());
 
     // Copy the staging buffer to the GPU texture and set the layout.
     vku::executeImmediately(device, commandPool, queue, [&](vk::CommandBuffer cb) {
@@ -1935,7 +1884,8 @@ public:
     info.arrayLayers = 1;
     info.samples = vk::SampleCountFlagBits::e1;
     info.tiling = vk::ImageTiling::eOptimal;
-    info.usage = vk::ImageUsageFlagBits::eDepthStencilAttachment|vk::ImageUsageFlagBits::eTransferSrc|vk::ImageUsageFlagBits::eSampled;
+    //TODO: wouldn't "usage" be better supplied as a user function parameter?
+    info.usage = vk::ImageUsageFlagBits::eInputAttachment|vk::ImageUsageFlagBits::eDepthStencilAttachment|vk::ImageUsageFlagBits::eTransferSrc|vk::ImageUsageFlagBits::eSampled;
     info.sharingMode = vk::SharingMode::eExclusive;
     info.queueFamilyIndexCount = 0;
     info.pQueueFamilyIndices = nullptr;
@@ -1963,7 +1913,8 @@ public:
     info.arrayLayers = 1;
     info.samples = vk::SampleCountFlagBits::e1;
     info.tiling = vk::ImageTiling::eOptimal;
-    info.usage = vk::ImageUsageFlagBits::eColorAttachment|vk::ImageUsageFlagBits::eTransferSrc|vk::ImageUsageFlagBits::eTransferDst|vk::ImageUsageFlagBits::eSampled;
+    //TODO: wouldn't "usage" be better supplied as a user function parameter?
+    info.usage = vk::ImageUsageFlagBits::eInputAttachment|vk::ImageUsageFlagBits::eColorAttachment|vk::ImageUsageFlagBits::eTransferSrc|vk::ImageUsageFlagBits::eTransferDst|vk::ImageUsageFlagBits::eSampled;
     info.sharingMode = vk::SharingMode::eExclusive;
     info.queueFamilyIndexCount = 0;
     info.pQueueFamilyIndices = nullptr;
@@ -2206,6 +2157,140 @@ private:
   std::vector<uint32_t> imageSizes_;
 };
 
+/// Factory for CommandPool.
+class CommandPoolMaker {
+public:
+
+  /// Set pointer to a structure extending this structure.
+  CommandPoolMaker &pNext(const void *pNext) {
+    cpci_.pNext = pNext;
+    return *this;
+  }
+
+  /// Set flags indicating usage behavior for the pool and command buffers allocated from it
+  CommandPoolMaker &flags(vk::CommandPoolCreateFlags flags) {
+    cpci_.flags = flags;
+    return *this;
+  }
+
+  /// Set queue family
+  CommandPoolMaker &queueFamilyIndex(uint32_t queueFamilyIndex) {
+    cpci_.queueFamilyIndex = queueFamilyIndex;
+    return *this;
+  }
+
+  /// Create a new command pool
+  vk::UniqueCommandPool createUnique(const vk::Device &device) const {
+    return device.createCommandPoolUnique(cpci_);
+  }
+
+private:
+  vk::CommandPoolCreateInfo cpci_;
+};
+
+/// Factory for ViewPort.
+class ViewPortMaker {
+public:
+
+  /// Set viewport origin x.
+  ViewPortMaker &x(float x) {
+    viewport_.x = x;
+    return *this;
+  }
+
+  /// Set viewport origin y.
+  ViewPortMaker &y(float y) {
+    viewport_.y = y;
+    return *this;
+  }
+
+  /// Set viewport width.
+  ViewPortMaker &width(float width) {
+    viewport_.width = width;
+    return *this;
+  }
+
+  /// Set viewport height.
+  ViewPortMaker &height(float height) {
+    viewport_.height = height;
+    return *this;
+  }
+
+  /// Set viewport minDepth.
+  ViewPortMaker &minDepth(float minDepth) {
+    viewport_.minDepth = minDepth;
+    return *this;
+  }
+
+  /// Set viewport maxDepth.
+  ViewPortMaker &maxDepth(float maxDepth) {
+    viewport_.maxDepth = maxDepth;
+    return *this;
+  }
+
+  /// Create a new Viewport
+  vk::Viewport createUnique() const {
+    //.x        : Vulkan default:0      OpenGL default:0
+    //.y        : Vulkan default:0      OpenGL default:0
+    //.width    : Vulkan default:width  OpenGL default:width
+    //.height   : Vulkan default:height OpenGL default:-height
+    //.minDepth : Vulkan default:0      OpenGL default:0.5f
+    //.maxDepth : Vulkan default:1      OpenGL default:1.0f
+    return viewport_;
+  }
+
+private:
+  vk::Viewport viewport_;
+};
+
+/// Factory for RenderPassBeginInfo.
+class RenderPassBeginInfoMaker {
+public:
+
+  /// Set pNext.
+  RenderPassBeginInfoMaker &pNext(const void* pNext) {
+    renderPassBeginInfo_.pNext = pNext;
+    return *this;
+  }
+
+  /// Set renderPass.
+  RenderPassBeginInfoMaker &renderPass(VkRenderPass renderPass) {
+    renderPassBeginInfo_.renderPass = renderPass;
+    return *this;
+  }
+
+  /// Set framebuffer.
+  RenderPassBeginInfoMaker &framebuffer(VkFramebuffer framebuffer) {
+    renderPassBeginInfo_.framebuffer = framebuffer;
+    return *this;
+  }
+
+  /// Set renderArea.
+  RenderPassBeginInfoMaker &renderArea(VkRect2D renderArea) {
+    renderPassBeginInfo_.renderArea = renderArea;
+    return *this;
+  }
+
+  /// Set clearValueCount.
+  RenderPassBeginInfoMaker &clearValueCount(uint32_t clearValueCount) {
+    renderPassBeginInfo_.clearValueCount = clearValueCount;
+    return *this;
+  }
+
+  /// Set pClearValues.
+  RenderPassBeginInfoMaker &pClearValues(const vk::ClearValue* pClearValues) {
+    renderPassBeginInfo_.pClearValues = pClearValues;
+    return *this;
+  }
+
+  /// Create a new RenderPassBeginInfo
+  vk::RenderPassBeginInfo createUnique() const {
+    return renderPassBeginInfo_;
+  }
+
+private:
+  vk::RenderPassBeginInfo renderPassBeginInfo_;
+};
 
 } // namespace vku
 

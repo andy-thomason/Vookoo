@@ -27,14 +27,8 @@ int main() {
   auto glfwwindow = glfwCreateWindow(800, 800, title, nullptr, nullptr);
 
   {
-    // Initialize makers
-    vku::InstanceMaker im{};
-    im.defaultLayers();
-    vku::DeviceMaker dm{};
-    dm.defaultLayers();
-
     // Initialise the Vookoo demo framework.
-    vku::Framework fw{im, dm};
+    vku::Framework fw{title};
     if (!fw.ok()) {
       std::cout << "Framework creation failed" << std::endl;
       exit(1);
@@ -44,13 +38,13 @@ int main() {
     vk::Device device = fw.device();
 
     // Create a window to draw into
-    vku::Window window{
+    vku::Window window(
       fw.instance(),
       device,
       fw.physicalDevice(),
       fw.graphicsQueueFamilyIndex(),
       glfwwindow
-    };
+    );
     if (!window.ok()) {
       std::cout << "Window creation failed" << std::endl;
       exit(1);
@@ -64,10 +58,11 @@ int main() {
     // These are the parameters we are passing to the shaders
     // Note! be very careful when using vec3, vec2, float and vec4 together
     // as there are alignment rules you must follow.
+    // see https://vulkan.gpuinfo.org/displaydevicelimit.php?name=minUniformBufferOffsetAlignment&platform=all
     struct Uniform {
       glm::vec4 colour;
       glm::mat4 rotation;
-      glm::vec4 filler[3]; // filler to get overall size to required multiple of minUniformBufferOffsetAlignment (64bytes on my PC)
+      glm::vec4 filler[16-5]; // filler to get overall size to required multiple of minUniformBufferOffsetAlignment (256bytes)
     };
 
     std::vector<Uniform> U = { 

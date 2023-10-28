@@ -26,27 +26,21 @@ int main() {
   const char *title = "threaded";
   auto glfwwindow = glfwCreateWindow(800, 800, title,  nullptr, nullptr);
 
-  // Initialize makers
-  vku::InstanceMaker im{};
-  im.defaultLayers();
-  vku::DeviceMaker dm{};
-  dm.defaultLayers();
-
   // Initialise the Vookoo demo framework.
-  vku::Framework fw{im, dm};
+  vku::Framework fw{title};
   if (!fw.ok()) {
     std::cout << "Framework creation failed" << std::endl;
     exit(1);
   }
 
   // Create a window to draw into
-  vku::Window window{
+  vku::Window window(
     fw.instance(),
     fw.device(),
     fw.physicalDevice(),
     fw.graphicsQueueFamilyIndex(),
     glfwwindow
-  };
+  );
   if (!window.ok()) {
     std::cout << "Window creation failed" << std::endl;
     exit(1);

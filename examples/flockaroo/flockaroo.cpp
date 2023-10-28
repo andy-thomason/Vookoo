@@ -14,13 +14,7 @@ int main() {
   const char *title = "flockaroo";
   auto glfwwindow = glfwCreateWindow(1024, 1024, title, nullptr, nullptr);
 
-  // Initialize makers
-  vku::InstanceMaker im{};
-  im.defaultLayers();
-  vku::DeviceMaker dm{};
-  dm.defaultLayers();
-
-  vku::Framework fw{im, dm};
+  vku::Framework fw{title};
   if (!fw.ok()) {
     std::cout << "Framework creation failed" << std::endl;
     exit(1);
@@ -29,27 +23,28 @@ int main() {
 
   vk::Device device = fw.device();
 
-  vku::Window window{
+  // Create a window to draw into
+  vku::Window window(
     fw.instance(),
     device,
     fw.physicalDevice(),
     fw.graphicsQueueFamilyIndex(),
     glfwwindow
-  };
+  );
   if (!window.ok()) {
     std::cout << "Window creation failed" << std::endl;
     exit(1);
   }
   window.dumpCaps(std::cout, fw.physicalDevice());
 
-  auto viewport = vk::Viewport{
-    0.0f, 
-    0.0f,
-    (float)window.width(),
-    (float)window.height(),
-    0.0f,
-    1.0f
-  };
+  auto viewport = vku::ViewPortMaker{}
+    .x(0.0f)                                      //Vulkan default:0       OpenGL default:0
+    .y(0.0f)                                      //Vulkan default:0       OpenGL default:height
+    .width(static_cast<float>(window.width()))    //Vulkan default:width   OpenGL default:width
+    .height(static_cast<float>(window.height()))  //Vulkan default:height  OpenGL default:-height
+    .minDepth(0.0f)                               //Vulkan default:0       OpenGL default:0.5
+    .maxDepth(1.0f)                               //Vulkan default:1       OpenGL default:1
+    .createUnique();
 
   ////////////////////////////////////////
   //
@@ -349,19 +344,22 @@ int main() {
   };
 
   // when index=0 write to iChannelPong, when index=1 write to iChannelPing   
-  vk::RenderPassBeginInfo advectionRpbi[]={{
-    *advectionRenderPass,
-    *advectionFrameBufferPong,
-    vk::Rect2D{{0, 0}, {advectionSize, advectionSize}},
-    (uint32_t) clearColours.size(),
-    clearColours.data()
-  },{
-    *advectionRenderPass,
-    *advectionFrameBufferPing,
-    vk::Rect2D{{0, 0}, {advectionSize, advectionSize}},
-    (uint32_t) clearColours.size(),
-    clearColours.data()
-  }};
+  vk::RenderPassBeginInfo advectionRpbi[]={
+    vku::RenderPassBeginInfoMaker{}
+      .renderPass( *advectionRenderPass )
+      .framebuffer( *advectionFrameBufferPong )
+      .renderArea( vk::Rect2D{{0, 0}, {advectionSize, advectionSize}} )
+      .clearValueCount( (uint32_t) clearColours.size() )
+      .pClearValues( clearColours.data() )
+      .createUnique(),
+    vku::RenderPassBeginInfoMaker{}
+      .renderPass( *advectionRenderPass )
+      .framebuffer( *advectionFrameBufferPing )
+      .renderArea( vk::Rect2D{{0, 0}, {advectionSize, advectionSize}} )
+      .clearValueCount( (uint32_t) clearColours.size() )
+      .pClearValues( clearColours.data() )
+      .createUnique()
+  };
 
   int iFrame = 0;
   while (!glfwWindowShouldClose(glfwwindow)) {

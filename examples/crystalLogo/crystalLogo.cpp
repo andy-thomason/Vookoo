@@ -55,13 +55,13 @@ int main() {
 
   glfwSetCursorPosCallback(glfwwindow, mouse_callback);
 
-  // Initialize makers
-  vku::InstanceMaker im{};
-  im.defaultLayers();
-  vku::DeviceMaker dm{};
-  dm.defaultLayers();
+  // Define framework options
+  vku::FrameworkOptions fo = {
+    .useMultiView = true
+  };
 
-  vku::Framework fw{im, dm};
+  // Initialise the Vookoo demo framework.
+  vku::Framework fw{title, fo};
   if (!fw.ok()) {
     std::cout << "Framework creation failed" << std::endl;
     exit(1);
@@ -70,13 +70,14 @@ int main() {
 
   auto device = fw.device();
 
-  vku::Window window{
+  // Create a window to draw into
+  vku::Window window(
     fw.instance(),
     device,
     fw.physicalDevice(),
     fw.graphicsQueueFamilyIndex(),
     glfwwindow
-  };
+  );
   if (!window.ok()) {
     std::cout << "Window creation failed" << std::endl;
     exit(1);
@@ -91,14 +92,14 @@ int main() {
   // Note above miss fact that minDepth = 0.5f also needs to be set
   // flip viewport to match opengl ( +x > Right, +y ^ UP, +z towards viewer from screen ), instead of vulkan default
   // also requires pipeline set with cullMode:BACK and frontFace:CounterClockWise
-  auto viewport = vk::Viewport{
-    0.0f,                                     //Vulkan default:0
-    static_cast<float>(window.height()),      //Vulkan default:0
-    static_cast<float>(window.width()),   //Vulkan default:width
-    -static_cast<float>(window.height()),//Vulkan default:height
-    0.5f,                              //Vulkan default:0
-    1.0f                               //Vulkan default:1
-  };
+  auto viewport = vku::ViewPortMaker{}
+    .x(0.0f)                                      //Vulkan default:0       OpenGL default:0
+    .y(static_cast<float>(window.height()))       //Vulkan default:0       OpenGL default:height
+    .width(static_cast<float>(window.width()))    //Vulkan default:width   OpenGL default:width
+    .height(-static_cast<float>(window.height())) //Vulkan default:height  OpenGL default:-height
+    .minDepth(0.5f)                               //Vulkan default:0       OpenGL default:0.5
+    .maxDepth(1.0f)                               //Vulkan default:1       OpenGL default:1
+    .createUnique();
 
   ////////////////////////////////////////
   //
@@ -584,13 +585,13 @@ int main() {
     };
   
     // Begin rendering using the framebuffer and renderpass
-    displacementRpbi = vk::RenderPassBeginInfo {
-      *displacementRenderPass,
-      *displacementFrameBuffer,
-      vk::Rect2D{{0, 0}, {window.width(), window.height()}},
-      (uint32_t) clearColours.size(),
-      clearColours.data()
-    };
+    displacementRpbi = vku::RenderPassBeginInfoMaker{}
+      .renderPass( *displacementRenderPass )
+      .framebuffer( *displacementFrameBuffer )
+      .renderArea( vk::Rect2D{{0, 0}, {window.width(), window.height()}} )
+      .clearValueCount( (uint32_t) clearColours.size() )
+      .pClearValues( clearColours.data() )
+      .createUnique();
   
     // Build the renderpass 
     maskRenderPass = RenderPassCommon( maskFbo );
@@ -615,13 +616,13 @@ int main() {
     };
   
     // Begin rendering using the framebuffer and renderpass
-    maskRpbi = vk::RenderPassBeginInfo{
-      *maskRenderPass,
-      *maskFrameBuffer,
-      vk::Rect2D{{0, 0}, {window.width(), window.height()}},
-      (uint32_t) clearColoursMask.size(),
-      clearColoursMask.data()
-    };
+    maskRpbi = vku::RenderPassBeginInfoMaker{}
+      .renderPass( *maskRenderPass )
+      .framebuffer( *maskFrameBuffer )
+      .renderArea( vk::Rect2D{{0, 0}, {window.width(), window.height()}} )
+      .clearValueCount( (uint32_t) clearColoursMask.size() )
+      .pClearValues( clearColoursMask.data() )
+      .createUnique();
   }
 
   ////////////////////////////////////////
@@ -752,13 +753,13 @@ int main() {
     };
   
     // Begin rendering using the framebuffer and renderpass
-    contentRpbi = vk::RenderPassBeginInfo{
-      *contentRenderPass,
-      *contentFrameBuffer,
-      vk::Rect2D{{0, 0}, {window.width(), window.height()}},
-      (uint32_t) clearColourscontent.size(),
-      clearColourscontent.data()
-    };
+    contentRpbi = vku::RenderPassBeginInfoMaker{}
+      .renderPass( *contentRenderPass )
+      .framebuffer( *contentFrameBuffer )
+      .renderArea( vk::Rect2D{{0, 0}, {window.width(), window.height()}} )
+      .clearValueCount( (uint32_t) clearColourscontent.size() )
+      .pClearValues( clearColourscontent.data() )
+      .createUnique();
   }
 
   ////////////////////////////////////////
@@ -961,13 +962,13 @@ int main() {
     };
   
     // Begin rendering using the framebuffer and renderpass
-    reflectionreflectorRpbi = vk::RenderPassBeginInfo{
-      *reflectionreflectorRenderPass,
-      *reflectionreflectorFrameBuffer,
-      vk::Rect2D{{0, 0}, {window.width(), window.height()}},
-      (uint32_t) clearColoursreflectionreflector.size(),
-      clearColoursreflectionreflector.data()
-    };
+    reflectionreflectorRpbi = vku::RenderPassBeginInfoMaker{}
+      .renderPass( *reflectionreflectorRenderPass )
+      .framebuffer( *reflectionreflectorFrameBuffer )
+      .renderArea( vk::Rect2D{{0, 0}, {window.width(), window.height()}} )
+      .clearValueCount( (uint32_t) clearColoursreflectionreflector.size() )
+      .pClearValues( clearColoursreflectionreflector.data() )
+      .createUnique();
   }
 /*
   ////////////////////////////////////////
@@ -1067,13 +1068,13 @@ int main() {
     };
   
     // Begin rendering using the framebuffer and renderpass
-    reflectionplaneRpbi = vk::RenderPassBeginInfo{
-      .renderPass = *reflectionplaneRenderPass,
-      .framebuffer = *reflectionplaneFrameBuffer,
-      .renderArea = vk::Rect2D{{0, 0}, {window.width(), window.height()}},
-      .clearValueCount = (uint32_t) clearColoursreflectionplane.size(),
-      .pClearValues = clearColoursreflectionplane.data()
-    };
+    reflectionplaneRpbi = vku::RenderPassBeginInfoMaker{}
+      .renderPass( *reflectionplaneRenderPass )
+      .framebuffer( *reflectionplaneFrameBuffer )
+      .renderArea( vk::Rect2D{{0, 0}, {window.width(), window.height()}} )
+      .clearValueCount( (uint32_t) clearColoursreflectionplane.size() )
+      .pClearValues( clearColoursreflectionplane.data() )
+      .createUnique();
   }
 */
   ////////////////////////////////////////
