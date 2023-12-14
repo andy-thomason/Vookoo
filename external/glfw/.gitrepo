@@ -7,6 +7,6 @@
 	remote = https://github.com/glfw/glfw.git
 	branch = master
 	commit = e65de2941c056ee5833b4dab3db36b297b53aa14
-	parent = c5e1d3377f3e84227545cd9e0e6d1a0bc62a0f25
+	parent = 33a361163ea1d726f473da3b50044aa82b6daac6
 	method = merge
 	cmdver = 0.4.0
