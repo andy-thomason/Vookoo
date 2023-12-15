@@ -329,6 +329,8 @@ public:
 #endif
 
     instance_extensions_.push_back(VK_KHR_SURFACE_EXTENSION_NAME);
+    instance_extensions_.push_back(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
+    instance_extensions_.push_back(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME);
 
 #if defined( __APPLE__ ) && defined(VK_EXT_METAL_SURFACE_EXTENSION_NAME)
 		instance_extensions_.push_back(VK_EXT_METAL_SURFACE_EXTENSION_NAME);
@@ -393,7 +395,7 @@ public:
   vk::UniqueInstance createUnique() {
     return vk::createInstanceUnique(
       vk::InstanceCreateInfo{
-        {}, &app_info_, (uint32_t)layers_.size(),
+        vk::InstanceCreateFlagBits::eEnumeratePortabilityKHR, &app_info_, (uint32_t)layers_.size(),
         layers_.data(), (uint32_t)instance_extensions_.size(),
         instance_extensions_.data()
       }
