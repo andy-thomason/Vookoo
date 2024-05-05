@@ -24,7 +24,7 @@ section](https://discourse.glfw.org/c/support) of the forum, under the [Stack
 Overflow tag](https://stackoverflow.com/questions/tagged/glfw) or [Game
 Development tag](https://gamedev.stackexchange.com/questions/tagged/glfw) on
 Stack Exchange or in the IRC channel `#glfw` on
-[Freenode](http://freenode.net/).
+[Libera.Chat](https://libera.chat/).
 
 Questions about the design or implementation of GLFW or about future plans
 should be asked in the [dev section](https://discourse.glfw.org/c/dev) of the
@@ -351,8 +351,8 @@ __Note:__ If you haven't already implemented the feature, check first if there
 already is an open issue for it and if it's already being developed in an
 [experimental branch](https://github.com/glfw/glfw/branches/all).
 
-__There is no preferred patch size__.  A one character change is just as welcome
-as one adding a thousand line one, if that is the appropriate size for the
+__There is no preferred patch size__.  A one-character change is just as welcome
+as one adding a thousand lines, if that is the appropriate size for the
 feature.
 
 In addition to the code, a complete feature includes:

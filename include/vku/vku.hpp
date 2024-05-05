@@ -18,14 +18,13 @@
 #ifndef VKU_HPP
 #define VKU_HPP
 
+#include <memory>
 #include <utility>
 #include <array>
 #include <fstream>
 #include <iostream>
 #include <unordered_map>
 #include <vector>
-#include <thread>
-#include <chrono>
 #include <functional>
 #include <cstddef>
 
@@ -68,7 +67,7 @@ inline void executeImmediately(vk::Device device, vk::CommandPool commandPool, v
   cbs[0].end();
 
   vk::SubmitInfo submit;
-  submit.commandBufferCount = (uint32_t)cbs.size();
+  submit.commandBufferCount = static_cast<uint32_t>(cbs.size());
   submit.pCommandBuffers = cbs.data();
   queue.submit(submit, vk::Fence{});
   device.waitIdle();
@@ -78,7 +77,7 @@ inline void executeImmediately(vk::Device device, vk::CommandPool commandPool, v
 
 /// Scale a value by mip level, but do not reduce to zero.
 inline uint32_t mipScale(uint32_t value, uint32_t mipLevel) {
-  return std::max(value >> mipLevel, (uint32_t)1);
+  return std::max(value >> mipLevel, static_cast<uint32_t>(1));
 }
 
 /// Load a binary file into a vector.
@@ -87,10 +86,10 @@ inline std::vector<uint8_t> loadFile(const std::string &filename) {
   std::ifstream is(filename, std::ios::binary|std::ios::ate);
   std::vector<uint8_t> bytes;
   if (!is.fail()) {
-    size_t size = is.tellg();
+    auto size = is.tellg();
     is.seekg(0);
     bytes.resize(size);
-    is.read((char*)bytes.data(), size);
+    is.read(reinterpret_cast<char*>(bytes.data()), size);
   }
   return bytes;
 }
@@ -106,206 +105,206 @@ struct BlockParams {
 inline BlockParams getBlockParams(vk::Format format) {
   switch (format) {
     case vk::Format::eR4G4UnormPack8: return BlockParams{1, 1, 1};
-    case vk::Format::eR4G4B4A4UnormPack16: return BlockParams{1, 1, 2};
-    case vk::Format::eB4G4R4A4UnormPack16: return BlockParams{1, 1, 2};
-    case vk::Format::eR5G6B5UnormPack16: return BlockParams{1, 1, 2};
-    case vk::Format::eB5G6R5UnormPack16: return BlockParams{1, 1, 2};
-    case vk::Format::eR5G5B5A1UnormPack16: return BlockParams{1, 1, 2};
-    case vk::Format::eB5G5R5A1UnormPack16: return BlockParams{1, 1, 2};
+    case vk::Format::eR4G4B4A4UnormPack16:
+    case vk::Format::eB4G4R4A4UnormPack16:
+    case vk::Format::eR5G6B5UnormPack16:
+    case vk::Format::eB5G6R5UnormPack16:
+    case vk::Format::eR5G5B5A1UnormPack16:
+    case vk::Format::eB5G5R5A1UnormPack16:
     case vk::Format::eA1R5G5B5UnormPack16: return BlockParams{1, 1, 2};
-    case vk::Format::eR8Unorm: return BlockParams{1, 1, 1};
-    case vk::Format::eR8Snorm: return BlockParams{1, 1, 1};
-    case vk::Format::eR8Uscaled: return BlockParams{1, 1, 1};
-    case vk::Format::eR8Sscaled: return BlockParams{1, 1, 1};
-    case vk::Format::eR8Uint: return BlockParams{1, 1, 1};
-    case vk::Format::eR8Sint: return BlockParams{1, 1, 1};
+    case vk::Format::eR8Unorm:
+    case vk::Format::eR8Snorm:
+    case vk::Format::eR8Uscaled:
+    case vk::Format::eR8Sscaled:
+    case vk::Format::eR8Uint:
+    case vk::Format::eR8Sint:
     case vk::Format::eR8Srgb: return BlockParams{1, 1, 1};
-    case vk::Format::eR8G8Unorm: return BlockParams{1, 1, 2};
-    case vk::Format::eR8G8Snorm: return BlockParams{1, 1, 2};
-    case vk::Format::eR8G8Uscaled: return BlockParams{1, 1, 2};
-    case vk::Format::eR8G8Sscaled: return BlockParams{1, 1, 2};
-    case vk::Format::eR8G8Uint: return BlockParams{1, 1, 2};
-    case vk::Format::eR8G8Sint: return BlockParams{1, 1, 2};
+    case vk::Format::eR8G8Unorm:
+    case vk::Format::eR8G8Snorm:
+    case vk::Format::eR8G8Uscaled:
+    case vk::Format::eR8G8Sscaled:
+    case vk::Format::eR8G8Uint:
+    case vk::Format::eR8G8Sint:
     case vk::Format::eR8G8Srgb: return BlockParams{1, 1, 2};
-    case vk::Format::eR8G8B8Unorm: return BlockParams{1, 1, 3};
-    case vk::Format::eR8G8B8Snorm: return BlockParams{1, 1, 3};
-    case vk::Format::eR8G8B8Uscaled: return BlockParams{1, 1, 3};
-    case vk::Format::eR8G8B8Sscaled: return BlockParams{1, 1, 3};
-    case vk::Format::eR8G8B8Uint: return BlockParams{1, 1, 3};
-    case vk::Format::eR8G8B8Sint: return BlockParams{1, 1, 3};
-    case vk::Format::eR8G8B8Srgb: return BlockParams{1, 1, 3};
-    case vk::Format::eB8G8R8Unorm: return BlockParams{1, 1, 3};
-    case vk::Format::eB8G8R8Snorm: return BlockParams{1, 1, 3};
-    case vk::Format::eB8G8R8Uscaled: return BlockParams{1, 1, 3};
-    case vk::Format::eB8G8R8Sscaled: return BlockParams{1, 1, 3};
-    case vk::Format::eB8G8R8Uint: return BlockParams{1, 1, 3};
-    case vk::Format::eB8G8R8Sint: return BlockParams{1, 1, 3};
+    case vk::Format::eR8G8B8Unorm:
+    case vk::Format::eR8G8B8Snorm:
+    case vk::Format::eR8G8B8Uscaled:
+    case vk::Format::eR8G8B8Sscaled:
+    case vk::Format::eR8G8B8Uint:
+    case vk::Format::eR8G8B8Sint:
+    case vk::Format::eR8G8B8Srgb:
+    case vk::Format::eB8G8R8Unorm:
+    case vk::Format::eB8G8R8Snorm:
+    case vk::Format::eB8G8R8Uscaled:
+    case vk::Format::eB8G8R8Sscaled:
+    case vk::Format::eB8G8R8Uint:
+    case vk::Format::eB8G8R8Sint:
     case vk::Format::eB8G8R8Srgb: return BlockParams{1, 1, 3};
-    case vk::Format::eR8G8B8A8Unorm: return BlockParams{1, 1, 4};
-    case vk::Format::eR8G8B8A8Snorm: return BlockParams{1, 1, 4};
-    case vk::Format::eR8G8B8A8Uscaled: return BlockParams{1, 1, 4};
-    case vk::Format::eR8G8B8A8Sscaled: return BlockParams{1, 1, 4};
-    case vk::Format::eR8G8B8A8Uint: return BlockParams{1, 1, 4};
-    case vk::Format::eR8G8B8A8Sint: return BlockParams{1, 1, 4};
-    case vk::Format::eR8G8B8A8Srgb: return BlockParams{1, 1, 4};
-    case vk::Format::eB8G8R8A8Unorm: return BlockParams{1, 1, 4};
-    case vk::Format::eB8G8R8A8Snorm: return BlockParams{1, 1, 4};
-    case vk::Format::eB8G8R8A8Uscaled: return BlockParams{1, 1, 4};
-    case vk::Format::eB8G8R8A8Sscaled: return BlockParams{1, 1, 4};
-    case vk::Format::eB8G8R8A8Uint: return BlockParams{1, 1, 4};
-    case vk::Format::eB8G8R8A8Sint: return BlockParams{1, 1, 4};
-    case vk::Format::eB8G8R8A8Srgb: return BlockParams{1, 1, 4};
-    case vk::Format::eA8B8G8R8UnormPack32: return BlockParams{1, 1, 4};
-    case vk::Format::eA8B8G8R8SnormPack32: return BlockParams{1, 1, 4};
-    case vk::Format::eA8B8G8R8UscaledPack32: return BlockParams{1, 1, 4};
-    case vk::Format::eA8B8G8R8SscaledPack32: return BlockParams{1, 1, 4};
-    case vk::Format::eA8B8G8R8UintPack32: return BlockParams{1, 1, 4};
-    case vk::Format::eA8B8G8R8SintPack32: return BlockParams{1, 1, 4};
-    case vk::Format::eA8B8G8R8SrgbPack32: return BlockParams{1, 1, 4};
-    case vk::Format::eA2R10G10B10UnormPack32: return BlockParams{1, 1, 4};
-    case vk::Format::eA2R10G10B10SnormPack32: return BlockParams{1, 1, 4};
-    case vk::Format::eA2R10G10B10UscaledPack32: return BlockParams{1, 1, 4};
-    case vk::Format::eA2R10G10B10SscaledPack32: return BlockParams{1, 1, 4};
-    case vk::Format::eA2R10G10B10UintPack32: return BlockParams{1, 1, 4};
-    case vk::Format::eA2R10G10B10SintPack32: return BlockParams{1, 1, 4};
-    case vk::Format::eA2B10G10R10UnormPack32: return BlockParams{1, 1, 4};
-    case vk::Format::eA2B10G10R10SnormPack32: return BlockParams{1, 1, 4};
-    case vk::Format::eA2B10G10R10UscaledPack32: return BlockParams{1, 1, 4};
-    case vk::Format::eA2B10G10R10SscaledPack32: return BlockParams{1, 1, 4};
-    case vk::Format::eA2B10G10R10UintPack32: return BlockParams{1, 1, 4};
+    case vk::Format::eR8G8B8A8Unorm:
+    case vk::Format::eR8G8B8A8Snorm:
+    case vk::Format::eR8G8B8A8Uscaled:
+    case vk::Format::eR8G8B8A8Sscaled:
+    case vk::Format::eR8G8B8A8Uint:
+    case vk::Format::eR8G8B8A8Sint:
+    case vk::Format::eR8G8B8A8Srgb:
+    case vk::Format::eB8G8R8A8Unorm:
+    case vk::Format::eB8G8R8A8Snorm:
+    case vk::Format::eB8G8R8A8Uscaled:
+    case vk::Format::eB8G8R8A8Sscaled:
+    case vk::Format::eB8G8R8A8Uint:
+    case vk::Format::eB8G8R8A8Sint:
+    case vk::Format::eB8G8R8A8Srgb:
+    case vk::Format::eA8B8G8R8UnormPack32:
+    case vk::Format::eA8B8G8R8SnormPack32:
+    case vk::Format::eA8B8G8R8UscaledPack32:
+    case vk::Format::eA8B8G8R8SscaledPack32:
+    case vk::Format::eA8B8G8R8UintPack32:
+    case vk::Format::eA8B8G8R8SintPack32:
+    case vk::Format::eA8B8G8R8SrgbPack32:
+    case vk::Format::eA2R10G10B10UnormPack32:
+    case vk::Format::eA2R10G10B10SnormPack32:
+    case vk::Format::eA2R10G10B10UscaledPack32:
+    case vk::Format::eA2R10G10B10SscaledPack32:
+    case vk::Format::eA2R10G10B10UintPack32:
+    case vk::Format::eA2R10G10B10SintPack32:
+    case vk::Format::eA2B10G10R10UnormPack32:
+    case vk::Format::eA2B10G10R10SnormPack32:
+    case vk::Format::eA2B10G10R10UscaledPack32:
+    case vk::Format::eA2B10G10R10SscaledPack32:
+    case vk::Format::eA2B10G10R10UintPack32:
     case vk::Format::eA2B10G10R10SintPack32: return BlockParams{1, 1, 4};
-    case vk::Format::eR16Unorm: return BlockParams{1, 1, 2};
-    case vk::Format::eR16Snorm: return BlockParams{1, 1, 2};
-    case vk::Format::eR16Uscaled: return BlockParams{1, 1, 2};
-    case vk::Format::eR16Sscaled: return BlockParams{1, 1, 2};
-    case vk::Format::eR16Uint: return BlockParams{1, 1, 2};
-    case vk::Format::eR16Sint: return BlockParams{1, 1, 2};
+    case vk::Format::eR16Unorm:
+    case vk::Format::eR16Snorm:
+    case vk::Format::eR16Uscaled:
+    case vk::Format::eR16Sscaled:
+    case vk::Format::eR16Uint:
+    case vk::Format::eR16Sint:
     case vk::Format::eR16Sfloat: return BlockParams{1, 1, 2};
-    case vk::Format::eR16G16Unorm: return BlockParams{1, 1, 4};
-    case vk::Format::eR16G16Snorm: return BlockParams{1, 1, 4};
-    case vk::Format::eR16G16Uscaled: return BlockParams{1, 1, 4};
-    case vk::Format::eR16G16Sscaled: return BlockParams{1, 1, 4};
-    case vk::Format::eR16G16Uint: return BlockParams{1, 1, 4};
-    case vk::Format::eR16G16Sint: return BlockParams{1, 1, 4};
+    case vk::Format::eR16G16Unorm:
+    case vk::Format::eR16G16Snorm:
+    case vk::Format::eR16G16Uscaled:
+    case vk::Format::eR16G16Sscaled:
+    case vk::Format::eR16G16Uint:
+    case vk::Format::eR16G16Sint:
     case vk::Format::eR16G16Sfloat: return BlockParams{1, 1, 4};
-    case vk::Format::eR16G16B16Unorm: return BlockParams{1, 1, 6};
-    case vk::Format::eR16G16B16Snorm: return BlockParams{1, 1, 6};
-    case vk::Format::eR16G16B16Uscaled: return BlockParams{1, 1, 6};
-    case vk::Format::eR16G16B16Sscaled: return BlockParams{1, 1, 6};
-    case vk::Format::eR16G16B16Uint: return BlockParams{1, 1, 6};
-    case vk::Format::eR16G16B16Sint: return BlockParams{1, 1, 6};
+    case vk::Format::eR16G16B16Unorm:
+    case vk::Format::eR16G16B16Snorm:
+    case vk::Format::eR16G16B16Uscaled:
+    case vk::Format::eR16G16B16Sscaled:
+    case vk::Format::eR16G16B16Uint:
+    case vk::Format::eR16G16B16Sint:
     case vk::Format::eR16G16B16Sfloat: return BlockParams{1, 1, 6};
-    case vk::Format::eR16G16B16A16Unorm: return BlockParams{1, 1, 8};
-    case vk::Format::eR16G16B16A16Snorm: return BlockParams{1, 1, 8};
-    case vk::Format::eR16G16B16A16Uscaled: return BlockParams{1, 1, 8};
-    case vk::Format::eR16G16B16A16Sscaled: return BlockParams{1, 1, 8};
-    case vk::Format::eR16G16B16A16Uint: return BlockParams{1, 1, 8};
-    case vk::Format::eR16G16B16A16Sint: return BlockParams{1, 1, 8};
+    case vk::Format::eR16G16B16A16Unorm:
+    case vk::Format::eR16G16B16A16Snorm:
+    case vk::Format::eR16G16B16A16Uscaled:
+    case vk::Format::eR16G16B16A16Sscaled:
+    case vk::Format::eR16G16B16A16Uint:
+    case vk::Format::eR16G16B16A16Sint:
     case vk::Format::eR16G16B16A16Sfloat: return BlockParams{1, 1, 8};
-    case vk::Format::eR32Uint: return BlockParams{1, 1, 4};
-    case vk::Format::eR32Sint: return BlockParams{1, 1, 4};
+    case vk::Format::eR32Uint:
+    case vk::Format::eR32Sint:
     case vk::Format::eR32Sfloat: return BlockParams{1, 1, 4};
-    case vk::Format::eR32G32Uint: return BlockParams{1, 1, 8};
-    case vk::Format::eR32G32Sint: return BlockParams{1, 1, 8};
+    case vk::Format::eR32G32Uint:
+    case vk::Format::eR32G32Sint:
     case vk::Format::eR32G32Sfloat: return BlockParams{1, 1, 8};
-    case vk::Format::eR32G32B32Uint: return BlockParams{1, 1, 12};
-    case vk::Format::eR32G32B32Sint: return BlockParams{1, 1, 12};
+    case vk::Format::eR32G32B32Uint:
+    case vk::Format::eR32G32B32Sint:
     case vk::Format::eR32G32B32Sfloat: return BlockParams{1, 1, 12};
-    case vk::Format::eR32G32B32A32Uint: return BlockParams{1, 1, 16};
-    case vk::Format::eR32G32B32A32Sint: return BlockParams{1, 1, 16};
+    case vk::Format::eR32G32B32A32Uint:
+    case vk::Format::eR32G32B32A32Sint:
     case vk::Format::eR32G32B32A32Sfloat: return BlockParams{1, 1, 16};
-    case vk::Format::eR64Uint: return BlockParams{1, 1, 8};
-    case vk::Format::eR64Sint: return BlockParams{1, 1, 8};
+    case vk::Format::eR64Uint:
+    case vk::Format::eR64Sint:
     case vk::Format::eR64Sfloat: return BlockParams{1, 1, 8};
-    case vk::Format::eR64G64Uint: return BlockParams{1, 1, 16};
-    case vk::Format::eR64G64Sint: return BlockParams{1, 1, 16};
+    case vk::Format::eR64G64Uint:
+    case vk::Format::eR64G64Sint:
     case vk::Format::eR64G64Sfloat: return BlockParams{1, 1, 16};
-    case vk::Format::eR64G64B64Uint: return BlockParams{1, 1, 24};
-    case vk::Format::eR64G64B64Sint: return BlockParams{1, 1, 24};
+    case vk::Format::eR64G64B64Uint:
+    case vk::Format::eR64G64B64Sint:
     case vk::Format::eR64G64B64Sfloat: return BlockParams{1, 1, 24};
-    case vk::Format::eR64G64B64A64Uint: return BlockParams{1, 1, 32};
-    case vk::Format::eR64G64B64A64Sint: return BlockParams{1, 1, 32};
+    case vk::Format::eR64G64B64A64Uint:
+    case vk::Format::eR64G64B64A64Sint:
     case vk::Format::eR64G64B64A64Sfloat: return BlockParams{1, 1, 32};
-    case vk::Format::eB10G11R11UfloatPack32: return BlockParams{1, 1, 4};
-    case vk::Format::eE5B9G9R9UfloatPack32: return BlockParams{1, 1, 4};
-    case vk::Format::eD16Unorm: return BlockParams{1, 1, 4};
-    case vk::Format::eX8D24UnormPack32: return BlockParams{1, 1, 4};
+    case vk::Format::eB10G11R11UfloatPack32:
+    case vk::Format::eE5B9G9R9UfloatPack32:
+    case vk::Format::eD16Unorm:
+    case vk::Format::eX8D24UnormPack32:
     case vk::Format::eD32Sfloat: return BlockParams{1, 1, 4};
     case vk::Format::eS8Uint: return BlockParams{1, 1, 1};
     case vk::Format::eD16UnormS8Uint: return BlockParams{1, 1, 3};
     case vk::Format::eD24UnormS8Uint: return BlockParams{1, 1, 4};
     case vk::Format::eD32SfloatS8Uint: return BlockParams{0, 0, 0};
-    case vk::Format::eBc1RgbUnormBlock: return BlockParams{4, 4, 8};
-    case vk::Format::eBc1RgbSrgbBlock: return BlockParams{4, 4, 8};
-    case vk::Format::eBc1RgbaUnormBlock: return BlockParams{4, 4, 8};
+    case vk::Format::eBc1RgbUnormBlock:
+    case vk::Format::eBc1RgbSrgbBlock:
+    case vk::Format::eBc1RgbaUnormBlock:
     case vk::Format::eBc1RgbaSrgbBlock: return BlockParams{4, 4, 8};
-    case vk::Format::eBc2UnormBlock: return BlockParams{4, 4, 16};
-    case vk::Format::eBc2SrgbBlock: return BlockParams{4, 4, 16};
-    case vk::Format::eBc3UnormBlock: return BlockParams{4, 4, 16};
-    case vk::Format::eBc3SrgbBlock: return BlockParams{4, 4, 16};
-    case vk::Format::eBc4UnormBlock: return BlockParams{4, 4, 16};
-    case vk::Format::eBc4SnormBlock: return BlockParams{4, 4, 16};
-    case vk::Format::eBc5UnormBlock: return BlockParams{4, 4, 16};
+    case vk::Format::eBc2UnormBlock:
+    case vk::Format::eBc2SrgbBlock:
+    case vk::Format::eBc3UnormBlock:
+    case vk::Format::eBc3SrgbBlock:
+    case vk::Format::eBc4UnormBlock:
+    case vk::Format::eBc4SnormBlock:
+    case vk::Format::eBc5UnormBlock:
     case vk::Format::eBc5SnormBlock: return BlockParams{4, 4, 16};
-    case vk::Format::eBc6HUfloatBlock: return BlockParams{0, 0, 0};
-    case vk::Format::eBc6HSfloatBlock: return BlockParams{0, 0, 0};
-    case vk::Format::eBc7UnormBlock: return BlockParams{0, 0, 0};
-    case vk::Format::eBc7SrgbBlock: return BlockParams{0, 0, 0};
-    case vk::Format::eEtc2R8G8B8UnormBlock: return BlockParams{0, 0, 0};
-    case vk::Format::eEtc2R8G8B8SrgbBlock: return BlockParams{0, 0, 0};
-    case vk::Format::eEtc2R8G8B8A1UnormBlock: return BlockParams{0, 0, 0};
-    case vk::Format::eEtc2R8G8B8A1SrgbBlock: return BlockParams{0, 0, 0};
-    case vk::Format::eEtc2R8G8B8A8UnormBlock: return BlockParams{0, 0, 0};
-    case vk::Format::eEtc2R8G8B8A8SrgbBlock: return BlockParams{0, 0, 0};
-    case vk::Format::eEacR11UnormBlock: return BlockParams{0, 0, 0};
-    case vk::Format::eEacR11SnormBlock: return BlockParams{0, 0, 0};
-    case vk::Format::eEacR11G11UnormBlock: return BlockParams{0, 0, 0};
-    case vk::Format::eEacR11G11SnormBlock: return BlockParams{0, 0, 0};
-    case vk::Format::eAstc4x4UnormBlock: return BlockParams{0, 0, 0};
-    case vk::Format::eAstc4x4SrgbBlock: return BlockParams{0, 0, 0};
-    case vk::Format::eAstc5x4UnormBlock: return BlockParams{0, 0, 0};
-    case vk::Format::eAstc5x4SrgbBlock: return BlockParams{0, 0, 0};
-    case vk::Format::eAstc5x5UnormBlock: return BlockParams{0, 0, 0};
-    case vk::Format::eAstc5x5SrgbBlock: return BlockParams{0, 0, 0};
-    case vk::Format::eAstc6x5UnormBlock: return BlockParams{0, 0, 0};
-    case vk::Format::eAstc6x5SrgbBlock: return BlockParams{0, 0, 0};
-    case vk::Format::eAstc6x6UnormBlock: return BlockParams{0, 0, 0};
-    case vk::Format::eAstc6x6SrgbBlock: return BlockParams{0, 0, 0};
-    case vk::Format::eAstc8x5UnormBlock: return BlockParams{0, 0, 0};
-    case vk::Format::eAstc8x5SrgbBlock: return BlockParams{0, 0, 0};
-    case vk::Format::eAstc8x6UnormBlock: return BlockParams{0, 0, 0};
-    case vk::Format::eAstc8x6SrgbBlock: return BlockParams{0, 0, 0};
-    case vk::Format::eAstc8x8UnormBlock: return BlockParams{0, 0, 0};
-    case vk::Format::eAstc8x8SrgbBlock: return BlockParams{0, 0, 0};
-    case vk::Format::eAstc10x5UnormBlock: return BlockParams{0, 0, 0};
-    case vk::Format::eAstc10x5SrgbBlock: return BlockParams{0, 0, 0};
-    case vk::Format::eAstc10x6UnormBlock: return BlockParams{0, 0, 0};
-    case vk::Format::eAstc10x6SrgbBlock: return BlockParams{0, 0, 0};
-    case vk::Format::eAstc10x8UnormBlock: return BlockParams{0, 0, 0};
-    case vk::Format::eAstc10x8SrgbBlock: return BlockParams{0, 0, 0};
-    case vk::Format::eAstc10x10UnormBlock: return BlockParams{0, 0, 0};
-    case vk::Format::eAstc10x10SrgbBlock: return BlockParams{0, 0, 0};
-    case vk::Format::eAstc12x10UnormBlock: return BlockParams{0, 0, 0};
-    case vk::Format::eAstc12x10SrgbBlock: return BlockParams{0, 0, 0};
-    case vk::Format::eAstc12x12UnormBlock: return BlockParams{0, 0, 0};
-    case vk::Format::eAstc12x12SrgbBlock: return BlockParams{0, 0, 0};
-    case vk::Format::ePvrtc12BppUnormBlockIMG: return BlockParams{0, 0, 0};
-    case vk::Format::ePvrtc14BppUnormBlockIMG: return BlockParams{0, 0, 0};
-    case vk::Format::ePvrtc22BppUnormBlockIMG: return BlockParams{0, 0, 0};
-    case vk::Format::ePvrtc24BppUnormBlockIMG: return BlockParams{0, 0, 0};
-    case vk::Format::ePvrtc12BppSrgbBlockIMG: return BlockParams{0, 0, 0};
-    case vk::Format::ePvrtc14BppSrgbBlockIMG: return BlockParams{0, 0, 0};
-    case vk::Format::ePvrtc22BppSrgbBlockIMG: return BlockParams{0, 0, 0};
-    case vk::Format::ePvrtc24BppSrgbBlockIMG: return BlockParams{0, 0, 0};
+    case vk::Format::eBc6HUfloatBlock: // NOLINT(*-branch-clone)
+    case vk::Format::eBc6HSfloatBlock:
+    case vk::Format::eBc7UnormBlock:
+    case vk::Format::eBc7SrgbBlock:
+    case vk::Format::eEtc2R8G8B8UnormBlock:
+    case vk::Format::eEtc2R8G8B8SrgbBlock:
+    case vk::Format::eEtc2R8G8B8A1UnormBlock:;
+    case vk::Format::eEtc2R8G8B8A1SrgbBlock:
+    case vk::Format::eEtc2R8G8B8A8UnormBlock:;
+    case vk::Format::eEtc2R8G8B8A8SrgbBlock:
+    case vk::Format::eEacR11UnormBlock:
+    case vk::Format::eEacR11SnormBlock:
+    case vk::Format::eEacR11G11UnormBlock:
+    case vk::Format::eEacR11G11SnormBlock:
+    case vk::Format::eAstc4x4UnormBlock:
+    case vk::Format::eAstc4x4SrgbBlock:
+    case vk::Format::eAstc5x4UnormBlock:
+    case vk::Format::eAstc5x4SrgbBlock:
+    case vk::Format::eAstc5x5UnormBlock:
+    case vk::Format::eAstc5x5SrgbBlock:
+    case vk::Format::eAstc6x5UnormBlock:
+    case vk::Format::eAstc6x5SrgbBlock:
+    case vk::Format::eAstc6x6UnormBlock:
+    case vk::Format::eAstc6x6SrgbBlock:
+    case vk::Format::eAstc8x5UnormBlock:
+    case vk::Format::eAstc8x5SrgbBlock:
+    case vk::Format::eAstc8x6UnormBlock:
+    case vk::Format::eAstc8x6SrgbBlock:
+    case vk::Format::eAstc8x8UnormBlock:
+    case vk::Format::eAstc8x8SrgbBlock:
+    case vk::Format::eAstc10x5UnormBlock:
+    case vk::Format::eAstc10x5SrgbBlock:
+    case vk::Format::eAstc10x6UnormBlock:
+    case vk::Format::eAstc10x6SrgbBlock:
+    case vk::Format::eAstc10x8UnormBlock:
+    case vk::Format::eAstc10x8SrgbBlock:
+    case vk::Format::eAstc10x10UnormBlock:
+    case vk::Format::eAstc10x10SrgbBlock:
+    case vk::Format::eAstc12x10UnormBlock:
+    case vk::Format::eAstc12x10SrgbBlock:
+    case vk::Format::eAstc12x12UnormBlock:
+    case vk::Format::eAstc12x12SrgbBlock:
+    case vk::Format::ePvrtc12BppUnormBlockIMG:
+    case vk::Format::ePvrtc14BppUnormBlockIMG:
+    case vk::Format::ePvrtc22BppUnormBlockIMG:
+    case vk::Format::ePvrtc24BppUnormBlockIMG:
+    case vk::Format::ePvrtc12BppSrgbBlockIMG:
+    case vk::Format::ePvrtc14BppSrgbBlockIMG:
+    case vk::Format::ePvrtc22BppSrgbBlockIMG:
+    case vk::Format::ePvrtc24BppSrgbBlockIMG:
+    default:
+      return BlockParams{0, 0, 0};
   }
-  return BlockParams{0, 0, 0};
 }
 
 /// Factory for instances.
 class InstanceMaker {
 public:
-  InstanceMaker() {
-  }
+  InstanceMaker() = default;
 
   InstanceMaker &extensionMultiview ()
   {
@@ -329,6 +328,8 @@ public:
 #endif
 
     instance_extensions_.push_back(VK_KHR_SURFACE_EXTENSION_NAME);
+    instance_extensions_.push_back(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
+    instance_extensions_.push_back(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME);
 
 #if defined( __APPLE__ ) && defined(VK_EXT_METAL_SURFACE_EXTENSION_NAME)
 		instance_extensions_.push_back(VK_EXT_METAL_SURFACE_EXTENSION_NAME);
@@ -390,11 +391,11 @@ public:
   }
 
   /// Create a self-deleting (unique) instance.
-  vk::UniqueInstance createUnique() {
+  [[nodiscard]] vk::UniqueInstance createUnique() const {
     return vk::createInstanceUnique(
       vk::InstanceCreateInfo{
-        {}, &app_info_, (uint32_t)layers_.size(),
-        layers_.data(), (uint32_t)instance_extensions_.size(),
+        vk::InstanceCreateFlagBits::eEnumeratePortabilityKHR, &app_info_, static_cast<uint32_t>(layers_.size()),
+        layers_.data(), static_cast<uint32_t>(instance_extensions_.size()),
         instance_extensions_.data()
       }
     );
@@ -409,8 +410,7 @@ private:
 class DeviceMaker {
 public:
   /// Make queues and a logical device for a certain physical device.
-  DeviceMaker() {
-  }
+  DeviceMaker() = default;
 
   DeviceMaker &extensionMultiview ()
   {
@@ -497,12 +497,12 @@ public:
   }
 
   /// Create a new logical device.
-  vk::UniqueDevice createUnique(vk::PhysicalDevice physical_device) {
+  [[nodiscard]] vk::UniqueDevice createUnique(vk::PhysicalDevice physical_device) const {
     auto dci = vk::DeviceCreateInfo{
       {},
-      (uint32_t)qci_.size(), qci_.data(),
-      (uint32_t)layers_.size(), layers_.data(),
-      (uint32_t)device_extensions_.size(), device_extensions_.data()
+      static_cast<uint32_t>(qci_.size()), qci_.data(),
+      static_cast<uint32_t>(layers_.size()), layers_.data(),
+      static_cast<uint32_t>(device_extensions_.size()), device_extensions_.data()
     };
 
     //
@@ -528,10 +528,9 @@ private:
 
 class DebugCallback {
 public:
-  DebugCallback() {
-  }
+  DebugCallback() = default;
 
-  DebugCallback(
+  explicit DebugCallback(
     vk::Instance instance,
     vk::DebugReportFlagsEXT flags =
       vk::DebugReportFlagBitsEXT::eWarning |
@@ -540,26 +539,26 @@ public:
     auto ci = vk::DebugReportCallbackCreateInfoEXT{flags, &debugCallback};
 
     auto vkCreateDebugReportCallbackEXT =
-        (PFN_vkCreateDebugReportCallbackEXT)instance_.getProcAddr(
-            "vkCreateDebugReportCallbackEXT");
+        reinterpret_cast<PFN_vkCreateDebugReportCallbackEXT>(instance_.getProcAddr(
+            "vkCreateDebugReportCallbackEXT"));
 
     VkDebugReportCallbackEXT cb;
     vkCreateDebugReportCallbackEXT(
-      instance_, &(const VkDebugReportCallbackCreateInfoEXT &)ci,
+      instance_, &reinterpret_cast<const VkDebugReportCallbackCreateInfoEXT &>(ci),
       nullptr, &cb
     );
     callback_ = cb;
   }
 
-  ~DebugCallback() {
+  ~DebugCallback() { // NOLINT(*-use-equals-default)
     //reset();
   }
 
   void reset() {
     if (callback_) {
       auto vkDestroyDebugReportCallbackEXT =
-          (PFN_vkDestroyDebugReportCallbackEXT)instance_.getProcAddr(
-              "vkDestroyDebugReportCallbackEXT");
+          reinterpret_cast<PFN_vkDestroyDebugReportCallbackEXT>(instance_.getProcAddr(
+              "vkDestroyDebugReportCallbackEXT"));
       vkDestroyDebugReportCallbackEXT(instance_, callback_, nullptr);
       callback_ = vk::DebugReportCallbackEXT{};
     }
@@ -588,8 +587,7 @@ private:
 ///     s.renderPass_ = rpm.createUnique(device);
 class RenderpassMaker {
 public:
-  RenderpassMaker() {
-  }
+  RenderpassMaker() = default;
 
   /// Begin an attachment description.
   /// After this you can call attachment* many times
@@ -640,24 +638,24 @@ public:
     return *this;
   }
 
-  vk::UniqueRenderPass createUnique(const vk::Device &device) const {
+  [[nodiscard]] vk::UniqueRenderPass createUnique(const vk::Device &device) const {
     vk::RenderPassCreateInfo renderPassInfo{};
-    renderPassInfo.attachmentCount = (uint32_t)s.attachmentDescriptions.size();
+    renderPassInfo.attachmentCount = static_cast<uint32_t>(s.attachmentDescriptions.size());
     renderPassInfo.pAttachments = s.attachmentDescriptions.data();
-    renderPassInfo.subpassCount = (uint32_t)s.subpassDescriptions.size();
+    renderPassInfo.subpassCount = static_cast<uint32_t>(s.subpassDescriptions.size());
     renderPassInfo.pSubpasses = s.subpassDescriptions.data();
-    renderPassInfo.dependencyCount = (uint32_t)s.subpassDependencies.size();
+    renderPassInfo.dependencyCount = static_cast<uint32_t>(s.subpassDependencies.size());
     renderPassInfo.pDependencies = s.subpassDependencies.data();
     return device.createRenderPassUnique(renderPassInfo);
   }
 
-  vk::UniqueRenderPass createUnique(const vk::Device &device, const vk::RenderPassMultiviewCreateInfo &I) const {
+  [[nodiscard]] vk::UniqueRenderPass createUnique(const vk::Device &device, const vk::RenderPassMultiviewCreateInfo &I) const {
     vk::RenderPassCreateInfo renderPassInfo{};
-    renderPassInfo.attachmentCount = (uint32_t)s.attachmentDescriptions.size();
+    renderPassInfo.attachmentCount = static_cast<uint32_t>(s.attachmentDescriptions.size());
     renderPassInfo.pAttachments = s.attachmentDescriptions.data();
-    renderPassInfo.subpassCount = (uint32_t)s.subpassDescriptions.size();
+    renderPassInfo.subpassCount = static_cast<uint32_t>(s.subpassDescriptions.size());
     renderPassInfo.pSubpasses = s.subpassDescriptions.data();
-    renderPassInfo.dependencyCount = (uint32_t)s.subpassDependencies.size();
+    renderPassInfo.dependencyCount = static_cast<uint32_t>(s.subpassDependencies.size());
     renderPassInfo.pDependencies = s.subpassDependencies.data();
     renderPassInfo.pNext = &I; // identical to createUnique(const vk::Device &device) except set pNext to use multi-view &I
     return device.createRenderPassUnique(renderPassInfo);
@@ -700,8 +698,7 @@ private:
 /// Class for building shader modules and extracting metadata from shaders.
 class ShaderModule {
 public:
-  ShaderModule() {
-  }
+  ShaderModule() = default;
 
   /// Construct a shader module from a file
   ShaderModule(const vk::Device &device, const std::string &filename) {
@@ -713,9 +710,9 @@ public:
     file.seekg(0, std::ios::end);
     int length = (int)file.tellg();
 
-    s.opcodes_.resize((size_t)(length / 4));
+    s.opcodes_.resize(static_cast<size_t>(length / 4));
     file.seekg(0, std::ios::beg);
-    file.read((char *)s.opcodes_.data(), s.opcodes_.size() * 4);
+    file.read(reinterpret_cast<char *>(s.opcodes_.data()), static_cast<std::streamsize>(s.opcodes_.size() * 4));
 
     vk::ShaderModuleCreateInfo ci;
     ci.codeSize = s.opcodes_.size() * 4;
@@ -810,26 +807,26 @@ public:
   }
 #endif
 
-  bool ok() const { return s.ok_; }
-  VkShaderModule module() const { return *s.module_; }
+  [[nodiscard]] bool ok() const { return s.ok_; }
+  [[nodiscard]] VkShaderModule module() const { return *s.module_; }
 
   /// Write a C++ consumable dump of the shader.
   /// Todo: make this more idiomatic.
-  std::ostream &write(std::ostream &os) {
+  std::ostream &write(std::ostream &os) const {
     os << "static const uint32_t shader[] = {\n";
     char tmp[256];
     auto p = s.opcodes_.begin();
     snprintf(
       tmp, sizeof(tmp), "  0x%08x,0x%08x,0x%08x,0x%08x,0x%08x,\n", p[0], p[1], p[2], p[3], p[4]);
     os << tmp;
-    for (int i = 5; i != s.opcodes_.size(); i += s.opcodes_[i] >> 16) {
-      char *p = tmp + 2, *e = tmp + sizeof(tmp) - 2;
+    for (int i = 5; i != s.opcodes_.size(); i += static_cast<int>(s.opcodes_[i] >> 16)) {
+      char *ptr = tmp + 2, *e = tmp + sizeof(tmp) - 2;
       for (int j = i; j != i + (s.opcodes_[i] >> 16); ++j) {
-        p += snprintf(p, e-p, "0x%08x,", s.opcodes_[j]);
-        if (p > e-16) { *p++ = '\n'; *p = 0; os << tmp; p = tmp + 2; }
+        ptr += snprintf(ptr, e-ptr, "0x%08x,", s.opcodes_[j]);
+        if (ptr > e-16) { *ptr++ = '\n'; *ptr = 0; os << tmp; ptr = tmp + 2; }
       }
-      *p++ = '\n';
-      *p = 0;
+      *ptr++ = '\n';
+      *ptr = 0;
       os << tmp;
     }
     os << "};\n\n";
@@ -850,13 +847,13 @@ private:
 /// Pipeline layouts describe the descriptor sets and push constants used by the shaders.
 class PipelineLayoutMaker {
 public:
-  PipelineLayoutMaker() {}
+  PipelineLayoutMaker() = default;
 
   /// Create a self-deleting pipeline layout object.
-  vk::UniquePipelineLayout createUnique(const vk::Device &device) const {
+  [[nodiscard]] vk::UniquePipelineLayout createUnique(const vk::Device &device) const {
     vk::PipelineLayoutCreateInfo pipelineLayoutInfo{
-        {}, (uint32_t)setLayouts_.size(),
-        setLayouts_.data(), (uint32_t)pushConstantRanges_.size(),
+        {}, static_cast<uint32_t>(setLayouts_.size()),
+        setLayouts_.data(), static_cast<uint32_t>(pushConstantRanges_.size()),
         pushConstantRanges_.data()};
     return device.createPipelineLayoutUnique(pipelineLayoutInfo);
   }
@@ -879,11 +876,16 @@ private:
   std::vector<vk::PushConstantRange> pushConstantRanges_;
 };
 
+template<typename... Ts>
+class AlignedContainer {
+private:
+  // Equivalent to std::aligned_union_t<0, Ts...> t_buff;
+  alignas(Ts...) std::byte t_buff[std::max({sizeof(Ts)...})];
+};
 
 struct SpecConst {
   uint32_t    constantID;
-  std::aligned_union<4,VkBool32, uint32_t, int32_t, float, double>::type
-      data;
+  alignas(8) AlignedContainer<VkBool32, uint32_t, int32_t, float, double> data;
   uint32_t alignment;
   uint32_t size;
 
@@ -909,13 +911,13 @@ public:
     std::unique_ptr<char []> data_;
     size_t data_size_;
 
-    SpecData(){}
+    SpecData()= default;
 
     template <typename iterator, typename sentinel>
     SpecData(iterator b, sentinel e);
 
     template <typename SCList>
-    SpecData(const SCList &specConstants);
+    SpecData(const SCList &specConstants); // NOLINT(*-explicit-constructor)
 
     SpecData(std::initializer_list<SpecConst> list)
         : SpecData(list.begin(), list.end()) {}
@@ -947,7 +949,7 @@ public:
   }
 
   PipelineMaker(uint32_t width, uint32_t height) {
-    viewport(vk::Viewport{0.0f, 0.0f, (float)width, (float)height, 0.0f, 1.0f});
+    viewport(vk::Viewport{0.0f, 0.0f, static_cast<float>(width), static_cast<float>(height), 0.0f, 1.0f});
 	scissor(vk::Rect2D{{0, 0}, {width, height}});
 	
 	init();
@@ -973,24 +975,24 @@ public:
       colorBlendAttachments_.push_back(blend);
     }
 
-    auto count = (uint32_t)colorBlendAttachments_.size();
+    auto count = static_cast<uint32_t>(colorBlendAttachments_.size());
     colorBlendState_.attachmentCount = count;
     colorBlendState_.pAttachments = count ? colorBlendAttachments_.data() : nullptr;
 
     vk::PipelineViewportStateCreateInfo viewportState{
-        {}, (uint32_t)viewport_.size(), viewport_.data(), (uint32_t)scissor_.size(), scissor_.data()};
+        {}, static_cast<uint32_t>(viewport_.size()), viewport_.data(), static_cast<uint32_t>(scissor_.size()), scissor_.data()};
 
     vk::PipelineVertexInputStateCreateInfo vertexInputState;
-    vertexInputState.vertexAttributeDescriptionCount = (uint32_t)vertexAttributeDescriptions_.size();
+    vertexInputState.vertexAttributeDescriptionCount = static_cast<uint32_t>(vertexAttributeDescriptions_.size());
     vertexInputState.pVertexAttributeDescriptions = vertexAttributeDescriptions_.data();
-    vertexInputState.vertexBindingDescriptionCount = (uint32_t)vertexBindingDescriptions_.size();
+    vertexInputState.vertexBindingDescriptionCount = static_cast<uint32_t>(vertexBindingDescriptions_.size());
     vertexInputState.pVertexBindingDescriptions = vertexBindingDescriptions_.data();
 
-    vk::PipelineDynamicStateCreateInfo dynState{{}, (uint32_t)dynamicState_.size(), dynamicState_.data()};
+    vk::PipelineDynamicStateCreateInfo dynState{{}, static_cast<uint32_t>(dynamicState_.size()), dynamicState_.data()};
 
     vk::GraphicsPipelineCreateInfo pipelineInfo{};
     pipelineInfo.pVertexInputState = &vertexInputState;
-    pipelineInfo.stageCount = (uint32_t)modules_.size();
+    pipelineInfo.stageCount = static_cast<uint32_t>(modules_.size());
     pipelineInfo.pStages = modules_.data();
     pipelineInfo.pInputAssemblyState = &inputAssemblyState_;
     pipelineInfo.pViewportState = &viewportState;
@@ -1024,7 +1026,7 @@ public:
   PipelineMaker& shader(vk::ShaderStageFlagBits stage, vku::ShaderModule &shader,
               SpecData specConstants,
               const char *entryPoint = "main") {
-    auto data = std::unique_ptr<SpecData>{new SpecData{std::move(specConstants)}};
+    auto data = std::make_unique<SpecData>(std::move(specConstants));
     vk::PipelineShaderStageCreateInfo info{};
     info.module = shader.module();
     info.pName = entryPoint;
@@ -1092,7 +1094,7 @@ public:
 
   /// Add a vertex attribute to the pipeline.
   PipelineMaker& vertexAttribute(uint32_t location_, uint32_t binding_, vk::Format format_, uint32_t offset_) {
-    vertexAttributeDescriptions_.push_back({location_, binding_, format_, offset_});
+    vertexAttributeDescriptions_.emplace_back(location_, binding_, format_, offset_);
     return *this;
   }
 
@@ -1106,7 +1108,7 @@ public:
   /// Usually only one of these is needed to specify the stride.
   /// Vertices can also be delivered one per instance.
   PipelineMaker& vertexBinding(uint32_t binding_, uint32_t stride_, vk::VertexInputRate inputRate_ = vk::VertexInputRate::eVertex) {
-    vertexBindingDescriptions_.push_back({binding_, stride_, inputRate_});
+    vertexBindingDescriptions_.emplace_back(binding_, stride_, inputRate_);
     return *this;
   }
 
@@ -1175,8 +1177,8 @@ public:
   PipelineMaker &depthCompareOp(vk::CompareOp value) { depthStencilState_.depthCompareOp = value; return *this; }
   PipelineMaker &depthBoundsTestEnable(vk::Bool32 value) { depthStencilState_.depthBoundsTestEnable = value; return *this; }
   PipelineMaker &stencilTestEnable(vk::Bool32 value) { depthStencilState_.stencilTestEnable = value; return *this; }
-  PipelineMaker &front(vk::StencilOpState value) { depthStencilState_.front = value; return *this; }
-  PipelineMaker &back(vk::StencilOpState value) { depthStencilState_.back = value; return *this; }
+  PipelineMaker &front(const vk::StencilOpState& value) { depthStencilState_.front = value; return *this; }
+  PipelineMaker &back(const vk::StencilOpState& value) { depthStencilState_.back = value; return *this; }
   PipelineMaker &minDepthBounds(float value) { depthStencilState_.minDepthBounds = value; return *this; }
   PipelineMaker &maxDepthBounds(float value) { depthStencilState_.maxDepthBounds = value; return *this; }
 
@@ -1271,11 +1273,10 @@ PipelineMaker::SpecData::SpecData(const SCList &specConstants)
 /// A class for building compute pipelines.
 class ComputePipelineMaker {
 public:
-  ComputePipelineMaker() {
-  }
+  ComputePipelineMaker() = default;
 
   /// Add a shader module to the pipeline.
-  ComputePipelineMaker& shader(vk::ShaderStageFlagBits stage, vku::ShaderModule &shader,
+  ComputePipelineMaker& shader(vk::ShaderStageFlagBits stage, const vku::ShaderModule &shader,
                  const char *entryPoint = "main") {
     stage_.module = shader.module();
     stage_.pName = entryPoint;
@@ -1290,7 +1291,7 @@ public:
   }
 
   /// Create a managed handle to a compute shader.
-  vk::UniquePipeline createUnique(vk::Device device, const vk::PipelineCache &pipelineCache, const vk::PipelineLayout &pipelineLayout) {
+  [[nodiscard]] vk::UniquePipeline createUnique(vk::Device device, const vk::PipelineCache &pipelineCache, const vk::PipelineLayout &pipelineLayout) const {
     vk::ComputePipelineCreateInfo pipelineInfo{};
 
     pipelineInfo.stage = stage_;
@@ -1308,8 +1309,7 @@ private:
 /// Buffers require memory objects which represent GPU and CPU resources.
 class GenericBuffer {
 public:
-  GenericBuffer() {
-  }
+  GenericBuffer() = default;
 
   GenericBuffer(vk::Device device, const vk::PhysicalDeviceMemoryProperties &memprops, vk::BufferUsageFlags usage, vk::DeviceSize size, vk::MemoryPropertyFlags memflags = vk::MemoryPropertyFlagBits::eDeviceLocal) {
     // Create the buffer object without memory.
@@ -1371,15 +1371,15 @@ public:
 
   template<class Type, class Allocator>
   void updateLocal(const vk::Device &device, const std::vector<Type, Allocator> &value) const {
-    updateLocal(device, (void*)value.data(), vk::DeviceSize(value.size() * sizeof(Type)));
+    updateLocal(device, static_cast<const void*>(value.data()), static_cast<vk::DeviceSize>(value.size() * sizeof(Type)));
   }
 
   template<class Type>
   void updateLocal(const vk::Device &device, const Type &value) const {
-    updateLocal(device, (void*)&value, vk::DeviceSize(sizeof(Type)));
+    updateLocal(device, static_cast<const void*>(&value), static_cast<vk::DeviceSize>(sizeof(Type)));
   }
 
-  void *map(const vk::Device &device) const { return device.mapMemory(*mem_, 0, size_, vk::MemoryMapFlags{}); };
+  [[nodiscard]] void *map(const vk::Device &device) const { return device.mapMemory(*mem_, 0, size_, vk::MemoryMapFlags{}); };
   void unmap(const vk::Device &device) const { return device.unmapMemory(*mem_); };
 
   void flush(const vk::Device &device) const {
@@ -1392,9 +1392,9 @@ public:
     return device.invalidateMappedMemoryRanges(mr);
   }
 
-  vk::Buffer buffer() const { return *buffer_; }
-  vk::DeviceMemory mem() const { return *mem_; }
-  vk::DeviceSize size() const { return size_; }
+  [[nodiscard]] vk::Buffer buffer() const { return *buffer_; }
+  [[nodiscard]] vk::DeviceMemory mem() const { return *mem_; }
+  [[nodiscard]] vk::DeviceSize size() const { return size_; }
 private:
   vk::UniqueBuffer buffer_;
   vk::UniqueDeviceMemory mem_;
@@ -1405,8 +1405,7 @@ private:
 /// You must upload the contents before use.
 class VertexBuffer : public GenericBuffer {
 public:
-  VertexBuffer() {
-  }
+  VertexBuffer() = default;
 
   VertexBuffer(const vk::Device &device, const vk::PhysicalDeviceMemoryProperties &memprops, size_t size) : GenericBuffer(device, memprops, vk::BufferUsageFlagBits::eVertexBuffer | vk::BufferUsageFlagBits::eTransferDst, size, vk::MemoryPropertyFlagBits::eDeviceLocal) {
   }
@@ -1415,8 +1414,7 @@ public:
 /// This class is a specialisation of GenericBuffer for low performance vertex buffers on the host.
 class HostVertexBuffer : public GenericBuffer {
 public:
-  HostVertexBuffer() {
-  }
+  HostVertexBuffer() = default;
 
   template<class Type, class Allocator>
   HostVertexBuffer(const vk::Device &device, const vk::PhysicalDeviceMemoryProperties &memprops, const std::vector<Type, Allocator> &value) : GenericBuffer(device, memprops, vk::BufferUsageFlagBits::eVertexBuffer, value.size() * sizeof(Type), vk::MemoryPropertyFlagBits::eHostVisible) {
@@ -1428,8 +1426,7 @@ public:
 /// You must upload the contents before use.
 class IndexBuffer : public GenericBuffer {
 public:
-  IndexBuffer() {
-  }
+  IndexBuffer() = default;
 
   IndexBuffer(const vk::Device &device, const vk::PhysicalDeviceMemoryProperties &memprops, vk::DeviceSize size) : GenericBuffer(device, memprops, vk::BufferUsageFlagBits::eIndexBuffer | vk::BufferUsageFlagBits::eTransferDst, size, vk::MemoryPropertyFlagBits::eDeviceLocal) {
   }
@@ -1438,8 +1435,7 @@ public:
 /// This class is a specialisation of GenericBuffer for low performance vertex buffers in CPU memory.
 class HostIndexBuffer : public GenericBuffer {
 public:
-  HostIndexBuffer() {
-  }
+  HostIndexBuffer() = default;
 
   template<class Type, class Allocator>
   HostIndexBuffer(const vk::Device &device, const vk::PhysicalDeviceMemoryProperties &memprops, const std::vector<Type, Allocator> &value) : GenericBuffer(device, memprops, vk::BufferUsageFlagBits::eIndexBuffer, value.size() * sizeof(Type), vk::MemoryPropertyFlagBits::eHostVisible) {
@@ -1450,18 +1446,18 @@ public:
 /// This class is a specialisation of GenericBuffer for uniform buffers.
 class UniformBuffer : public GenericBuffer {
 public:
-  UniformBuffer() {
-  }
+  UniformBuffer() = default;
 
   /// Device local uniform buffer.
-  UniformBuffer(const vk::Device &device, const vk::PhysicalDeviceMemoryProperties &memprops, size_t size) : GenericBuffer(device, memprops, vk::BufferUsageFlagBits::eUniformBuffer|vk::BufferUsageFlagBits::eTransferDst, (vk::DeviceSize)size, vk::MemoryPropertyFlagBits::eDeviceLocal) {
+  UniformBuffer(const vk::Device &device, const vk::PhysicalDeviceMemoryProperties &memprops, size_t size) :
+  GenericBuffer(device, memprops, vk::BufferUsageFlagBits::eUniformBuffer|vk::BufferUsageFlagBits::eTransferDst, static_cast<vk::DeviceSize>(size), vk::MemoryPropertyFlagBits::eDeviceLocal) {
   }
 };
 
 /// Convenience class for updating descriptor sets (uniforms)
 class DescriptorSetUpdater {
 public:
-  DescriptorSetUpdater(int maxBuffers = 10, int maxImages = 10, int maxBufferViews = 0) {
+  explicit DescriptorSetUpdater(int maxBuffers = 10, int maxImages = 10, int maxBufferViews = 0) {
     // we must pre-size these buffers as we take pointers to their members.
     bufferInfo_.resize(maxBuffers);
     imageInfo_.resize(maxImages);
@@ -1555,7 +1551,7 @@ public:
   }
 
   /// Returns true if the updater is error free.
-  bool ok() const { return ok_; }
+  [[nodiscard]] bool ok() const { return ok_; }
 private:
   std::vector<vk::DescriptorBufferInfo> bufferInfo_;
   std::vector<vk::DescriptorImageInfo> imageInfo_;
@@ -1572,8 +1568,7 @@ private:
 /// A factory class for descriptor set layouts. (An interface to the shaders)
 class DescriptorSetLayoutMaker {
 public:
-  DescriptorSetLayoutMaker() {
-  }
+  DescriptorSetLayoutMaker() = default;
 
   DescriptorSetLayoutMaker& buffer(uint32_t binding, vk::DescriptorType descriptorType, vk::ShaderStageFlags stageFlags, uint32_t descriptorCount) {
     s.bindings.emplace_back(binding, descriptorType, descriptorCount, stageFlags, nullptr);
@@ -1585,10 +1580,10 @@ public:
     return *this;
   }
 
-  DescriptorSetLayoutMaker& samplers(uint32_t binding, vk::DescriptorType descriptorType, vk::ShaderStageFlags stageFlags, const std::vector<vk::Sampler> immutableSamplers) {
+  DescriptorSetLayoutMaker& samplers(uint32_t binding, vk::DescriptorType descriptorType, vk::ShaderStageFlags stageFlags, const std::vector<vk::Sampler>& immutableSamplers) {
     s.samplers.push_back(immutableSamplers);
     auto pImmutableSamplers = s.samplers.back().data();
-    s.bindings.emplace_back(binding, descriptorType, (uint32_t)immutableSamplers.size(), stageFlags, pImmutableSamplers);
+    s.bindings.emplace_back(binding, descriptorType, static_cast<uint32_t>(immutableSamplers.size()), stageFlags, pImmutableSamplers);
     return *this;
   }
 
@@ -1598,9 +1593,9 @@ public:
   }
 
   /// Create a self-deleting descriptor set object.
-  vk::UniqueDescriptorSetLayout createUnique(vk::Device device) const {
+  [[nodiscard]] vk::UniqueDescriptorSetLayout createUnique(vk::Device device) const {
     vk::DescriptorSetLayoutCreateInfo dsci{};
-    dsci.bindingCount = (uint32_t)s.bindings.size();
+    dsci.bindingCount = static_cast<uint32_t>(s.bindings.size());
     dsci.pBindings = s.bindings.data();
     return device.createDescriptorSetLayoutUnique(dsci);
   }
@@ -1619,8 +1614,7 @@ private:
 class DescriptorSetMaker {
 public:
   // Construct a new, empty DescriptorSetMaker.
-  DescriptorSetMaker() {
-  }
+  DescriptorSetMaker() = default;
 
   /// Add another layout describing a descriptor set.
   DescriptorSetMaker &layout(vk::DescriptorSetLayout layout) {
@@ -1630,19 +1624,19 @@ public:
 
   /// Allocate a vector of non-self-deleting descriptor sets
   /// Note: descriptor sets get freed with the pool, so this is the better choice.
-  std::vector<vk::DescriptorSet> create(vk::Device device, vk::DescriptorPool descriptorPool) const {
+  [[nodiscard]] std::vector<vk::DescriptorSet> create(vk::Device device, vk::DescriptorPool descriptorPool) const {
     vk::DescriptorSetAllocateInfo dsai{};
     dsai.descriptorPool = descriptorPool;
-    dsai.descriptorSetCount = (uint32_t)s.layouts.size();
+    dsai.descriptorSetCount = static_cast<uint32_t>(s.layouts.size());
     dsai.pSetLayouts = s.layouts.data();
     return device.allocateDescriptorSets(dsai);
   }
 
   /// Allocate a vector of self-deleting descriptor sets.
-  std::vector<vk::UniqueDescriptorSet> createUnique(vk::Device device, vk::DescriptorPool descriptorPool) const {
+  [[nodiscard]] std::vector<vk::UniqueDescriptorSet> createUnique(vk::Device device, vk::DescriptorPool descriptorPool) const {
     vk::DescriptorSetAllocateInfo dsai{};
     dsai.descriptorPool = descriptorPool;
-    dsai.descriptorSetCount = (uint32_t)s.layouts.size();
+    dsai.descriptorSetCount = static_cast<uint32_t>(s.layouts.size());
     dsai.pSetLayouts = s.layouts.data();
     return device.allocateDescriptorSetsUnique(dsai);
   }
@@ -1659,16 +1653,15 @@ private:
 /// Vulkan images need a memory object to hold the data and a view object for the GPU to access the data.
 class GenericImage {
 public:
-  GenericImage() {
-  }
+  GenericImage() = default;
 
   GenericImage(vk::Device device, const vk::PhysicalDeviceMemoryProperties &memprops, const vk::ImageCreateInfo &info, vk::ImageViewType viewType, vk::ImageAspectFlags aspectMask, bool makeHostImage) {
     create(device, memprops, info, viewType, aspectMask, makeHostImage);
   }
 
-  vk::Image image() const { return *s.image; }
-  vk::ImageView imageView() const { return *s.imageView; }
-  vk::DeviceMemory mem() const { return *s.mem; }
+  [[nodiscard]] vk::Image image() const { return *s.image; }
+  [[nodiscard]] vk::ImageView imageView() const { return *s.imageView; }
+  [[nodiscard]] vk::DeviceMemory mem() const { return *s.mem; }
 
   /// Clear the colour of an image.
   void clear(vk::CommandBuffer cb, const std::array<float,4> colour = {1, 1, 1, 1}) {
@@ -1680,13 +1673,13 @@ public:
 
   /// Update the image with an array of pixels. (Currently 2D only)
   void update(vk::Device device, const void *data, vk::DeviceSize bytesPerPixel) {
-    const uint8_t *src = (const uint8_t *)data;
+    const auto *src = static_cast<const uint8_t *>(data);
     for (uint32_t mipLevel = 0; mipLevel != info().mipLevels; ++mipLevel) {
       // Array images are layed out horizontally. eg. [left][front][right] etc.
       for (uint32_t arrayLayer = 0; arrayLayer != info().arrayLayers; ++arrayLayer) {
         vk::ImageSubresource subresource{vk::ImageAspectFlagBits::eColor, mipLevel, arrayLayer};
         auto srlayout = device.getImageSubresourceLayout(*s.image, subresource);
-        uint8_t *dest = (uint8_t *)device.mapMemory(*s.mem, 0, s.size, vk::MemoryMapFlags{}) + srlayout.offset;
+        auto *dest = static_cast<uint8_t *>(device.mapMemory(*s.mem, 0, s.size, vk::MemoryMapFlags{})) + srlayout.offset;
         size_t bytesPerLine = s.info.extent.width * bytesPerPixel;
         size_t srcStride = bytesPerLine * info().arrayLayers;
         for (int y = 0; y != s.info.extent.height; ++y) {
@@ -1726,12 +1719,12 @@ public:
     cb.copyBufferToImage(buffer, *s.image, vk::ImageLayout::eTransferDstOptimal, region);
   }
 
-  void upload(vk::Device device, std::vector<uint8_t> &bytes, vk::CommandPool commandPool, vk::PhysicalDeviceMemoryProperties memprops, vk::Queue queue, vk::ImageLayout finalLayout=vk::ImageLayout::eShaderReadOnlyOptimal) {
+  void upload(vk::Device device, const std::vector<uint8_t> &bytes, vk::CommandPool commandPool, const vk::PhysicalDeviceMemoryProperties& memprops, vk::Queue queue, vk::ImageLayout finalLayout=vk::ImageLayout::eShaderReadOnlyOptimal) {
 	return upload(device, bytes.data(), bytes.size(), commandPool, memprops, queue, finalLayout);
   }
 
-  void upload(vk::Device device, const uint8_t *bytes, size_t bytesSize, vk::CommandPool commandPool, vk::PhysicalDeviceMemoryProperties memprops, vk::Queue queue, vk::ImageLayout finalLayout=vk::ImageLayout::eShaderReadOnlyOptimal) {
-    vku::GenericBuffer stagingBuffer(device, memprops, (vk::BufferUsageFlags)vk::BufferUsageFlagBits::eTransferSrc, (vk::DeviceSize)bytesSize, vk::MemoryPropertyFlagBits::eHostVisible);
+  void upload(vk::Device device, const uint8_t *bytes, size_t bytesSize, vk::CommandPool commandPool, const vk::PhysicalDeviceMemoryProperties& memprops, vk::Queue queue, vk::ImageLayout finalLayout=vk::ImageLayout::eShaderReadOnlyOptimal) {
+    vku::GenericBuffer stagingBuffer(device, memprops, static_cast<vk::BufferUsageFlags>(vk::BufferUsageFlagBits::eTransferSrc), static_cast<vk::DeviceSize>(bytesSize), vk::MemoryPropertyFlagBits::eHostVisible);
     stagingBuffer.updateLocal(device, (const void*)bytes, bytesSize);
 
     // Copy the staging buffer to the GPU texture and set the layout.
@@ -1789,6 +1782,7 @@ public:
       case il::eTransferDstOptimal: srcMask = afb::eTransferWrite; srcStageMask=vk::PipelineStageFlagBits::eTransfer; break;
       case il::ePreinitialized: srcMask = afb::eTransferWrite|afb::eHostWrite; srcStageMask=vk::PipelineStageFlagBits::eTransfer|vk::PipelineStageFlagBits::eHost; break;
       case il::ePresentSrcKHR: srcMask = afb::eMemoryRead; break;
+      default: break;
     }
 
     switch (newLayout) {
@@ -1799,9 +1793,10 @@ public:
       case il::eDepthStencilReadOnlyOptimal: dstMask = afb::eDepthStencilAttachmentRead; dstStageMask=vk::PipelineStageFlagBits::eEarlyFragmentTests; break;
       case il::eShaderReadOnlyOptimal: dstMask = afb::eShaderRead; dstStageMask=vk::PipelineStageFlagBits::eVertexShader; break;
       case il::eTransferSrcOptimal: dstMask = afb::eTransferRead; dstStageMask=vk::PipelineStageFlagBits::eTransfer; break;
-      case il::eTransferDstOptimal: dstMask = afb::eTransferWrite; dstStageMask=vk::PipelineStageFlagBits::eTransfer; break;
+      case il::eTransferDstOptimal: dstMask = afb::eTransferWrite; dstStageMask=vk::PipelineStageFlagBits::eTransfer; break; // NOLINT(*-branch-clone)
       case il::ePreinitialized: dstMask = afb::eTransferWrite; dstStageMask=vk::PipelineStageFlagBits::eTransfer; break;
       case il::ePresentSrcKHR: dstMask = afb::eMemoryRead; break;
+      default: break;
     }
 //printf("%08x %08x\n", (VkFlags)srcMask, (VkFlags)dstMask);
 
@@ -1817,9 +1812,9 @@ public:
     s.currentLayout = oldLayout;
   }
 
-  vk::Format format() const { return s.info.format; }
-  vk::Extent3D extent() const { return s.info.extent; }
-  const vk::ImageCreateInfo &info() const { return s.info; }
+  [[nodiscard]] vk::Format format() const { return s.info.format; }
+  [[nodiscard]] vk::Extent3D extent() const { return s.info.extent; }
+  [[nodiscard]] const vk::ImageCreateInfo &info() const { return s.info; }
 protected:
   void create(vk::Device device, const vk::PhysicalDeviceMemoryProperties &memprops, const vk::ImageCreateInfo &info, vk::ImageViewType viewType, vk::ImageAspectFlags aspectMask, bool hostImage) {
     s.currentLayout = info.initialLayout;
@@ -1868,8 +1863,7 @@ protected:
 /// A 2D texture image living on the GPU or a staging buffer visible to the CPU.
 class TextureImage2D : public GenericImage {
 public:
-  TextureImage2D() {
-  }
+  TextureImage2D() = default;
 
   TextureImage2D(vk::Device device, const vk::PhysicalDeviceMemoryProperties &memprops, uint32_t width, uint32_t height, uint32_t mipLevels=1, vk::Format format = vk::Format::eR8G8B8A8Unorm, bool hostImage = false) {
     vk::ImageCreateInfo info;
@@ -1894,8 +1888,7 @@ private:
 /// A cube map texture image living on the GPU or a staging buffer visible to the CPU.
 class TextureImageCube : public GenericImage {
 public:
-  TextureImageCube() {
-  }
+  TextureImageCube() = default;
 
   TextureImageCube(vk::Device device, const vk::PhysicalDeviceMemoryProperties &memprops, uint32_t width, uint32_t height, uint32_t mipLevels=1, vk::Format format = vk::Format::eR8G8B8A8Unorm, bool hostImage = false) {
     vk::ImageCreateInfo info;
@@ -1921,8 +1914,7 @@ private:
 /// An image to use as a depth buffer on a renderpass.
 class DepthStencilImage : public GenericImage {
 public:
-  DepthStencilImage() {
-  }
+  DepthStencilImage() = default;
 
   DepthStencilImage(vk::Device device, const vk::PhysicalDeviceMemoryProperties &memprops, uint32_t width, uint32_t height, vk::Format format = vk::Format::eD24UnormS8Uint) {
     vk::ImageCreateInfo info;
@@ -1949,8 +1941,7 @@ private:
 /// An image to use as a colour buffer on a renderpass.
 class ColorAttachmentImage : public GenericImage {
 public:
-  ColorAttachmentImage() {
-  }
+  ColorAttachmentImage() = default;
 
   ColorAttachmentImage(vk::Device device, const vk::PhysicalDeviceMemoryProperties &memprops, uint32_t width, uint32_t height, vk::Format format = vk::Format::eR8G8B8A8Unorm) {
     vk::ImageCreateInfo info;
@@ -2031,12 +2022,12 @@ public:
   SamplerMaker &unnormalizedCoordinates(vk::Bool32 value) { s.info.unnormalizedCoordinates = value; return *this; }
 
   /// Allocate a self-deleting image.
-  vk::UniqueSampler createUnique(vk::Device device) const {
+  [[nodiscard]] vk::UniqueSampler createUnique(vk::Device device) const {
     return device.createSamplerUnique(s.info);
   }
 
   /// Allocate a non self-deleting Sampler.
-  vk::Sampler create(vk::Device device) const {
+  [[nodiscard]] vk::Sampler create(vk::Device device) const {
     return device.createSampler(s.info);
   }
 
@@ -2057,8 +2048,9 @@ inline vk::Format GLtoVKFormat(uint32_t glFormat) {
     case 0x83F1: return vk::Format::eBc1RgbaUnormBlock; // GL_COMPRESSED_RGBA_S3TC_DXT1_EXT
     case 0x83F2: return vk::Format::eBc3UnormBlock; // GL_COMPRESSED_RGBA_S3TC_DXT3_EXT
     case 0x83F3: return vk::Format::eBc5UnormBlock; // GL_COMPRESSED_RGBA_S3TC_DXT5_EXT
+    default:
+      return vk::Format::eUndefined;
   }
-  return vk::Format::eUndefined;
 }
 
 
@@ -2066,19 +2058,18 @@ inline vk::Format GLtoVKFormat(uint32_t glFormat) {
 /// Layout of a KTX file in a buffer.
 class KTXFileLayout {
 public:
-  KTXFileLayout() {
-  }
+  KTXFileLayout() = default;
 
-  KTXFileLayout(uint8_t *begin, uint8_t *end) {
+  KTXFileLayout(uint8_t *begin, const uint8_t *end) {
     uint8_t *p = begin;
     if (p + sizeof(Header) > end) return;
-    header = *(Header*)p;
+    header = *reinterpret_cast<Header*>(p);
     static const uint8_t magic[] = {
       0xAB, 0x4B, 0x54, 0x58, 0x20, 0x31, 0x31, 0xBB, 0x0D, 0x0A, 0x1A, 0x0A
     };
 
 
-    if (memcmp(magic, header.identifier, sizeof(magic))) {
+    if (memcmp(magic, header.identifier, sizeof(magic)) != 0) {
       return;
     }
 
@@ -2109,7 +2100,7 @@ public:
     if (p + header.bytesOfKeyValueData > end) return;
 
     for (uint32_t i = 0; i < header.bytesOfKeyValueData; ) {
-      uint32_t keyAndValueByteSize = *(uint32_t*)(p + i);
+      uint32_t keyAndValueByteSize = *reinterpret_cast<uint32_t*>(p + i);
       if (header.endianness != 0x04030201) swap(keyAndValueByteSize);
       std::string kv(p + i + 4, p + i + 4 + keyAndValueByteSize);
       i += keyAndValueByteSize + 4;
@@ -2118,7 +2109,7 @@ public:
 
     p += header.bytesOfKeyValueData;
     for (uint32_t mipLevel = 0; mipLevel != header.numberOfMipmapLevels; ++mipLevel) {
-      uint32_t imageSize = *(uint32_t*)(p);
+      uint32_t imageSize = *reinterpret_cast<uint32_t*>(p);
       imageSize = (imageSize + 3) & ~3;
       uint32_t incr = imageSize * header.numberOfFaces * header.numberOfArrayElements;
       incr = (incr + 3) & ~3;
@@ -2133,7 +2124,7 @@ public:
       if (header.endianness != 0x04030201) swap(imageSize);
       //printf("%08x: is=%08x / %08x\n", p-begin, imageSize, end - begin);
       p += 4;
-      imageOffsets_.push_back((uint32_t)(p - begin));
+      imageOffsets_.push_back(static_cast<uint32_t>(p - begin));
       imageSizes_.push_back(imageSize);
       p += incr;
     }
@@ -2141,25 +2132,25 @@ public:
     ok_ = true;
   }
 
-  uint32_t offset(uint32_t mipLevel, uint32_t arrayLayer, uint32_t face) {
+  [[nodiscard]] uint32_t offset(uint32_t mipLevel, uint32_t arrayLayer, uint32_t face) const {
     return imageOffsets_[mipLevel] + (arrayLayer * header.numberOfFaces + face) * imageSizes_[mipLevel];
   }
 
-  uint32_t size(uint32_t mipLevel) {
+  [[nodiscard]] uint32_t size(uint32_t mipLevel) const {
     return imageSizes_[mipLevel];
   }
 
-  bool ok() const { return ok_; }
-  vk::Format format() const { return format_; }
-  uint32_t mipLevels() const { return header.numberOfMipmapLevels; }
-  uint32_t arrayLayers() const { return header.numberOfArrayElements; }
-  uint32_t faces() const { return header.numberOfFaces; }
-  uint32_t width(uint32_t mipLevel) const { return mipScale(header.pixelWidth, mipLevel); }
-  uint32_t height(uint32_t mipLevel) const { return mipScale(header.pixelHeight, mipLevel); }
-  uint32_t depth(uint32_t mipLevel) const { return mipScale(header.pixelDepth, mipLevel); }
+  [[nodiscard]] bool ok() const { return ok_; }
+  [[nodiscard]] vk::Format format() const { return format_; }
+  [[nodiscard]] uint32_t mipLevels() const { return header.numberOfMipmapLevels; }
+  [[nodiscard]] uint32_t arrayLayers() const { return header.numberOfArrayElements; }
+  [[nodiscard]] uint32_t faces() const { return header.numberOfFaces; }
+  [[nodiscard]] uint32_t width(uint32_t mipLevel) const { return mipScale(header.pixelWidth, mipLevel); }
+  [[nodiscard]] uint32_t height(uint32_t mipLevel) const { return mipScale(header.pixelHeight, mipLevel); }
+  [[nodiscard]] uint32_t depth(uint32_t mipLevel) const { return mipScale(header.pixelDepth, mipLevel); }
 
-  void upload(vk::Device device, vku::GenericImage &image, std::vector<uint8_t> &bytes, vk::CommandPool commandPool, vk::PhysicalDeviceMemoryProperties memprops, vk::Queue queue) {
-    vku::GenericBuffer stagingBuffer(device, memprops, (vk::BufferUsageFlags)vk::BufferUsageFlagBits::eTransferSrc, (vk::DeviceSize)bytes.size(), vk::MemoryPropertyFlagBits::eHostVisible);
+  void upload(vk::Device device, vku::GenericImage &image, const std::vector<uint8_t> &bytes, vk::CommandPool commandPool, const vk::PhysicalDeviceMemoryProperties& memprops, vk::Queue queue) const {
+    vku::GenericBuffer stagingBuffer(device, memprops, static_cast<vk::BufferUsageFlags>(vk::BufferUsageFlagBits::eTransferSrc), bytes.size(), vk::MemoryPropertyFlagBits::eHostVisible);
     stagingBuffer.updateLocal(device, (const void*)bytes.data(), bytes.size());
 
     // Copy the staging buffer to the GPU texture and set the layout.
@@ -2199,7 +2190,7 @@ private:
     uint32_t bytesOfKeyValueData;
   };
 
-  Header header;
+  Header header{};
   vk::Format format_;
   bool ok_ = false;
   std::vector<uint32_t> imageOffsets_;

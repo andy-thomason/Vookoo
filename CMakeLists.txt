@@ -1,7 +1,8 @@
-cmake_minimum_required(VERSION 3.1.3 FATAL_ERROR)
-cmake_policy(VERSION 3.1.3)
+cmake_minimum_required(VERSION 3.28 FATAL_ERROR)
+cmake_policy(VERSION 3.28)
 
 project(Vookoo VERSION 2.0.0)
+set(CMAKE_CXX_STANDARD 23)
 
 add_subdirectory(external/glfw)
 add_subdirectory(examples)

@@ -1,5 +1,5 @@
-cmake_minimum_required(VERSION 3.1.3 FATAL_ERROR)
-cmake_policy(VERSION 3.1.3)
+cmake_minimum_required(VERSION 3.28 FATAL_ERROR)
+cmake_policy(VERSION 3.28)
 
 project(VookooExamples)
 
@@ -9,7 +9,7 @@ include_directories(${PROJECT_SOURCE_DIR}/../include)
 add_definitions(-DSOURCE_DIR="${CMAKE_SOURCE_DIR}/")
 add_definitions(-DBINARY_DIR="${PROJECT_BINARY_DIR}/")
 
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 23)
 
 if (${CMAKE_VERSION} VERSION_LESS "3.7.0")
   list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/../cmake")
