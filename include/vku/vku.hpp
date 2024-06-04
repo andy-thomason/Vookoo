@@ -882,15 +882,14 @@ private:
 
 struct SpecConst {
   uint32_t    constantID;
-  std::aligned_union<4,VkBool32, uint32_t, int32_t, float, double>::type
-      data;
+  alignas(8) std::byte data[8];
   uint32_t alignment;
   uint32_t size;
 
   template <typename T>
   SpecConst(uint32_t constantID, T value)
       : constantID(constantID), alignment{alignof(T)}, size(sizeof(T)) {
-    new (&data) T{value};
+    new (static_cast<void*>(data)) T{value};
   }
 
 };
