@@ -92,7 +92,8 @@ struct GpuResources {
         if (!fw->ok()) { throw std::runtime_error("vku::Framework failed"); }
 
         vku::WindowOptions wopts;
-        wopts.desiredPresentMode = vk::PresentModeKHR::eFifo;
+        wopts.desiredPresentMode = vk::PresentModeKHR::eImmediate;
+        wopts.tripleBuffering    = true;  // ensures numImageIndices()==3 to match RING=3
         win.emplace(fw->instance(), fw->device(), fw->physicalDevice(),
                     fw->graphicsQueueFamilyIndex(), sdl_win, wopts);
         if (!win->ok()) { throw std::runtime_error("vku::Window failed"); }
@@ -885,6 +886,16 @@ struct DustLayer : DrawLayer {
                     cb.copyBuffer(staging.buffer(), particle_ssbo[i].buffer(),
                                   vk::BufferCopy{0, 0, bytes});
                 }
+                // Make the transfer writes visible to the compute shader.
+                // Without this, the first dispatch may read stale/undefined data
+                // on drivers that don't implicitly flush transfer caches (Windows).
+                vk::MemoryBarrier mb;
+                mb.srcAccessMask = vk::AccessFlagBits::eTransferWrite;
+                mb.dstAccessMask = vk::AccessFlagBits::eShaderRead;
+                cb.pipelineBarrier(
+                    vk::PipelineStageFlagBits::eTransfer,
+                    vk::PipelineStageFlagBits::eComputeShader,
+                    {}, mb, {}, {});
             });
 
         // Ring-buffered emitter UBOs — written from CPU each frame.
