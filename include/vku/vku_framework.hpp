@@ -90,7 +90,9 @@ public:
     vku::InstanceMaker im{};
     instance_ = im
       .defaultLayersExtensions()
+#ifndef NDEBUG
       .layer("VK_LAYER_KHRONOS_validation")
+#endif
       //.extension(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME) // added for multiview extension with vulkan 1.0.0
       .apiVersion(VK_MAKE_VERSION(1,3,0))
       .createUnique();
@@ -648,12 +650,16 @@ public:
   /// Create a new swapchain and destroy the previous one if any.
   void createSwapchain() {
     auto pms = physicalDevice_.getSurfacePresentModesKHR(surface_.get());
-    vk::PresentModeKHR presentMode = pms[0];
-    if (std::find(pms.begin(), pms.end(), options.desiredPresentMode) != pms.end()) {
-      presentMode = options.desiredPresentMode;
-    } else {
-      std::cout << "No present mode available\n";
-      return;
+    vk::PresentModeKHR presentMode = options.desiredPresentMode;
+    if (std::find(pms.begin(), pms.end(), presentMode) == pms.end()) {
+      // Fall back: prefer FIFO_RELAXED > FIFO > whatever is first.
+      auto has = [&](vk::PresentModeKHR m) {
+        return std::find(pms.begin(), pms.end(), m) != pms.end();
+      };
+      if      (has(vk::PresentModeKHR::eFifoRelaxed)) { presentMode = vk::PresentModeKHR::eFifoRelaxed; }
+      else if (has(vk::PresentModeKHR::eFifo))        { presentMode = vk::PresentModeKHR::eFifo; }
+      else                                            { presentMode = pms[0]; }
+      std::cout << "desired present mode unavailable, using " << vk::to_string(presentMode) << "\n";
     }
 
     auto surfaceCaps = physicalDevice_.getSurfaceCapabilitiesKHR(surface_.get());

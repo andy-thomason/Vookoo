@@ -111,3 +111,10 @@ example_sdl2(06 PrecomputedAtmosphericScattering2017
   DATA transmittance.ktx scattering.ktx irradiance.ktx
   GLSLC_DEPENDS definitions.glsl functions.glsl
 )
+example_sdl2(07 gamedemo
+  SHADERS gamedemo.vert gamedemo.frag gamedemo_post.vert gamedemo_post.frag
+          gamedemo_dust.comp gamedemo_dust.vert gamedemo_dust.frag
+          gamedemo_rock.vert gamedemo_rock.frag
+          gamedemo_hud.vert gamedemo_hud.frag
+  DATA FINALNEW.TTF_sdf.png FINALNEW.TTF_sdf.txt
+)
