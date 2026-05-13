@@ -1,6 +1,7 @@
 #version 450
 
 layout(local_size_x = 64) in;
+layout(constant_id = 0) const int N_PARTICLES = 2048;
 
 struct Particle {
     vec2  pos;
@@ -36,7 +37,7 @@ float hash(float n) { return fract(sin(n) * 43758.5453); }
 
 void main() {
     uint idx = gl_GlobalInvocationID.x;
-    if (idx >= p_in.length()) return;
+    if (idx >= uint(N_PARTICLES)) return;
 
     Particle pt = p_in[idx];
 

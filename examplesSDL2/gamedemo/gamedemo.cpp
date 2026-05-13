@@ -928,7 +928,8 @@ struct DustLayer : DrawLayer {
         {
             vku::ShaderModule comp{dev, BINARY_DIR "gamedemo_dust.comp.spv"};
             compute_pipeline = vku::ComputePipelineMaker{}
-                .shader(vk::ShaderStageFlagBits::eCompute, comp)
+                .shader(vk::ShaderStageFlagBits::eCompute, comp,
+                        vku::PipelineMaker::SpecData{{vku::SpecConst{0u, N}}})
                 .createUnique(dev, gpu.fw->pipelineCache(), *compute_pl);
         }
 
