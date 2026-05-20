@@ -10,6 +10,7 @@
 
 // Include the demo framework, vookoo (vku) for building objects and glm for maths.
 // The demo framework uses GLFW to create windows.
+#define VKU_GLFW
 #include <vku/vku_framework.hpp>
 #include <vku/vku.hpp>
 #define GLM_ENABLE_EXPERIMENTAL
@@ -26,27 +27,22 @@ int main() {
   const char *title = "threaded";
   auto glfwwindow = glfwCreateWindow(800, 800, title,  nullptr, nullptr);
 
-  // Initialize makers
-  vku::InstanceMaker im{};
-  im.defaultLayers();
-  vku::DeviceMaker dm{};
-  dm.defaultLayers();
-
+  {
   // Initialise the Vookoo demo framework.
-  vku::Framework fw{im, dm};
+  vku::Framework fw{title};
   if (!fw.ok()) {
     std::cout << "Framework creation failed" << std::endl;
     exit(1);
   }
 
   // Create a window to draw into
-  vku::Window window{
+  vku::Window window(
     fw.instance(),
     fw.device(),
     fw.physicalDevice(),
     fw.graphicsQueueFamilyIndex(),
     glfwwindow
-  };
+  );
   if (!window.ok()) {
     std::cout << "Window creation failed" << std::endl;
     exit(1);
@@ -149,7 +145,7 @@ int main() {
   int frame = 0;
 
   // Loop waiting for the window to close.
-  while (!glfwWindowShouldClose(glfwwindow)) {
+  while (!glfwWindowShouldClose(glfwwindow) && glfwGetKey(glfwwindow, GLFW_KEY_ESCAPE) != GLFW_PRESS) {
     glfwPollEvents();
 
     // we generate the different fractions of the command buffer dynamically
@@ -234,14 +230,16 @@ int main() {
       }
     );
 
-    // Very crude method to prevent your GPU from overheating.
-    //std::this_thread::sleep_for(std::chrono::milliseconds(16));
+    // Crude frame pacer. Proper fix: vk::PresentModeKHR::eFifo in swapchain creation
+    // blocks vkQueuePresentKHR until the display is ready, giving natural vsync pacing.
+    //std::this_thread::sleep_for(std::chrono::milliseconds(16)); // unnecessary: swapchain uses eFifo (vsync)
 
     ++frame;
   }
 
   // Wait until all drawing is done and then kill the window.
   fw.device().waitIdle();
+  } // all Vulkan objects destroyed here, before GLFW teardown
   glfwDestroyWindow(glfwwindow);
   glfwTerminate();
 

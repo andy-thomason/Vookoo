@@ -1,0 +1,39 @@
+#version 450
+
+struct Particle {
+    vec2 position;
+    vec2 velocity;
+    vec4 color;
+};
+
+layout (binding = 0) uniform ParameterUBO {
+    float deltaTime;
+} ubo;
+
+layout(std140, binding = 1) readonly buffer ParticleSSBOIn {
+   Particle particlesIn[ ];
+};
+
+layout(std140, binding = 2) buffer ParticleSSBOOut {
+   Particle particlesOut[ ];
+};
+
+layout (local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
+
+vec2 bounce(vec2 position, vec2 velocity) {
+    bvec2 hit = greaterThanEqual(abs(position), vec2(1.0));
+    return mix(velocity, -velocity, vec2(hit));
+}
+
+void main() {
+    uint index = gl_GlobalInvocationID.x;
+
+    Particle particleIn = particlesIn[index];
+
+    Particle particleOut;
+    particleOut.position = particleIn.position + particleIn.velocity.xy * ubo.deltaTime;
+    particleOut.velocity = bounce(particleOut.position, particleIn.velocity);
+    particleOut.color    = particleIn.color;
+
+    particlesOut[index] = particleOut; // one Shader Storage Buffer (SSBO) write instead of several scattered ones
+}

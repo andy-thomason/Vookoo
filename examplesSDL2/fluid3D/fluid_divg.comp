@@ -1,0 +1,46 @@
+#version 450
+layout(local_size_x = 8, local_size_y = 8, local_size_z = 8) in;
+
+// Compute velocity divergence from the 3-D velocity field (6-neighbour stencil).
+layout(binding = 0, rgba16f) uniform readonly image3D in0;   // stateAIn (vel.xyz, dens)
+layout(binding = 1, rgba16f) uniform readonly image3D in1;   // unused
+layout(binding = 2, rgba16f) uniform readonly image3D in2;   // unused
+layout(binding = 3, r16f)   uniform          image3D out0;  // divgOut (divergence in .x)
+layout(binding = 4, rgba16f) uniform          image3D out1;  // unused
+
+layout(binding = 5) uniform FluidUBO {
+    float dt;         float cellSize;   float velDiss;  float densDiss;
+    float tempDiss;   float ambientTemp;float sigma;    float kappa;
+    float gradScale;  float halfInvCell;float splatRadius;
+    float impulseTemp;float impulseDens;
+    float impulsePosX;float impulsePosY;float impulsePosZ;
+    int addImpulse; int gridW; int gridH; int gridD;
+} u;
+
+vec3 getVel(ivec3 p) {
+    p = clamp(p, ivec3(0), ivec3(u.gridW - 1, u.gridH - 1, u.gridD - 1));
+    return imageLoad(in0, p).xyz;
+}
+
+void main() {
+    ivec3 T = ivec3(gl_GlobalInvocationID.xyz);
+    if (T.x >= u.gridW || T.y >= u.gridH || T.z >= u.gridD) return;
+
+    vec3 vE = getVel(T + ivec3(1, 0, 0));
+    vec3 vW = getVel(T - ivec3(1, 0, 0));
+    vec3 vN = getVel(T + ivec3(0, 1, 0));
+    vec3 vS = getVel(T - ivec3(0, 1, 0));
+    vec3 vU = getVel(T + ivec3(0, 0, 1));
+    vec3 vD = getVel(T - ivec3(0, 0, 1));
+
+    // No-flux at the six boundary faces
+    if (T.x + 1 >= u.gridW) vE.x = 0.0;
+    if (T.x == 0)            vW.x = 0.0;
+    if (T.y + 1 >= u.gridH) vN.y = 0.0;
+    if (T.y == 0)            vS.y = 0.0;
+    if (T.z + 1 >= u.gridD) vU.z = 0.0;
+    if (T.z == 0)            vD.z = 0.0;
+
+    float divergence = u.halfInvCell * (vE.x - vW.x + vN.y - vS.y + vU.z - vD.z);
+    imageStore(out0, T, vec4(divergence, 0.0, 0.0, 0.0));
+}

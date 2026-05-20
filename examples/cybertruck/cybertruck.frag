@@ -767,8 +767,8 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
     throughWindow = 0.;        // will be set to >0 if we are looking all the way through the car
    
     // neon tubes
-    //float climax = 1.+step(35.,iChannelTime[0])*5.*step(iChannelTime[0], 52.);
-    float climax = 1.+step(35.,iFrame%83)*5.*step(iFrame%31, 52.); //kludge: missing shadertoy's audio iChannelTime
+    //float climax = 1.+step(35.,float(iChannelTime[0]))*5.*step(float(iChannelTime[0]), 52.);
+    float climax = 1.+step(35.,float(iFrame%83))*5.*step(float(iFrame%31), 52.); //kludge: missing shadertoy's audio iChannelTime
     float ft = floor(t*BEAMS_PER_SECOND*climax)*BEAMS_PER_SECOND*climax;
        beamStart = vec3(-40,3.,0)+sin(ft*vec3(.234,.453,.486))*vec3(5,2,5)*.5;
     beamEnd = vec3(40, 3.,0)+sin(ft*vec3(.345,.538,.863))*vec3(5,2,5)*.5;

@@ -8,6 +8,7 @@
 
 // Include the demo framework, vookoo (vku) for building objects and glm for maths.
 // The demo framework uses GLFW to create windows.
+#define VKU_GLFW
 #include <vku/vku_framework.hpp>
 #include <vku/vku.hpp>
 #include <glm/glm.hpp>
@@ -21,14 +22,15 @@ int main() {
   auto *title = "helloTesselationShader";
   auto glfwwindow = glfwCreateWindow(800, 800, title, nullptr, nullptr);
 
-  // Initialize makers
-  vku::InstanceMaker im{};
-  im.defaultLayers();
-  vku::DeviceMaker dm{};
-  dm.defaultLayers();
+  {
+  // Define framework options
+  vku::FrameworkOptions fo = {
+    .useTessellationShader = true,
+    .useGeometryShader = true
+  };
 
   // Initialise the Vookoo demo framework.
-  vku::Framework fw{im, dm};
+  vku::Framework fw{title, fo};
   if (!fw.ok()) {
     std::cout << "Framework creation failed" << std::endl;
     exit(1);
@@ -38,13 +40,13 @@ int main() {
   auto device = fw.device();
 
   // Create a window to draw into
-  vku::Window window{
+  vku::Window window(
     fw.instance(),
     device,
     fw.physicalDevice(),
     fw.graphicsQueueFamilyIndex(),
     glfwwindow
-  };
+  );
   if (!window.ok()) {
     std::cout << "Window creation failed" << std::endl;
     exit(1);
@@ -121,18 +123,20 @@ int main() {
   );
 
   // Loop waiting for the window to close.
-  while (!glfwWindowShouldClose(glfwwindow)) {
+  while (!glfwWindowShouldClose(glfwwindow) && glfwGetKey(glfwwindow, GLFW_KEY_ESCAPE) != GLFW_PRESS) {
     glfwPollEvents();
 
     // draw patches.
     window.draw(device, fw.graphicsQueue());
 
-    // Very crude method to prevent your GPU from overheating.
-    std::this_thread::sleep_for(std::chrono::milliseconds(16));
+    // Crude frame pacer. Proper fix: vk::PresentModeKHR::eFifo in swapchain creation
+    // blocks vkQueuePresentKHR until the display is ready, giving natural vsync pacing.
+    //std::this_thread::sleep_for(std::chrono::milliseconds(16)); // unnecessary: swapchain uses eFifo (vsync)
   }
 
   // Wait until all drawing is done and then kill the window.
   device.waitIdle();
+  } // all Vulkan objects destroyed here, before GLFW teardown
   glfwDestroyWindow(glfwwindow);
   glfwTerminate();
 

@@ -1,0 +1,50 @@
+#version 450
+layout(local_size_x = 8, local_size_y = 8, local_size_z = 8) in;
+
+// Thermal buoyancy + smoke/heat impulse injection.
+layout(binding = 0, rgba16f) uniform readonly image3D in0;   // stateAIn (vel.xyz, dens)
+layout(binding = 1, r16f)   uniform readonly image3D in1;   // stateBIn (temp)
+layout(binding = 2, rgba16f) uniform readonly image3D in2;   // unused
+layout(binding = 3, rgba16f) uniform          image3D out0;  // stateAOut
+layout(binding = 4, r16f)   uniform          image3D out1;  // stateBOut
+
+layout(binding = 5) uniform FluidUBO {
+    float dt;         float cellSize;   float velDiss;  float densDiss;
+    float tempDiss;   float ambientTemp;float sigma;    float kappa;
+    float gradScale;  float halfInvCell;float splatRadius;
+    float impulseTemp;float impulseDens;
+    float impulsePosX;float impulsePosY;float impulsePosZ;
+    int addImpulse; int gridW; int gridH; int gridD;
+} u;
+
+void main() {
+    ivec3 coord = ivec3(gl_GlobalInvocationID.xyz);
+    if (coord.x >= u.gridW || coord.y >= u.gridH || coord.z >= u.gridD) return;
+
+    vec4  stA  = imageLoad(in0, coord);
+    vec4  stB  = imageLoad(in1, coord);
+    vec3  vel  = stA.xyz;
+    float dens = stA.w;
+    float temp = stB.x;
+
+    // Thermal buoyancy: matches original orientation where injection is near
+    // grid Y=N and smoke moves toward Y=0 (vec3(0,-1,0) convention).
+    if (temp > u.ambientTemp) {
+        float force = (temp - u.ambientTemp) * u.sigma - dens * u.kappa;
+        vel.y -= u.dt * force;
+    }
+
+    // Spherical impulse: inject smoke + heat at source point.
+    if (u.addImpulse != 0) {
+        vec3  centre = vec3(u.impulsePosX, u.impulsePosY, u.impulsePosZ);
+        float dist   = length(vec3(coord) + 0.5 - centre);
+        if (dist < u.splatRadius) {
+            float alpha = clamp((u.splatRadius - dist) / u.splatRadius, 0.0, 1.0);
+            dens += alpha * u.impulseDens * u.dt;
+            temp += alpha * u.impulseTemp * u.dt;
+        }
+    }
+
+    imageStore(out0, coord, vec4(vel, dens));
+    imageStore(out1, coord, vec4(temp, 0.0, 0.0, 0.0));
+}

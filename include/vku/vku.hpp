@@ -28,9 +28,11 @@
 #include <chrono>
 #include <functional>
 #include <cstddef>
+#include <cmath>
 
 #ifdef VOOKOO_SPIRV_SUPPORT
-  #include <unified1/spirv.hpp11>
+  //#include <unified1/spirv.hpp11>
+  #include <spirv/unified1/spirv.hpp11>
 #endif
 
 #include <vulkan/vulkan.hpp>
@@ -307,38 +309,16 @@ public:
   InstanceMaker() {
   }
 
-  InstanceMaker &extensionMultiview ()
-  {
-	extension(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME); // added for multiview extension
-	return *this;
-  }
-
-  InstanceMaker &extensionValidation ()
-  {
-	layers_.push_back("VK_LAYER_KHRONOS_validation");
-	return *this;
-  }
-
   /// Set the default layers and extensions.
-  InstanceMaker &defaultLayers(int core=0)
-  {
-    instance_extensions_.push_back(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);
-
-#ifdef VKU_SURFACE
-      instance_extensions_.push_back(VKU_SURFACE);
-#endif
-
-    instance_extensions_.push_back(VK_KHR_SURFACE_EXTENSION_NAME);
-
+  InstanceMaker &defaultLayersExtensions() {
+    extension(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+    #ifdef VKU_SURFACE
+      extension(VKU_SURFACE);
+    #endif
+    extension("VK_KHR_surface");
 #if defined( __APPLE__ ) && defined(VK_EXT_METAL_SURFACE_EXTENSION_NAME)
-		instance_extensions_.push_back(VK_EXT_METAL_SURFACE_EXTENSION_NAME);
+    extension(VK_EXT_METAL_SURFACE_EXTENSION_NAME);
 #endif //__APPLE__
-
-	if (core > 0)
-	{
-
-	}
-	
     return *this;
   }
 
@@ -349,8 +329,8 @@ public:
   }
 
   /// Add an extension. eg. VK_EXT_DEBUG_REPORT_EXTENSION_NAME
-  InstanceMaker &extension(const char *layer) {
-    instance_extensions_.push_back(layer);
+  InstanceMaker &extension(const char *extension) {
+    instance_extensions_.push_back(extension);
     return *this;
   }
 
@@ -412,29 +392,12 @@ public:
   DeviceMaker() {
   }
 
-  DeviceMaker &extensionMultiview ()
-  {
-      extension(VK_KHR_MULTIVIEW_EXTENSION_NAME); // added for multiview extension
-      return *this;
-  }
-  
-  DeviceMaker &extensionValidation ()
-  {
-	layers_.push_back("VK_LAYER_LUNARG_standard_validation");
-	return *this;
-  }
-
-  /// Set the default layers and extensions.
-  DeviceMaker &defaultLayers(int core=0)
-  {
-	device_extensions_.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
-
-    if (core > 0)
-    {
- 		// VK_KHR_MAINTENANCE1 is required for using negative viewport heights
-		// Note: This is core as of Vulkan 1.1. So if you target 1.1 you don't have to explicitly enable this
-		device_extensions_.push_back(VK_KHR_MAINTENANCE1_EXTENSION_NAME);
-	}
+  /// Set the default extensions.
+  DeviceMaker &defaultExtensions() {
+    extension(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
+    // VK_KHR_MAINTENANCE1 is required for using negative viewport heights
+    // Note: This is core as of Vulkan 1.1. So if you target 1.1 you don't have to explicitly enable this
+    //extension(VK_KHR_MAINTENANCE1_EXTENSION_NAME);
     return *this;
   }
 
@@ -445,8 +408,8 @@ public:
   }
 
   /// Add an extension. eg. VK_EXT_DEBUG_REPORT_EXTENSION_NAME
-  DeviceMaker &extension(const char *layer) {
-    device_extensions_.push_back(layer);
+  DeviceMaker &extension(const char *extension) {
+    device_extensions_.push_back(extension);
     return *this;
   }
 
@@ -463,37 +426,37 @@ public:
     return *this;
   }
 
-  DeviceMaker &physicalDeviceFeatures(const vk::PhysicalDeviceFeatures &v = {})
+  /// required to enable and use geometry shader
+  DeviceMaker &enableGeometryShader(bool value)
   {
-	pdfs_.push_back(v);
-	return *this;
+	  physicalDeviceFeatures_.setGeometryShader(value);
+	  return *this;
   }
-  
-  DeviceMaker &enableGeometryShader ()
+
+  /// required to enable and use tesselation shaders
+  DeviceMaker &enableTessellationShader(bool value)
   {
-	// assert !pdfs_.empty()
-	pdfs_.back().setGeometryShader(true);
-	return *this;
+	  physicalDeviceFeatures_.setTessellationShader(value);
+	  return *this;
   }
-  
-  DeviceMaker &enableTessellationShader ()
+
+  /// required to enable and use multiview
+  DeviceMaker &enableMultiView(bool value)
   {
-	// assert !pdfs_.empty()
-	pdfs_.back().setTessellationShader(true);
-	return *this;
+	  physicalDeviceMultiviewFeatures_.setMultiview(value);
+	  return *this;
   }
-  
-  DeviceMaker &multiviewFeatures (const vk::PhysicalDeviceMultiviewFeatures &v = {})
-  {
-	mvfs_.push_back(v);
-	return *this;
+
+  DeviceMaker &enableDynamicRendering(bool value) {
+    dynamicRenderingFeatures_.setDynamicRendering(value);
+    // Core in Vulkan 1.3 — no extension needed when targeting 1.3.
+    return *this;
   }
-  
-  DeviceMaker &enableMultiview ()
-  {
-	// assert !mvfs_.empty()
-	mvfs_.back().setMultiview(true);
-	return *this;
+
+  DeviceMaker &enableSynchronization2(bool value) {
+    synchronization2Features_.setSynchronization2(value);
+    // Core in Vulkan 1.3 — no extension needed when targeting 1.3.
+    return *this;
   }
 
   /// Create a new logical device.
@@ -505,13 +468,20 @@ public:
       (uint32_t)device_extensions_.size(), device_extensions_.data()
     };
 
-    //
-    if (!pdfs_.empty())
-		dci.setPEnabledFeatures(&pdfs_.front());
+    // see vk::PhysicalDeviceFeatures for things that can be enabled like geometry and tesselation shaders
+    dci.setPEnabledFeatures(&physicalDeviceFeatures_);
 
-    // required to enable and use multiview
-    if (!mvfs_.empty())
-		dci.pNext = &mvfs_.front();
+    // Build pNext chain: multiview → sync2 → dynamic_rendering (each optional)
+    void **tail = reinterpret_cast<void **>(&physicalDeviceMultiviewFeatures_.pNext);
+    if (synchronization2Features_.synchronization2) {
+      *tail = &synchronization2Features_;
+      tail  = reinterpret_cast<void **>(&synchronization2Features_.pNext);
+    }
+    if (dynamicRenderingFeatures_.dynamicRendering) {
+      *tail = &dynamicRenderingFeatures_;
+      tail  = reinterpret_cast<void **>(&dynamicRenderingFeatures_.pNext);
+    }
+    dci.pNext = &physicalDeviceMultiviewFeatures_;
 
     return physical_device.createDeviceUnique(dci);
   }
@@ -520,10 +490,10 @@ private:
   std::vector<const char *> device_extensions_;
   std::vector<std::vector<float> > queue_priorities_;
   std::vector<vk::DeviceQueueCreateInfo> qci_;
-  std::vector<vk::PhysicalDeviceFeatures> pdfs_;
-  std::vector<vk::PhysicalDeviceMultiviewFeatures> mvfs_;
-
-  vk::ApplicationInfo app_info_;
+  vk::PhysicalDeviceFeatures physicalDeviceFeatures_;
+  vk::PhysicalDeviceMultiviewFeatures physicalDeviceMultiviewFeatures_;
+  vk::PhysicalDeviceSynchronization2Features synchronization2Features_;
+  vk::PhysicalDeviceDynamicRenderingFeatures dynamicRenderingFeatures_;
 };
 
 class DebugCallback {
@@ -533,19 +503,26 @@ public:
 
   DebugCallback(
     vk::Instance instance,
-    vk::DebugReportFlagsEXT flags =
-      vk::DebugReportFlagBitsEXT::eWarning |
-      vk::DebugReportFlagBitsEXT::eError
+    vk::DebugUtilsMessageSeverityFlagsEXT severity =
+      vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning |
+      vk::DebugUtilsMessageSeverityFlagBitsEXT::eError
   ) : instance_(instance) {
-    auto ci = vk::DebugReportCallbackCreateInfoEXT{flags, &debugCallback};
+    auto ci = vk::DebugUtilsMessengerCreateInfoEXT{
+      {},
+      severity,
+      vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral |
+      vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation |
+      vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance,
+      &debugCallback
+    };
 
-    auto vkCreateDebugReportCallbackEXT =
-        (PFN_vkCreateDebugReportCallbackEXT)instance_.getProcAddr(
-            "vkCreateDebugReportCallbackEXT");
+    auto vkCreateDebugUtilsMessengerEXT =
+        (PFN_vkCreateDebugUtilsMessengerEXT)instance_.getProcAddr(
+            "vkCreateDebugUtilsMessengerEXT");
 
-    VkDebugReportCallbackEXT cb;
-    vkCreateDebugReportCallbackEXT(
-      instance_, &(const VkDebugReportCallbackCreateInfoEXT &)ci,
+    VkDebugUtilsMessengerEXT cb;
+    vkCreateDebugUtilsMessengerEXT(
+      instance_, &(const VkDebugUtilsMessengerCreateInfoEXT &)ci,
       nullptr, &cb
     );
     callback_ = cb;
@@ -557,23 +534,32 @@ public:
 
   void reset() {
     if (callback_) {
-      auto vkDestroyDebugReportCallbackEXT =
-          (PFN_vkDestroyDebugReportCallbackEXT)instance_.getProcAddr(
-              "vkDestroyDebugReportCallbackEXT");
-      vkDestroyDebugReportCallbackEXT(instance_, callback_, nullptr);
-      callback_ = vk::DebugReportCallbackEXT{};
+      auto vkDestroyDebugUtilsMessengerEXT =
+          (PFN_vkDestroyDebugUtilsMessengerEXT)instance_.getProcAddr(
+              "vkDestroyDebugUtilsMessengerEXT");
+      vkDestroyDebugUtilsMessengerEXT(instance_, callback_, nullptr);
+      callback_ = vk::DebugUtilsMessengerEXT{};
     }
   }
 private:
-  // Report any errors or warnings.
+  // SDK >= 1.3.283 deprecated the raw-Vk-type PFN constructor; use vk-namespace types instead
+#if VK_HEADER_VERSION >= 290
   static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
-      VkDebugReportFlagsEXT flags, VkDebugReportObjectTypeEXT objectType,
-      uint64_t object, size_t location, int32_t messageCode,
-      const char *pLayerPrefix, const char *pMessage, void *pUserData) {
-    printf("%08x debugCallback: %s\n", flags, pMessage);
+      vk::DebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
+      vk::DebugUtilsMessageTypeFlagsEXT messageTypes,
+      const vk::DebugUtilsMessengerCallbackDataEXT *pCallbackData,
+      void *pUserData) {
+#else
+  static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
+      VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
+      VkDebugUtilsMessageTypeFlagsEXT messageTypes,
+      const VkDebugUtilsMessengerCallbackDataEXT *pCallbackData,
+      void *pUserData) {
+#endif
+    printf("%08x debugCallback: %s\n", (uint32_t)messageSeverity, pCallbackData->pMessage);
     return VK_FALSE;
   }
-  vk::DebugReportCallbackEXT callback_;
+  vk::DebugUtilsMessengerEXT callback_;
   vk::Instance instance_;
 };
 
@@ -637,6 +623,32 @@ public:
     p->layout = layout;
     p->attachment = attachment;
     subpass.pDepthStencilAttachment = p;
+    return *this;
+  }
+
+  /// Set the resolve attachment for the most recent colour attachment.
+  /// pResolveAttachments must parallel pColorAttachments (one entry per colour attachment).
+  /// Call once per subpassColorAttachment, immediately after it.
+  RenderpassMaker& subpassResolveAttachment(vk::ImageLayout layout, uint32_t attachment) {
+    vk::SubpassDescription &subpass = s.subpassDescriptions.back();
+    auto *p = getAttachmentReference();
+    p->layout = layout;
+    p->attachment = attachment;
+    if (subpass.pResolveAttachments == nullptr) {
+      subpass.pResolveAttachments = p;
+    }
+    return *this;
+  }
+
+  RenderpassMaker& subpassInputAttachment(vk::ImageLayout layout, uint32_t attachment) {
+    vk::SubpassDescription &subpass = s.subpassDescriptions.back();
+    auto *p = getAttachmentReference();
+    p->layout = layout;
+    p->attachment = attachment;
+    if (subpass.inputAttachmentCount == 0) {
+      subpass.pInputAttachments = p;
+    }
+    subpass.inputAttachmentCount++;
     return *this;
   }
 
@@ -882,8 +894,7 @@ private:
 
 struct SpecConst {
   uint32_t    constantID;
-  std::aligned_union<4,VkBool32, uint32_t, int32_t, float, double>::type
-      data;
+  alignas(8) std::byte data[8];
   uint32_t alignment;
   uint32_t size;
 
@@ -925,12 +936,13 @@ public:
     SpecData &operator=(const SpecData &) = delete;
   };
 public:
-  void init ()
-  {
+  PipelineMaker(uint32_t width, uint32_t height) {
     inputAssemblyState_.topology = vk::PrimitiveTopology::eTriangleList;
+    viewport_ = vk::Viewport{0.0f, 0.0f, (float)width, (float)height, 0.0f, 1.0f};
+    scissor_ = vk::Rect2D{{0, 0}, {width, height}};
     rasterizationState_.lineWidth = 1.0f;
 
-     // Set up depth test, but do not enable it.
+    // Set up depth test, but do not enable it.
     depthStencilState_.depthTestEnable = VK_FALSE;
     depthStencilState_.depthWriteEnable = VK_TRUE;
     depthStencilState_.depthCompareOp = vk::CompareOp::eLessOrEqual;
@@ -942,17 +954,6 @@ public:
     depthStencilState_.front = depthStencilState_.back;
   }
 
-  PipelineMaker() {
-	init();
-  }
-
-  PipelineMaker(uint32_t width, uint32_t height) {
-    viewport(vk::Viewport{0.0f, 0.0f, (float)width, (float)height, 0.0f, 1.0f});
-	scissor(vk::Rect2D{{0, 0}, {width, height}});
-	
-	init();
-  }
-  
   vk::UniquePipeline createUnique(const vk::Device &device,
                             const vk::PipelineCache &pipelineCache,
                             const vk::PipelineLayout &pipelineLayout,
@@ -978,7 +979,7 @@ public:
     colorBlendState_.pAttachments = count ? colorBlendAttachments_.data() : nullptr;
 
     vk::PipelineViewportStateCreateInfo viewportState{
-        {}, (uint32_t)viewport_.size(), viewport_.data(), (uint32_t)scissor_.size(), scissor_.data()};
+        {}, 1, &viewport_, 1, &scissor_};
 
     vk::PipelineVertexInputStateCreateInfo vertexInputState;
     vertexInputState.vertexAttributeDescriptionCount = (uint32_t)vertexAttributeDescriptions_.size();
@@ -998,6 +999,7 @@ public:
     pipelineInfo.pMultisampleState = &multisampleState_;
     pipelineInfo.pColorBlendState = &colorBlendState_;
     pipelineInfo.pDepthStencilState = &depthStencilState_;
+    pipelineInfo.pNext = pipelineNext_;
     pipelineInfo.layout = pipelineLayout;
     pipelineInfo.renderPass = renderPass;
     pipelineInfo.pDynamicState = dynamicState_.empty() ? nullptr : &dynState;
@@ -1136,11 +1138,11 @@ public:
 
   /// Set the viewport value.
   /// Usually there is only one viewport, but you can have multiple viewports active for rendering cubemaps or VR stereo pair
-  PipelineMaker &viewport(const vk::Viewport &value) { viewport_.push_back(value); return *this; }
+  PipelineMaker &viewport(const vk::Viewport &value) { viewport_ = value; return *this; }
 
   /// Set the scissor value.
   /// This defines the area that the fragment shaders can write to. For example, if you are rendering a portal or a mirror.
-  PipelineMaker &scissor(const vk::Rect2D &value) { scissor_.push_back(value); return *this; }
+  PipelineMaker &scissor(const vk::Rect2D &value) { scissor_ = value; return *this; }
 
   /// Set a whole rasterization state.
   /// Note you can set individual values with their own call
@@ -1188,10 +1190,34 @@ public:
   PipelineMaker &blendConstants(float r, float g, float b, float a) { float *bc = colorBlendState_.blendConstants; bc[0] = r; bc[1] = g; bc[2] = b; bc[3] = a; return *this; }
 
   PipelineMaker &dynamicState(vk::DynamicState value) { dynamicState_.push_back(value); return *this; }
+  PipelineMaker &pipelineNext(const void *p) { pipelineNext_ = p; return *this; }
+
+  // Dynamic rendering color/depth/stencil attachment formats.
+  // When any are set, the no-renderpass createUnique builds VkPipelineRenderingCreateInfo
+  // internally — no need to call pipelineNext() manually.
+  PipelineMaker &colorFormat(vk::Format fmt) { colorFormats_.push_back(fmt); return *this; }
+  PipelineMaker &depthFormat(vk::Format fmt) { renderingInfo_.depthAttachmentFormat = fmt; return *this; }
+  PipelineMaker &stencilFormat(vk::Format fmt) { renderingInfo_.stencilAttachmentFormat = fmt; return *this; }
+
+  // Create a pipeline for dynamic rendering (no VkRenderPass).
+  vk::UniquePipeline createUnique(const vk::Device &device,
+                            const vk::PipelineCache &pipelineCache,
+                            const vk::PipelineLayout &pipelineLayout, bool defaultBlend=true) {
+    if (!colorFormats_.empty() ||
+        renderingInfo_.depthAttachmentFormat   != vk::Format::eUndefined ||
+        renderingInfo_.stencilAttachmentFormat != vk::Format::eUndefined) {
+      renderingInfo_.colorAttachmentCount    = (uint32_t)colorFormats_.size();
+      renderingInfo_.pColorAttachmentFormats = colorFormats_.data();
+      renderingInfo_.pNext                   = pipelineNext_;
+      pipelineNext_ = &renderingInfo_;
+    }
+    return createUnique(device, pipelineCache, pipelineLayout, vk::RenderPass{}, defaultBlend);
+  }
+
 private:
   vk::PipelineInputAssemblyStateCreateInfo inputAssemblyState_;
-  std::vector<vk::Viewport> viewport_;
-  std::vector<vk::Rect2D> scissor_;
+  vk::Viewport viewport_;
+  vk::Rect2D scissor_;
   vk::PipelineRasterizationStateCreateInfo rasterizationState_;
   vk::PipelineMultisampleStateCreateInfo multisampleState_;
   vk::PipelineDepthStencilStateCreateInfo depthStencilState_;
@@ -1203,7 +1229,10 @@ private:
   std::vector<vk::VertexInputAttributeDescription> vertexAttributeDescriptions_;
   std::vector<vk::VertexInputBindingDescription> vertexBindingDescriptions_;
   std::vector<vk::DynamicState> dynamicState_;
+  std::vector<vk::Format> colorFormats_;
+  vk::PipelineRenderingCreateInfo renderingInfo_{};
   uint32_t subpass_ = 0;
+  const void *pipelineNext_ = nullptr;
 };
 
 template <typename iterator, typename sentinel>
@@ -1283,6 +1312,19 @@ public:
     return *this;
   }
 
+  /// Add a shader module with specialized constants to the pipeline.
+  ComputePipelineMaker& shader(vk::ShaderStageFlagBits stage, vku::ShaderModule &shader,
+                 vku::PipelineMaker::SpecData specConstants,
+                 const char *entryPoint = "main") {
+    auto data = std::unique_ptr< vku::PipelineMaker::SpecData>{new vku::PipelineMaker::SpecData{std::move(specConstants)}};
+    stage_.module = shader.module();
+    stage_.pName = entryPoint;
+    stage_.stage = stage;
+    stage_.pSpecializationInfo = &data->specializationInfo_;
+    moduleSpecialization_ = std::move(data);
+    return *this;
+  }
+
   /// Set the compute shader module.
   ComputePipelineMaker &module(const vk::PipelineShaderStageCreateInfo &value) {
     stage_ = value;
@@ -1302,6 +1344,7 @@ public:
   }
 private:
   vk::PipelineShaderStageCreateInfo stage_;
+  std::unique_ptr<vku::PipelineMaker::SpecData> moduleSpecialization_;
 };
 
 /// A generic buffer that may be used as a vertex buffer, uniform buffer or other kinds of memory resident data.
@@ -1312,9 +1355,13 @@ public:
   }
 
   GenericBuffer(vk::Device device, const vk::PhysicalDeviceMemoryProperties &memprops, vk::BufferUsageFlags usage, vk::DeviceSize size, vk::MemoryPropertyFlags memflags = vk::MemoryPropertyFlagBits::eDeviceLocal) {
+    // GPU has requirment that buffer be a multiple of 256 bytes, aka nonCoherentAtomSize
+    // see https://vulkan.gpuinfo.org/displaydevicelimit.php?name=nonCoherentAtomSize&platform=all
+    int nonCoherentAtomSize = 256;
+    size_ = ceil(size/float(nonCoherentAtomSize))*nonCoherentAtomSize;
     // Create the buffer object without memory.
     vk::BufferCreateInfo ci{};
-    ci.size = size_ = size;
+    ci.size = size_;
     ci.usage = usage;
     ci.sharingMode = vk::SharingMode::eExclusive;
     buffer_ = device.createBufferUnique(ci);
@@ -1453,8 +1500,10 @@ public:
   UniformBuffer() {
   }
 
-  /// Device local uniform buffer.
-  UniformBuffer(const vk::Device &device, const vk::PhysicalDeviceMemoryProperties &memprops, size_t size) : GenericBuffer(device, memprops, vk::BufferUsageFlagBits::eUniformBuffer|vk::BufferUsageFlagBits::eTransferDst, (vk::DeviceSize)size, vk::MemoryPropertyFlagBits::eDeviceLocal) {
+  /// Device uniform buffer.
+  ///   default memflags makes local uniform buffer (incompatible with map/unmap)
+  /// If want to update buffer using map/unmap, need to override default with memflags set to vk::MemoryPropertyFlagBits::eHostVisible
+  UniformBuffer(const vk::Device &device, const vk::PhysicalDeviceMemoryProperties &memprops, size_t size, vk::MemoryPropertyFlags memflags = vk::MemoryPropertyFlagBits::eDeviceLocal) : GenericBuffer(device, memprops, vk::BufferUsageFlagBits::eUniformBuffer|vk::BufferUsageFlagBits::eTransferDst, (vk::DeviceSize)size, memflags) {
   }
 };
 
@@ -1727,12 +1776,8 @@ public:
   }
 
   void upload(vk::Device device, std::vector<uint8_t> &bytes, vk::CommandPool commandPool, vk::PhysicalDeviceMemoryProperties memprops, vk::Queue queue, vk::ImageLayout finalLayout=vk::ImageLayout::eShaderReadOnlyOptimal) {
-	return upload(device, bytes.data(), bytes.size(), commandPool, memprops, queue, finalLayout);
-  }
-
-  void upload(vk::Device device, const uint8_t *bytes, size_t bytesSize, vk::CommandPool commandPool, vk::PhysicalDeviceMemoryProperties memprops, vk::Queue queue, vk::ImageLayout finalLayout=vk::ImageLayout::eShaderReadOnlyOptimal) {
-    vku::GenericBuffer stagingBuffer(device, memprops, (vk::BufferUsageFlags)vk::BufferUsageFlagBits::eTransferSrc, (vk::DeviceSize)bytesSize, vk::MemoryPropertyFlagBits::eHostVisible);
-    stagingBuffer.updateLocal(device, (const void*)bytes, bytesSize);
+    vku::GenericBuffer stagingBuffer(device, memprops, (vk::BufferUsageFlags)vk::BufferUsageFlagBits::eTransferSrc, (vk::DeviceSize)bytes.size(), vk::MemoryPropertyFlagBits::eHostVisible);
+    stagingBuffer.updateLocal(device, (const void*)bytes.data(), bytes.size());
 
     // Copy the staging buffer to the GPU texture and set the layout.
     vku::executeImmediately(device, commandPool, queue, [&](vk::CommandBuffer cb) {
@@ -1780,7 +1825,7 @@ public:
     // Is it me, or are these the same?
     switch (oldLayout) {
       case il::eUndefined: break;
-      case il::eGeneral: srcMask = afb::eTransferWrite; srcStageMask=vk::PipelineStageFlagBits::eTransfer; break;
+      case il::eGeneral: srcMask = afb::eShaderWrite|afb::eTransferWrite; srcStageMask=vk::PipelineStageFlagBits::eComputeShader|vk::PipelineStageFlagBits::eTransfer; break;
       case il::eColorAttachmentOptimal: srcMask = afb::eColorAttachmentWrite; srcStageMask=vk::PipelineStageFlagBits::eColorAttachmentOutput; break;
       case il::eDepthStencilAttachmentOptimal: srcMask = afb::eDepthStencilAttachmentWrite; srcStageMask=vk::PipelineStageFlagBits::eEarlyFragmentTests; break;
       case il::eDepthStencilReadOnlyOptimal: srcMask = afb::eDepthStencilAttachmentRead; srcStageMask=vk::PipelineStageFlagBits::eEarlyFragmentTests; break;
@@ -1793,7 +1838,7 @@ public:
 
     switch (newLayout) {
       case il::eUndefined: break;
-      case il::eGeneral: dstMask = afb::eTransferWrite; dstStageMask=vk::PipelineStageFlagBits::eTransfer; break;
+      case il::eGeneral: dstMask = afb::eShaderWrite|afb::eShaderRead|afb::eTransferWrite; dstStageMask=vk::PipelineStageFlagBits::eComputeShader|vk::PipelineStageFlagBits::eTransfer; break;
       case il::eColorAttachmentOptimal: dstMask = afb::eColorAttachmentWrite; dstStageMask=vk::PipelineStageFlagBits::eColorAttachmentOutput; break;
       case il::eDepthStencilAttachmentOptimal: dstMask = afb::eDepthStencilAttachmentWrite; dstStageMask=vk::PipelineStageFlagBits::eEarlyFragmentTests; break;
       case il::eDepthStencilReadOnlyOptimal: dstMask = afb::eDepthStencilAttachmentRead; dstStageMask=vk::PipelineStageFlagBits::eEarlyFragmentTests; break;
@@ -1881,12 +1926,44 @@ public:
     info.arrayLayers = 1;
     info.samples = vk::SampleCountFlagBits::e1;
     info.tiling = hostImage ? vk::ImageTiling::eLinear : vk::ImageTiling::eOptimal;
-    info.usage = vk::ImageUsageFlagBits::eSampled|vk::ImageUsageFlagBits::eTransferSrc|vk::ImageUsageFlagBits::eTransferDst;
+    info.usage = vk::ImageUsageFlagBits::eSampled|vk::ImageUsageFlagBits::eTransferSrc|vk::ImageUsageFlagBits::eTransferDst|vk::ImageUsageFlagBits::eStorage;
     info.sharingMode = vk::SharingMode::eExclusive;
     info.queueFamilyIndexCount = 0;
     info.pQueueFamilyIndices = nullptr;
     info.initialLayout = hostImage ? vk::ImageLayout::ePreinitialized : vk::ImageLayout::eUndefined;
     create(device, memprops, info, vk::ImageViewType::e2D, vk::ImageAspectFlagBits::eColor, hostImage);
+  }
+private:
+};
+
+/// A 3D texture / storage image living on the GPU.
+/// Suitable for compute storage images (eStorage) and sampler3D reads (eSampled).
+class TextureImage3D : public GenericImage {
+public:
+  TextureImage3D() {}
+
+  TextureImage3D(vk::Device device, const vk::PhysicalDeviceMemoryProperties &memprops,
+                 uint32_t width, uint32_t height, uint32_t depth,
+                 uint32_t mipLevels = 1,
+                 vk::Format format = vk::Format::eR8G8B8A8Unorm) {
+    vk::ImageCreateInfo info;
+    info.flags             = {};
+    info.imageType         = vk::ImageType::e3D;
+    info.format            = format;
+    info.extent            = vk::Extent3D{width, height, depth};
+    info.mipLevels         = mipLevels;
+    info.arrayLayers       = 1;
+    info.samples           = vk::SampleCountFlagBits::e1;
+    info.tiling            = vk::ImageTiling::eOptimal;
+    info.usage             = vk::ImageUsageFlagBits::eSampled
+                           | vk::ImageUsageFlagBits::eTransferSrc
+                           | vk::ImageUsageFlagBits::eTransferDst
+                           | vk::ImageUsageFlagBits::eStorage;
+    info.sharingMode       = vk::SharingMode::eExclusive;
+    info.queueFamilyIndexCount = 0;
+    info.pQueueFamilyIndices   = nullptr;
+    info.initialLayout     = vk::ImageLayout::eUndefined;
+    create(device, memprops, info, vk::ImageViewType::e3D, vk::ImageAspectFlagBits::eColor, false);
   }
 private:
 };
@@ -1935,7 +2012,8 @@ public:
     info.arrayLayers = 1;
     info.samples = vk::SampleCountFlagBits::e1;
     info.tiling = vk::ImageTiling::eOptimal;
-    info.usage = vk::ImageUsageFlagBits::eDepthStencilAttachment|vk::ImageUsageFlagBits::eTransferSrc|vk::ImageUsageFlagBits::eSampled;
+    //TODO: wouldn't "usage" be better supplied as a user function parameter?
+    info.usage = vk::ImageUsageFlagBits::eInputAttachment|vk::ImageUsageFlagBits::eDepthStencilAttachment|vk::ImageUsageFlagBits::eTransferSrc|vk::ImageUsageFlagBits::eSampled;
     info.sharingMode = vk::SharingMode::eExclusive;
     info.queueFamilyIndexCount = 0;
     info.pQueueFamilyIndices = nullptr;
@@ -1963,13 +2041,44 @@ public:
     info.arrayLayers = 1;
     info.samples = vk::SampleCountFlagBits::e1;
     info.tiling = vk::ImageTiling::eOptimal;
-    info.usage = vk::ImageUsageFlagBits::eColorAttachment|vk::ImageUsageFlagBits::eTransferSrc|vk::ImageUsageFlagBits::eTransferDst|vk::ImageUsageFlagBits::eSampled;
+    //TODO: wouldn't "usage" be better supplied as a user function parameter?
+    info.usage = vk::ImageUsageFlagBits::eInputAttachment|vk::ImageUsageFlagBits::eColorAttachment|vk::ImageUsageFlagBits::eTransferSrc|vk::ImageUsageFlagBits::eTransferDst|vk::ImageUsageFlagBits::eSampled;
     info.sharingMode = vk::SharingMode::eExclusive;
     info.queueFamilyIndexCount = 0;
     info.pQueueFamilyIndices = nullptr;
     info.initialLayout = vk::ImageLayout::eUndefined;
     typedef vk::ImageAspectFlagBits iafb;
     create(device, memprops, info, vk::ImageViewType::e2D, iafb::eColor, false);
+  }
+private:
+};
+
+/// A multisample (MSAA) colour attachment image.
+/// Always paired with a resolve attachment in the render pass — storeOp should
+/// be eDontCare on this image since the resolved output is what gets presented.
+class MsaaImage : public GenericImage {
+public:
+  MsaaImage() {}
+
+  MsaaImage(vk::Device device, const vk::PhysicalDeviceMemoryProperties &memprops,
+            uint32_t width, uint32_t height, vk::Format format,
+            vk::SampleCountFlagBits samples) {
+    vk::ImageCreateInfo info;
+    info.imageType    = vk::ImageType::e2D;
+    info.format       = format;
+    info.extent       = vk::Extent3D{width, height, 1u};
+    info.mipLevels    = 1;
+    info.arrayLayers  = 1;
+    info.samples      = samples;
+    info.tiling       = vk::ImageTiling::eOptimal;
+    // eTransientAttachment: contents need not survive the render pass — allows lazy allocation
+    // on tile-based GPUs (no bandwidth cost for storing the MSAA buffer).
+    info.usage        = vk::ImageUsageFlagBits::eColorAttachment |
+                        vk::ImageUsageFlagBits::eTransientAttachment;
+    info.sharingMode  = vk::SharingMode::eExclusive;
+    info.initialLayout = vk::ImageLayout::eUndefined;
+    create(device, memprops, info, vk::ImageViewType::e2D,
+           vk::ImageAspectFlagBits::eColor, false);
   }
 private:
 };
@@ -2048,15 +2157,64 @@ private:
   State s;
 };
 
-/// KTX files use OpenGL format values. This converts some common ones to Vulkan equivalents.
-inline vk::Format GLtoVKFormat(uint32_t glFormat) {
+/// KTX1 format resolution. For uncompressed textures glType+glFormat determine the format;
+/// for compressed textures glType==0 and glInternalFormat is authoritative.
+inline vk::Format GLtoVKFormat(uint32_t glType, uint32_t glFormat, uint32_t glInternalFormat) {
+  if (glType == 0) {
+    switch (glInternalFormat) {
+      case 0x83F0: return vk::Format::eBc1RgbUnormBlock;   // GL_COMPRESSED_RGB_S3TC_DXT1_EXT
+      case 0x83F1: return vk::Format::eBc1RgbaUnormBlock;  // GL_COMPRESSED_RGBA_S3TC_DXT1_EXT
+      case 0x83F2: return vk::Format::eBc2UnormBlock;      // GL_COMPRESSED_RGBA_S3TC_DXT3_EXT
+      case 0x83F3: return vk::Format::eBc3UnormBlock;      // GL_COMPRESSED_RGBA_S3TC_DXT5_EXT
+    }
+    return vk::Format::eUndefined;
+  }
   switch (glFormat) {
-    case 0x1907: return vk::Format::eR8G8B8Unorm; // GL_RGB
-    case 0x1908: return vk::Format::eR8G8B8A8Unorm; // GL_RGBA
-    case 0x83F0: return vk::Format::eBc1RgbUnormBlock; // GL_COMPRESSED_RGB_S3TC_DXT1_EXT
-    case 0x83F1: return vk::Format::eBc1RgbaUnormBlock; // GL_COMPRESSED_RGBA_S3TC_DXT1_EXT
-    case 0x83F2: return vk::Format::eBc3UnormBlock; // GL_COMPRESSED_RGBA_S3TC_DXT3_EXT
-    case 0x83F3: return vk::Format::eBc5UnormBlock; // GL_COMPRESSED_RGBA_S3TC_DXT5_EXT
+    case 0x1903: // GL_RED
+      switch (glType) {
+        case 0x1400: return vk::Format::eR8Snorm;      // GL_BYTE
+        case 0x1401: return vk::Format::eR8Unorm;      // GL_UNSIGNED_BYTE
+        case 0x1402: return vk::Format::eR16Snorm;     // GL_SHORT
+        case 0x1403: return vk::Format::eR16Unorm;     // GL_UNSIGNED_SHORT
+        case 0x140B: return vk::Format::eR16Sfloat;    // GL_HALF_FLOAT
+        case 0x1406: return vk::Format::eR32Sfloat;    // GL_FLOAT
+      }
+      break;
+    case 0x8227: // GL_RG
+      switch (glType) {
+        case 0x1400: return vk::Format::eR8G8Snorm;    // GL_BYTE
+        case 0x1401: return vk::Format::eR8G8Unorm;    // GL_UNSIGNED_BYTE
+        case 0x1402: return vk::Format::eR16G16Snorm;  // GL_SHORT
+        case 0x1403: return vk::Format::eR16G16Unorm;  // GL_UNSIGNED_SHORT
+        case 0x140B: return vk::Format::eR16G16Sfloat; // GL_HALF_FLOAT
+        case 0x1406: return vk::Format::eR32G32Sfloat; // GL_FLOAT
+      }
+      break;
+    case 0x1907: // GL_RGB
+      switch (glType) {
+        case 0x1400: return vk::Format::eR8G8B8Snorm;      // GL_BYTE
+        case 0x1401: return vk::Format::eR8G8B8Unorm;      // GL_UNSIGNED_BYTE
+        case 0x1402: return vk::Format::eR16G16B16Snorm;   // GL_SHORT
+        case 0x1403: return vk::Format::eR16G16B16Unorm;   // GL_UNSIGNED_SHORT
+        case 0x140B: return vk::Format::eR16G16B16Sfloat;  // GL_HALF_FLOAT
+        case 0x1406: return vk::Format::eR32G32B32Sfloat;  // GL_FLOAT
+      }
+      break;
+    case 0x1908: // GL_RGBA
+      switch (glType) {
+        case 0x1400: return vk::Format::eR8G8B8A8Snorm;        // GL_BYTE
+        case 0x1401: return vk::Format::eR8G8B8A8Unorm;        // GL_UNSIGNED_BYTE
+        case 0x1402: return vk::Format::eR16G16B16A16Snorm;    // GL_SHORT
+        case 0x1403: return vk::Format::eR16G16B16A16Unorm;    // GL_UNSIGNED_SHORT
+        case 0x140B: return vk::Format::eR16G16B16A16Sfloat;   // GL_HALF_FLOAT
+        case 0x1406: return vk::Format::eR32G32B32A32Sfloat;   // GL_FLOAT
+      }
+      break;
+    case 0x80E1: // GL_BGRA
+      switch (glType) {
+        case 0x1401: return vk::Format::eB8G8R8A8Unorm;        // GL_UNSIGNED_BYTE
+      }
+      break;
   }
   return vk::Format::eUndefined;
 }
@@ -2102,7 +2260,7 @@ public:
     header.numberOfMipmapLevels = std::max(1U, header.numberOfMipmapLevels);
     header.pixelDepth = std::max(1U, header.pixelDepth);
 
-    format_ = GLtoVKFormat(header.glFormat);
+    format_ = GLtoVKFormat(header.glType, header.glFormat, header.glInternalFormat);
     if (format_ == vk::Format::eUndefined) return;
 
     p += sizeof(Header);
@@ -2206,6 +2364,192 @@ private:
   std::vector<uint32_t> imageSizes_;
 };
 
+/// Factory for CommandPool.
+class CommandPoolMaker {
+public:
+
+  /// Set pointer to a structure extending this structure.
+  CommandPoolMaker &pNext(const void *pNext) {
+    cpci_.pNext = pNext;
+    return *this;
+  }
+
+  /// Set flags indicating usage behavior for the pool and command buffers allocated from it
+  CommandPoolMaker &flags(vk::CommandPoolCreateFlags flags) {
+    cpci_.flags = flags;
+    return *this;
+  }
+
+  /// Set queue family
+  CommandPoolMaker &queueFamilyIndex(uint32_t queueFamilyIndex) {
+    cpci_.queueFamilyIndex = queueFamilyIndex;
+    return *this;
+  }
+
+  /// Create a new command pool
+  vk::UniqueCommandPool createUnique(const vk::Device &device) const {
+    return device.createCommandPoolUnique(cpci_);
+  }
+
+private:
+  vk::CommandPoolCreateInfo cpci_;
+};
+
+/// Factory for ViewPort.
+class ViewPortMaker {
+public:
+
+  /// Set viewport origin x.
+  ViewPortMaker &x(float x) {
+    viewport_.x = x;
+    return *this;
+  }
+
+  /// Set viewport origin y.
+  ViewPortMaker &y(float y) {
+    viewport_.y = y;
+    return *this;
+  }
+
+  /// Set viewport width.
+  ViewPortMaker &width(float width) {
+    viewport_.width = width;
+    return *this;
+  }
+
+  /// Set viewport height.
+  ViewPortMaker &height(float height) {
+    viewport_.height = height;
+    return *this;
+  }
+
+  /// Set viewport minDepth.
+  ViewPortMaker &minDepth(float minDepth) {
+    viewport_.minDepth = minDepth;
+    return *this;
+  }
+
+  /// Set viewport maxDepth.
+  ViewPortMaker &maxDepth(float maxDepth) {
+    viewport_.maxDepth = maxDepth;
+    return *this;
+  }
+
+  /// Create a new Viewport
+  vk::Viewport createUnique() const {
+    //.x        : Vulkan default:0      OpenGL default:0
+    //.y        : Vulkan default:0      OpenGL default:0
+    //.width    : Vulkan default:width  OpenGL default:width
+    //.height   : Vulkan default:height OpenGL default:-height
+    //.minDepth : Vulkan default:0      OpenGL default:0.5f
+    //.maxDepth : Vulkan default:1      OpenGL default:1.0f
+    return viewport_;
+  }
+
+private:
+  vk::Viewport viewport_;
+};
+
+/// Factory for RenderPassBeginInfo.
+class RenderPassBeginInfoMaker {
+public:
+
+  /// Set pNext.
+  RenderPassBeginInfoMaker &pNext(const void* pNext) {
+    renderPassBeginInfo_.pNext = pNext;
+    return *this;
+  }
+
+  /// Set renderPass.
+  RenderPassBeginInfoMaker &renderPass(VkRenderPass renderPass) {
+    renderPassBeginInfo_.renderPass = renderPass;
+    return *this;
+  }
+
+  /// Set framebuffer.
+  RenderPassBeginInfoMaker &framebuffer(VkFramebuffer framebuffer) {
+    renderPassBeginInfo_.framebuffer = framebuffer;
+    return *this;
+  }
+
+  /// Set renderArea.
+  RenderPassBeginInfoMaker &renderArea(VkRect2D renderArea) {
+    renderPassBeginInfo_.renderArea = renderArea;
+    return *this;
+  }
+
+  /// Set clearValueCount.
+  RenderPassBeginInfoMaker &clearValueCount(uint32_t clearValueCount) {
+    renderPassBeginInfo_.clearValueCount = clearValueCount;
+    return *this;
+  }
+
+  /// Set pClearValues.
+  RenderPassBeginInfoMaker &pClearValues(const vk::ClearValue* pClearValues) {
+    renderPassBeginInfo_.pClearValues = pClearValues;
+    return *this;
+  }
+
+  /// Create a new RenderPassBeginInfo
+  vk::RenderPassBeginInfo createUnique() const {
+    return renderPassBeginInfo_;
+  }
+
+private:
+  vk::RenderPassBeginInfo renderPassBeginInfo_;
+};
+
+/// Set dynamic viewport and scissor to cover the full (w, h) extent in one call.
+inline void setViewportScissor(vk::CommandBuffer cb, uint32_t w, uint32_t h) {
+  cb.setViewport(0, vk::Viewport{0.f, 0.f, (float)w, (float)h, 0.f, 1.f});
+  cb.setScissor(0, vk::Rect2D{{0, 0}, {w, h}});
+}
+
+/// Builder for VkRenderingInfo used with dynamic rendering (vkCmdBeginRendering).
+/// Accumulates color attachments then issues beginRendering on the command buffer.
+class RenderingMaker {
+public:
+  RenderingMaker(uint32_t w, uint32_t h) {
+    info_.renderArea = vk::Rect2D{{0, 0}, {w, h}};
+    info_.layerCount = 1;
+  }
+
+  /// Write-only color attachment — no clear, just write every pixel.
+  RenderingMaker &colorAttachment(vk::ImageView view,
+                                  vk::ImageLayout layout = vk::ImageLayout::eColorAttachmentOptimal) {
+    vk::RenderingAttachmentInfo att{};
+    att.imageView   = view;
+    att.imageLayout = layout;
+    att.loadOp      = vk::AttachmentLoadOp::eDontCare;
+    att.storeOp     = vk::AttachmentStoreOp::eStore;
+    colorAtts_.push_back(att);
+    return *this;
+  }
+
+  /// Color attachment cleared to a solid RGBA color.
+  RenderingMaker &colorClear(vk::ImageView view,
+                             std::array<float, 4> rgba,
+                             vk::ImageLayout layout = vk::ImageLayout::eColorAttachmentOptimal) {
+    vk::RenderingAttachmentInfo att{};
+    att.imageView   = view;
+    att.imageLayout = layout;
+    att.loadOp      = vk::AttachmentLoadOp::eClear;
+    att.storeOp     = vk::AttachmentStoreOp::eStore;
+    att.clearValue  = vk::ClearValue{vk::ClearColorValue{rgba}};
+    colorAtts_.push_back(att);
+    return *this;
+  }
+
+  void beginRendering(vk::CommandBuffer cb) {
+    info_.colorAttachmentCount = (uint32_t)colorAtts_.size();
+    info_.pColorAttachments    = colorAtts_.data();
+    cb.beginRendering(info_);
+  }
+
+private:
+  vk::RenderingInfo info_{};
+  std::vector<vk::RenderingAttachmentInfo> colorAtts_;
+};
 
 } // namespace vku
 

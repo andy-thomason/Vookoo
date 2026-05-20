@@ -11,23 +11,35 @@
 #ifndef VKU_FRAMEWORK_HPP
 #define VKU_FRAMEWORK_HPP
 
+#if !defined(VKU_GLFW) && !defined(VKU_SDL2) && !defined(VKU_NO_WINDOW)
+#  error "Define VKU_GLFW, VKU_SDL2, or VKU_NO_WINDOW before including vku_framework.hpp"
+#endif
+
 #ifdef _WIN32
 #define VK_USE_PLATFORM_WIN32_KHR
+#if defined(VKU_GLFW)
 #define GLFW_EXPOSE_NATIVE_WIN32
+#endif
 #define VKU_SURFACE "VK_KHR_win32_surface"
 #pragma warning(disable : 4005)
 #elif defined(__APPLE__)
 #define VK_USE_PLATFORM_METAL_EXT
 #else // X11
 #define VK_USE_PLATFORM_XLIB_KHR
+#if defined(VKU_GLFW)
 #define GLFW_EXPOSE_NATIVE_X11
+#endif
 #define VKU_SURFACE "VK_KHR_xlib_surface"
 #endif
 
-#ifndef VKU_NO_GLFW
+#if defined(VKU_GLFW)
 #include <vulkan/vulkan.hpp>
 #include <GLFW/glfw3.h>
 #include <GLFW/glfw3native.h>
+#elif defined(VKU_SDL2)
+#define SDL_MAIN_HANDLED
+#include <SDL2/SDL.h>
+#include <SDL2/SDL_vulkan.h>
 #endif
 
 // Undo damage done by windows.h
@@ -47,15 +59,20 @@
 #include <cstddef>
 
 #include <vulkan/vulkan.hpp>
-#include "vku.hpp"
+#include <vku/vku.hpp>
 
 namespace vku {
 
 struct FrameworkOptions
 {
 	int deviceID = 0;
-	bool useCompute = true;
-} ;
+	bool useCompute = false;
+	bool useTessellationShader = false;
+	bool useGeometryShader = false;
+	bool useMultiView = false;
+	bool useDynamicRendering = false;
+	bool useSynchronization2 = false;
+};
 
 /// This class provides an optional interface to the vulkan instance, devices and queues.
 /// It is not used by any of the other classes directly and so can be safely ignored if Vookoo
@@ -63,16 +80,22 @@ struct FrameworkOptions
 /// See https://vulkan-tutorial.com for details of many operations here.
 class Framework {
 public:
+
   FrameworkOptions options;
 
-  Framework() {
-  }
+  Framework() = delete; // Disable default constructor
 
   // Construct a framework containing the instance, a device and one or more queues.
-  Framework(vku::InstanceMaker &im, vku::DeviceMaker &dm, const FrameworkOptions &options_ = FrameworkOptions{}) :
-	options(options_)
-  {
-    instance_ = im.createUnique();
+  Framework(const std::string &name, const FrameworkOptions &options_ = FrameworkOptions{}) : options(options_) {
+    vku::InstanceMaker im{};
+    instance_ = im
+      .defaultLayersExtensions()
+#ifndef NDEBUG
+      .layer("VK_LAYER_KHRONOS_validation")
+#endif
+      //.extension(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME) // added for multiview extension with vulkan 1.0.0
+      .apiVersion(VK_MAKE_VERSION(1,3,0))
+      .createUnique();
 
     callback_ = DebugCallback(*instance_);
 
@@ -82,10 +105,8 @@ public:
     const auto badQueue = ~(uint32_t)0;
     graphicsQueueFamilyIndex_ = badQueue;
     computeQueueFamilyIndex_ = badQueue;
-    
     vk::QueueFlags search = vk::QueueFlagBits::eGraphics;
-    if (options.useCompute)
-		search |= vk::QueueFlagBits::eCompute;
+    if (options.useCompute) { search |= vk::QueueFlagBits::eCompute; }
 
     // Look for an omnipurpose queue family first
     // It is better if we can schedule operations without barriers and semaphores.
@@ -95,26 +116,24 @@ public:
     // Also: All commands that are allowed on a queue that supports transfer operations are
     // also allowed on a queue that supports either graphics or compute operations...
     // As a result we can expect a queue family with at least all three and maybe all four modes.
+    std::cout << "Queue Family Properties" << std::endl;
     for (uint32_t qi = 0; qi != qprops.size(); ++qi) {
       auto &qprop = qprops[qi];
-      std::cout << vk::to_string(qprop.queueFlags) << "\n";
+      std::cout << "  ID" << qi << " " << vk::to_string(qprop.queueFlags) << "\n";
       if ((qprop.queueFlags & search) == search) {
-      
         graphicsQueueFamilyIndex_ = qi;
-        if (options.useCompute)
-			computeQueueFamilyIndex_ = qi;
-
+        if (options.useCompute) { computeQueueFamilyIndex_ = qi; }
         break;
       }
     }
 
-    if (graphicsQueueFamilyIndex_ == badQueue) {
-      std::cout << "oops, missing a queue\n";
+   if (graphicsQueueFamilyIndex_ == badQueue) {
+      std::cout << "oops, missing a graphicsQueue\n";
       return;
     }
 
     if (options.useCompute && computeQueueFamilyIndex_ == badQueue) {
-      std::cout << "oops, missing a queue\n";
+      std::cout << "oops, missing a computeQueue\n";
       return;
     }
 
@@ -123,21 +142,36 @@ public:
     // todo: find optimal texture format
     // auto rgbaprops = physical_device_.getFormatProperties(vk::Format::eR8G8B8A8Unorm);
 
-    dm.queue(graphicsQueueFamilyIndex_);
-    
-	if (options.useCompute)
-		if (computeQueueFamilyIndex_ != graphicsQueueFamilyIndex_)
-			dm.queue(computeQueueFamilyIndex_);
+    vku::DeviceMaker dm{};
+    dm.defaultExtensions()
+      .queue(graphicsQueueFamilyIndex_)
+      .enableGeometryShader( options.useGeometryShader )
+      .enableTessellationShader( options.useTessellationShader )
+      .enableMultiView( options.useMultiView )
+      .enableDynamicRendering( options.useDynamicRendering )
+      .enableSynchronization2( options.useSynchronization2 );
+    if (options.useCompute && computeQueueFamilyIndex_ != graphicsQueueFamilyIndex_) dm.queue(computeQueueFamilyIndex_);
 
-    device_ = dm.createUnique(physical_device_);
+    // NVIDIA ICD occasionally returns DeviceLost transiently at creation time.
+    // Retry with exponential backoff before propagating the error.
+    for (int attempt = 0; ; ++attempt) {
+      try {
+        device_ = dm.createUnique(physical_device_);
+        break;
+      } catch (const vk::DeviceLostError &) {
+        if (attempt >= 4) throw;
+        std::cout << "vkCreateDevice transient failure (attempt " << attempt+1 << "), retrying...\n";
+        std::this_thread::sleep_for(std::chrono::milliseconds(100 << attempt));
+      }
+    }
 
     vk::PipelineCacheCreateInfo pipelineCacheInfo{};
     pipelineCache_ = device_->createPipelineCacheUnique(pipelineCacheInfo);
 
-    std::vector<vk::DescriptorPoolSize> poolSizes;
-    poolSizes.emplace_back(vk::DescriptorType::eUniformBuffer, 128);
-    poolSizes.emplace_back(vk::DescriptorType::eCombinedImageSampler, 128);
-    poolSizes.emplace_back(vk::DescriptorType::eStorageBuffer, 128);
+    std::vector<vk::DescriptorPoolSize> poolSizes = {
+      {vk::DescriptorType::eUniformBuffer, 128},
+      {vk::DescriptorType::eCombinedImageSampler, 128},
+      {vk::DescriptorType::eStorageBuffer, 128} };
 
     // Create an arbitrary number of descriptors in a pool.
     // Allow the descriptors to be freed, possibly not optimal behaviour.
@@ -219,7 +253,6 @@ private:
   vk::UniqueInstance instance_;
   vku::DebugCallback callback_;
   vk::UniqueDevice device_;
-  //vk::DebugReportCallbackEXT callback_;
   vk::PhysicalDevice physical_device_;
   vk::UniquePipelineCache pipelineCache_;
   vk::UniqueDescriptorPool descriptorPool_;
@@ -229,15 +262,26 @@ private:
   bool ok_ = false;
 };
 
+struct WindowOptions
+{
+  vk::Format desiredSwapChainImageFormat = vk::Format::eB8G8R8A8Unorm;
+  vk::PresentModeKHR desiredPresentMode = vk::PresentModeKHR::eFifo;
+  // true = minImageCount+1 (triple buffering, GPU runs uncapped under eFifo)
+  // false = minImageCount   (double buffering, eFifo naturally caps at vsync)
+  bool tripleBuffering = false;
+};
+
 /// This class wraps a window, a surface and a swap chain for that surface.
 class Window {
 public:
-  Window() {
-  }
 
-#ifndef VKU_NO_GLFW
+  WindowOptions options;
+
+  Window() = delete; // Disable default constructor
+
+#if defined(VKU_GLFW)
   /// Construct a window, surface and swapchain using a GLFW window.
-  Window(const vk::Instance &instance, const vk::Device &device, const vk::PhysicalDevice &physicalDevice, uint32_t graphicsQueueFamilyIndex, GLFWwindow *window) {
+  Window(const vk::Instance &instance, const vk::Device &device, const vk::PhysicalDevice &physicalDevice, uint32_t graphicsQueueFamilyIndex, GLFWwindow *window, const WindowOptions &options_ = WindowOptions{}) : options(options_) {
 #ifdef VK_USE_PLATFORM_WIN32_KHR
     auto module = GetModuleHandle(nullptr);
     auto handle = glfwGetWin32Window(window);
@@ -256,18 +300,33 @@ public:
 	                        nullptr,
 	                        reinterpret_cast<VkSurfaceKHR *>(&surface));
 #endif
-    init(instance, device, physicalDevice, graphicsQueueFamilyIndex, surface);
+    init(instance, device, physicalDevice, graphicsQueueFamilyIndex, surface, options.desiredSwapChainImageFormat);
   }
 #endif
 
-  Window(const vk::Instance &instance, const vk::Device &device, const vk::PhysicalDevice &physicalDevice, uint32_t graphicsQueueFamilyIndex, vk::SurfaceKHR surface) {
-    init(instance, device, physicalDevice, graphicsQueueFamilyIndex, surface);
+#if defined(VKU_SDL2)
+  /// Construct a window, surface and swapchain from an SDL_Window.
+  Window(const vk::Instance &instance, const vk::Device &device, const vk::PhysicalDevice &physicalDevice, uint32_t graphicsQueueFamilyIndex, SDL_Window *window, const WindowOptions &options_ = WindowOptions{}) : options(options_) {
+    VkSurfaceKHR rawSurface{};
+    if (!SDL_Vulkan_CreateSurface(window, static_cast<VkInstance>(instance), &rawSurface)) {
+      std::cerr << "SDL_Vulkan_CreateSurface failed: " << SDL_GetError() << "\n";
+      return;
+    }
+    init(instance, device, physicalDevice, graphicsQueueFamilyIndex, vk::SurfaceKHR(rawSurface), options.desiredSwapChainImageFormat);
+  }
+#endif
+
+  Window(const vk::Instance &instance, const vk::Device &device, const vk::PhysicalDevice &physicalDevice, uint32_t graphicsQueueFamilyIndex, vk::SurfaceKHR surface, const WindowOptions &options_ = WindowOptions{}) : options(options_) {
+    init(instance, device, physicalDevice, graphicsQueueFamilyIndex, surface, options.desiredSwapChainImageFormat);
   }
 
-  void init(const vk::Instance &instance, const vk::Device &device, const vk::PhysicalDevice &physicalDevice, uint32_t graphicsQueueFamilyIndex, vk::SurfaceKHR surface) {
-    //surface_ = vk::UniqueSurfaceKHR(surface);
-    surface_ = vk::UniqueSurfaceKHR(surface, vk::ObjectDestroy<vk::Instance, vk::DispatchLoaderStatic>(instance));
-    // surface_ = surface;
+  void init(const vk::Instance &instance, const vk::Device &device, const vk::PhysicalDevice &physicalDevice, uint32_t graphicsQueueFamilyIndex, vk::SurfaceKHR surface, vk::Format desiredSwapChainFormat) {
+    // ObjectDestroy moved from vk:: to vk::detail:: around SDK 1.3.283
+#if VK_HEADER_VERSION >= 290
+    surface_ = vk::UniqueSurfaceKHR(surface, vk::detail::ObjectDestroy<vk::Instance, VULKAN_HPP_DEFAULT_DISPATCHER_TYPE>(instance));
+#else
+    surface_ = vk::UniqueSurfaceKHR(surface, vk::ObjectDestroy<vk::Instance, VULKAN_HPP_DEFAULT_DISPATCHER_TYPE>(instance));
+#endif
     graphicsQueueFamilyIndex_ = graphicsQueueFamilyIndex;
     physicalDevice_ = physicalDevice;
     instance_ = instance;
@@ -298,7 +357,7 @@ public:
       swapchainColorSpace_ = vk::ColorSpaceKHR::eSrgbNonlinear;
     } else {
       for (auto &fmt : fmts) {
-        if (fmt.format == vk::Format::eB8G8R8A8Unorm) {
+        if (fmt.format == desiredSwapChainFormat) {
           swapchainImageFormat_ = fmt.format;
           swapchainColorSpace_ = fmt.colorSpace;
         }
@@ -306,19 +365,17 @@ public:
     }
 
     createSwapchain();
-
     createImages();
-
     createDepthStencil();
+    createRenderPass();
+    createFrameBuffers();
 
-	  createRenderPass();
-
-	  createFrameBuffers();
-
-	  vk::SemaphoreCreateInfo sci;
-    imageAcquireSemaphore_ = device.createSemaphoreUnique(sci);
-    commandCompleteSemaphore_ = device.createSemaphoreUnique(sci);
-    dynamicSemaphore_ = device.createSemaphoreUnique(sci);
+    for (int i = 0; i != numImageIndices(); ++i) {
+      vk::SemaphoreCreateInfo sci;
+      imageAcquireSemaphore_.emplace_back(device.createSemaphoreUnique(sci));
+      commandCompleteSemaphore_.emplace_back(device.createSemaphoreUnique(sci));
+      dynamicSemaphore_.emplace_back(device.createSemaphoreUnique(sci));
+    }
 
     typedef vk::CommandPoolCreateFlagBits ccbits;
 
@@ -331,13 +388,13 @@ public:
     dynamicDrawBuffers_ = device.allocateCommandBuffersUnique(cbai);
 
     // Create a set of fences to protect the command buffers from re-writing.
-    for (int i = 0; i != staticDrawBuffers_.size(); ++i) {
+    for (int i = 0; i != (int)staticDrawBuffers_.size(); ++i) {
       vk::FenceCreateInfo fci;
       fci.flags = vk::FenceCreateFlagBits::eSignaled;
       commandBufferFences_.emplace_back(device.createFence(fci));
     }
 
-    for (int i = 0; i != staticDrawBuffers_.size(); ++i) {
+    for (int i = 0; i != (int)staticDrawBuffers_.size(); ++i) {
       vk::CommandBuffer cb = *staticDrawBuffers_[i];
       vk::CommandBufferBeginInfo bi{};
       cb.begin(bi);
@@ -345,13 +402,13 @@ public:
     }
 
     // Create a set of fences to protect the dynamic command buffers from re-writing.
-    for (int i = 0; i != dynamicDrawBuffers_.size(); ++i) {
+    for (int i = 0; i != (int)dynamicDrawBuffers_.size(); ++i) {
       vk::FenceCreateInfo fci;
       fci.flags = vk::FenceCreateFlagBits::eSignaled;
       dynamicCommandBufferFences_.emplace_back(device.createFence(fci));
     }
 
-    for (int i = 0; i != dynamicDrawBuffers_.size(); ++i) {
+    for (int i = 0; i != (int)dynamicDrawBuffers_.size(); ++i) {
       vk::CommandBuffer cb = *dynamicDrawBuffers_[i];
       vk::CommandBufferBeginInfo bi{};
       cb.begin(bi);
@@ -368,23 +425,23 @@ public:
     for (auto &fmt : fmts) {
       auto fmtstr = vk::to_string(fmt.format);
       auto cstr = vk::to_string(fmt.colorSpace);
-      os << "format=" << fmtstr << " colorSpace=" << cstr << "\n";
+      os << "  format=" << fmtstr << " colorSpace=" << cstr << "\n";
     }
 
     os << "Present Modes\n";
     auto presentModes = pd.getSurfacePresentModesKHR(surface_.get());
     for (auto pm : presentModes) {
-      std::cout << vk::to_string(pm) << "\n";
+      std::cout << "  " << vk::to_string(pm) << "\n";
     }
   }
 
-  static void defaultRenderFunc(vk::CommandBuffer cb, int imageIndex, vk::RenderPassBeginInfo &rpbi) {
+  static void defaultRenderFunc(vk::CommandBuffer cb, int currentFrame, vk::RenderPassBeginInfo &rpbi) {
     vk::CommandBufferBeginInfo bi{};
     cb.begin(bi);
     cb.end();
   }
 
-  typedef void (renderFunc_t)(vk::CommandBuffer cb, int imageIndex, vk::RenderPassBeginInfo &rpbi);
+  typedef void (renderFunc_t)(vk::CommandBuffer cb, int currentFrame, vk::RenderPassBeginInfo &rpbi);
 
   /// Build a static draw buffer. This will be rendered after any dynamic
   /// content generated in draw()
@@ -395,7 +452,7 @@ public:
 
   void buildStaticCBs() {
     if(func) {
-      for (int i = 0; i != staticDrawBuffers_.size(); ++i) {
+      for (int i = 0; i != (int)staticDrawBuffers_.size(); ++i) {
         vk::CommandBuffer cb = *staticDrawBuffers_[i];
 
         vk::ClearDepthStencilValue clearDepthValue{1.0f, 0};
@@ -415,33 +472,38 @@ public:
 
   /// Queue the static command buffer for the next image in the swap chain. Optionally call a function to create a dynamic command buffer
   /// for uploading textures, changing uniforms etc.
-  void draw(const vk::Device &device, const vk::Queue &graphicsQueue, const std::function<void (vk::CommandBuffer cb, int imageIndex, vk::RenderPassBeginInfo &rpbi)> &dynamic = defaultRenderFunc) {
-    static auto start = std::chrono::high_resolution_clock::now();
-    auto time = std::chrono::high_resolution_clock::now();
-    auto delta = time - start;
-    start = time;
-    // uncomment to get frame time.
-    //std::cout << std::chrono::duration_cast<std::chrono::microseconds>(delta).count() << "us frame time\n";
-
+  void draw(const vk::Device &device, const vk::Queue &graphicsQueue, const std::function<void (vk::CommandBuffer cb, int currentFrame, vk::RenderPassBeginInfo &rpbi)> &dynamic = defaultRenderFunc) {
     auto umax = std::numeric_limits<uint64_t>::max();
+    static uint32_t currentFrame = 0;
     uint32_t imageIndex = 0;
-    auto acquired = device.acquireNextImageKHR(*swapchain_, umax, *imageAcquireSemaphore_, vk::Fence(), &imageIndex);
-    if (acquired != vk::Result::eSuccess) {
-      recreate();
+
+    // currentFrame indexes the dynamic CB and semaphore ring — these are
+    // CPU-side cycling resources independent of which image we acquire.
+    // We can wait on the dynamic fence before acquiring since it doesn't
+    // depend on imageIndex.
+    vk::Fence &rpcbFence = dynamicCommandBufferFences_[currentFrame];
+    {vk::Result result = device.waitForFences(rpcbFence, 1, umax);} // TODO use result
+
+    vk::Semaphore iaSema = *imageAcquireSemaphore_[currentFrame];
+    auto acquired = device.acquireNextImageKHR(*swapchain_, umax, iaSema, vk::Fence{}, &imageIndex);
+    if (acquired == vk::Result::eErrorOutOfDateKHR) {
+      recreateSwapChain();
       return;
+    } else if (acquired != vk::Result::eSuccess && acquired != vk::Result::eSuboptimalKHR) {
+      throw std::runtime_error("failed to present swap chain image!");
     }
-    vk::PipelineStageFlags waitStages = vk::PipelineStageFlagBits::eColorAttachmentOutput;
-    vk::Semaphore ccSema = *commandCompleteSemaphore_;
-    vk::Semaphore iaSema = *imageAcquireSemaphore_;
-    vk::Semaphore psSema = *dynamicSemaphore_;
-    vk::CommandBuffer cb = *staticDrawBuffers_[imageIndex];
-    vk::CommandBuffer pscb = *dynamicDrawBuffers_[imageIndex];
 
+    // imageIndex is now known. The static CB for slot imageIndex was pre-recorded
+    // to render into framebuffers_[imageIndex], so we must use imageIndex here —
+    // not currentFrame — to avoid rendering into the wrong swapchain image.
+    vk::Fence &cbFence = commandBufferFences_[imageIndex];
+    {vk::Result result = device.waitForFences(cbFence, 1, umax);} // TODO use result
 
-    vk::Fence rpcbFence = dynamicCommandBufferFences_[imageIndex];
-    device.waitForFences(rpcbFence, 1, umax);
     device.resetFences(rpcbFence);
+    device.resetFences(cbFence);
 
+    vk::CommandBuffer pscb = *dynamicDrawBuffers_[currentFrame];
+    vk::Semaphore psSema = *dynamicSemaphore_[currentFrame];
 
     vk::ClearDepthStencilValue clearDepthValue{ 1.0f, 0 };
     std::array<vk::ClearValue, 2> clearColours{vk::ClearValue{clearColorValue()}, clearDepthValue};
@@ -453,30 +515,41 @@ public:
     rpbi.pClearValues = clearColours.data();
     dynamic(pscb, imageIndex, rpbi);
 
+    // Submit 1: dynamic CB (UBO transfers). Waits for image acquire only at
+    // eColorAttachmentOutput — the dynamic CB doesn't write to the swapchain image.
+    vk::PipelineStageFlags waitStagesAcquire = vk::PipelineStageFlagBits::eColorAttachmentOutput;
+    // Submit 2: static CB (rendering). Waits for dynamic CB at eTopOfPipe — the very first stage.
+    // This forces ALL stages in submit2 to wait for psSema without adding any access-mask
+    // dependency (which would conflict with existing barriers). Semaphore signal/wait already
+    // provides a full memory dependency (all prior writes visible), so UBO data written via
+    // cb.updateBuffer in submit1 is visible to vertex shader reads in submit2. Using eTopOfPipe
+    // also makes the ccSema→psSema→submit1 chain fully visible to sync-val, fixing
+    // SYNC-HAZARD-PRESENT-AFTER-WRITE when submit1 contains swapchain color writes.
+    vk::PipelineStageFlags waitStagesDynamic = vk::PipelineStageFlagBits::eTopOfPipe;
+
     vk::SubmitInfo submit;
     submit.waitSemaphoreCount = 1;
     submit.pWaitSemaphores = &iaSema;
-    submit.pWaitDstStageMask = &waitStages;
+    submit.pWaitDstStageMask = &waitStagesAcquire;
     submit.commandBufferCount = 1;
     submit.pCommandBuffers = &pscb;
     submit.signalSemaphoreCount = 1;
     submit.pSignalSemaphores = &psSema;
-    graphicsQueue.submit(1, &submit, rpcbFence);
 
+    {vk::Result result = graphicsQueue.submit(1, &submit, rpcbFence);} // TODO use result
 
-    vk::Fence cbFence = commandBufferFences_[imageIndex];
-    device.waitForFences(cbFence, 1, umax);
-    device.resetFences(cbFence);
-
+    vk::CommandBuffer cb = *staticDrawBuffers_[imageIndex];
+    vk::Semaphore ccSema = *commandCompleteSemaphore_[currentFrame];
 
     submit.waitSemaphoreCount = 1;
     submit.pWaitSemaphores = &psSema;
-    submit.pWaitDstStageMask = &waitStages;
+    submit.pWaitDstStageMask = &waitStagesDynamic;
     submit.commandBufferCount = 1;
     submit.pCommandBuffers = &cb;
     submit.signalSemaphoreCount = 1;
     submit.pSignalSemaphores = &ccSema;
-    graphicsQueue.submit(1, &submit, cbFence);
+
+    {vk::Result result = graphicsQueue.submit(1, &submit, cbFence);} // TODO use result
 
     vk::PresentInfoKHR presentInfo;
     vk::SwapchainKHR swapchain = *swapchain_;
@@ -485,11 +558,17 @@ public:
     presentInfo.pImageIndices = &imageIndex;
     presentInfo.waitSemaphoreCount = 1;
     presentInfo.pWaitSemaphores = &ccSema;
-    try {
-	    presentQueue().presentKHR(presentInfo);
-    } catch (const vk::OutOfDateKHRError) {
-    	recreate();
+
+    vk::Result resultPresent;
+    try { resultPresent = presentQueue().presentKHR(presentInfo); }
+    catch (vk::OutOfDateKHRError err) { resultPresent = vk::Result::eErrorOutOfDateKHR; }
+    catch (...) { throw std::runtime_error("failed to present swap chain image!"); }
+    if (resultPresent == vk::Result::eErrorOutOfDateKHR || resultPresent == vk::Result::eSuboptimalKHR) {
+      recreateSwapChain();
+      return;
     }
+
+    ++currentFrame %= numImageIndices();
   }
 
   /// Return the queue family index used to present the surface to the display.
@@ -554,12 +633,15 @@ public:
   const std::vector<vk::Fence> &dynamicCommandBufferFences() const { return dynamicCommandBufferFences_; }
 
   /// Return the semaphore signalled when an image is acquired.
-  vk::Semaphore imageAcquireSemaphore() const { return *imageAcquireSemaphore_; }
+  const std::vector<vk::UniqueSemaphore> &imageAcquireSemaphore() const { return imageAcquireSemaphore_; }
 
   /// Return the semaphore signalled when the command buffers are finished.
-  vk::Semaphore commandCompleteSemaphore() const { return *commandCompleteSemaphore_; }
+  const std::vector<vk::UniqueSemaphore> &commandCompleteSemaphore() const { return commandCompleteSemaphore_; }
 
-  /// Return a defult command Pool to use to create new command buffers.
+  /// Return the semaphore signalled when a presentation is finished.
+  const std::vector<vk::UniqueSemaphore> &dynamicSemaphore() const { return dynamicSemaphore_; }
+
+  /// Return a default command pool to use to create new command buffers.
   vk::CommandPool commandPool() const { return *commandPool_; }
 
   /// Return the number of swap chain images.
@@ -568,18 +650,23 @@ public:
   /// Create a new swapchain and destroy the previous one if any.
   void createSwapchain() {
     auto pms = physicalDevice_.getSurfacePresentModesKHR(surface_.get());
-    vk::PresentModeKHR presentMode = pms[0];
-    if (std::find(pms.begin(), pms.end(), vk::PresentModeKHR::eFifo) !=
-        pms.end()) {
-      presentMode = vk::PresentModeKHR::eFifo;
-    } else {
-      std::cout << "No fifo mode available\n";
-      return;
+    vk::PresentModeKHR presentMode = options.desiredPresentMode;
+    if (std::find(pms.begin(), pms.end(), presentMode) == pms.end()) {
+      // Fall back: prefer FIFO_RELAXED > FIFO > whatever is first.
+      auto has = [&](vk::PresentModeKHR m) {
+        return std::find(pms.begin(), pms.end(), m) != pms.end();
+      };
+      if      (has(vk::PresentModeKHR::eFifoRelaxed)) { presentMode = vk::PresentModeKHR::eFifoRelaxed; }
+      else if (has(vk::PresentModeKHR::eFifo))        { presentMode = vk::PresentModeKHR::eFifo; }
+      else                                            { presentMode = pms[0]; }
+      std::cout << "desired present mode unavailable, using " << vk::to_string(presentMode) << "\n";
     }
 
     auto surfaceCaps = physicalDevice_.getSurfaceCapabilitiesKHR(surface_.get());
-    width_ = surfaceCaps.currentExtent.width;
-    height_ = surfaceCaps.currentExtent.height;
+    if (width_ != surfaceCaps.currentExtent.width || height_ != surfaceCaps.currentExtent.height) {
+      width_ = surfaceCaps.currentExtent.width;
+      height_ = surfaceCaps.currentExtent.height;
+    }
     vk::SwapchainCreateInfoKHR swapinfo{};
     std::array<uint32_t, 2> queueFamilyIndices = {graphicsQueueFamilyIndex_,
                                                   presentQueueFamily_};
@@ -588,7 +675,7 @@ public:
                                               : vk::SharingMode::eExclusive;
     swapinfo.imageExtent = surfaceCaps.currentExtent;
     swapinfo.surface = surface_.get();
-    swapinfo.minImageCount = surfaceCaps.minImageCount + 1;
+    swapinfo.minImageCount = surfaceCaps.minImageCount + (options.tripleBuffering ? 1 : 0);
     swapinfo.imageFormat = swapchainImageFormat_;
     swapinfo.imageColorSpace = swapchainColorSpace_;
     swapinfo.imageExtent = surfaceCaps.currentExtent;
@@ -598,7 +685,7 @@ public:
     swapinfo.queueFamilyIndexCount = !sameQueues ? 2 : 0;
     swapinfo.pQueueFamilyIndices = queueFamilyIndices.data();
     swapinfo.preTransform = surfaceCaps.currentTransform;
-    ;
+ 
     swapinfo.compositeAlpha = vk::CompositeAlphaFlagBitsKHR::eOpaque;
     swapinfo.presentMode = presentMode;
     swapinfo.clipped = 1;
@@ -624,7 +711,7 @@ public:
 
   void createFrameBuffers() {
     framebuffers_.clear();
-    for (int i = 0; i != imageViews_.size(); ++i) {
+    for (int i = 0; i != (int)imageViews_.size(); ++i) {
       vk::ImageView attachments[2] = {imageViews_[i],
                                       depthStencilImage_.imageView()};
       vk::FramebufferCreateInfo fbci{{},     *renderPass_, 2, attachments,
@@ -670,22 +757,27 @@ public:
     rpm.dependencyDstAccessMask(vk::AccessFlagBits::eColorAttachmentRead |
                                 vk::AccessFlagBits::eColorAttachmentWrite);
 
+    // A dependency to reset the layout of DepthStencil.
+    rpm.dependencyBegin(VK_SUBPASS_EXTERNAL, 0);
+    rpm.dependencySrcStageMask(
+        vk::PipelineStageFlagBits::eLateFragmentTests);
+    rpm.dependencyDstStageMask(
+        vk::PipelineStageFlagBits::eEarlyFragmentTests);
+    rpm.dependencySrcAccessMask(vk::AccessFlagBits::eDepthStencilAttachmentWrite);
+    rpm.dependencyDstAccessMask(vk::AccessFlagBits::eDepthStencilAttachmentRead |
+                                vk::AccessFlagBits::eDepthStencilAttachmentWrite);
+
     // Use the maker object to construct the vulkan object
     renderPass_ = rpm.createUnique(device_);
   }
 
-  void recreate() {
-    device_.waitForFences(commandBufferFences_, VK_TRUE,
-                          std::numeric_limits<uint64_t>::max());
+  void recreateSwapChain() {
+    device_.waitIdle();
 
     createSwapchain();
-
     createImages();
-
     createDepthStencil();
-
     createFrameBuffers();
-
     buildStaticCBs();
   }
 
@@ -700,9 +792,9 @@ private:
   vk::UniqueSurfaceKHR surface_;
   vk::UniqueSwapchainKHR swapchain_;
   vk::UniqueRenderPass renderPass_;
-  vk::UniqueSemaphore imageAcquireSemaphore_;
-  vk::UniqueSemaphore commandCompleteSemaphore_;
-  vk::UniqueSemaphore dynamicSemaphore_;
+  std::vector<vk::UniqueSemaphore> imageAcquireSemaphore_;
+  std::vector<vk::UniqueSemaphore> commandCompleteSemaphore_;
+  std::vector<vk::UniqueSemaphore> dynamicSemaphore_;
   vk::UniqueCommandPool commandPool_;
 
   std::vector<vk::ImageView> imageViews_;
@@ -719,9 +811,9 @@ private:
   vku::DepthStencilImage depthStencilImage_;
 
   uint32_t presentQueueFamily_ = 0;
-  uint32_t width_;
-  uint32_t height_;
-  std::array<float, 4> clearColorValue_{0.75f, 0.75f, 0.75f, 1};
+  uint32_t width_ = 0;
+  uint32_t height_ = 0;
+  std::array<float, 4> clearColorValue_{0.0f, 0.0f, 0.0f, 1.0f};
   vk::Format swapchainImageFormat_ = vk::Format::eB8G8R8A8Unorm;
   vk::ColorSpaceKHR swapchainColorSpace_ = vk::ColorSpaceKHR::eSrgbNonlinear;
   vk::Device device_;

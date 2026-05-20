@@ -1,0 +1,93 @@
+#version 450
+layout(local_size_x = 8, local_size_y = 8, local_size_z = 8) in;
+
+// Multi-step Jacobi: K iterations per dispatch using shared memory.
+// Each outer dispatch replaces K global pipeline barriers with K-1 cheap
+// workgroup barriers, reducing total inter-dispatch stalls by (K-1)/K.
+//
+// Tile layout: (8 + 2*K)^3 halo loaded from global memory once per dispatch.
+// Halo cells stay frozen (stale from presIn) throughout all K inner sweeps —
+// equivalent quality to K global iterations for interior cells.
+
+layout(constant_id = 0) const int K = 4;   // specialization constant — override at pipeline creation
+// Tile side = workgroup edge + one K-wide halo on each side.
+// Each halo cell is a neighbour that the innermost interior cell needs after K
+// Jacobi sweeps have propagated outward by K steps; loading the full halo once
+// lets all K sweeps read from shared memory rather than going back to L2/DRAM.
+// Larger K → bigger tile → more shared memory used but fewer global barriers.
+// Constraint: TS³ × 4 B ≤ maxComputeSharedMemorySize (48 KB on RTX 3050).
+//   K=4 → 16³ × 4 = 16 KB   K=6 → 20³ × 4 = 32 KB   K=8 → 24³ × 4 = 55 KB (over limit).
+const int TS = 8 + 2 * K;
+
+layout(binding = 0) uniform sampler3D presIn;
+layout(binding = 1) uniform sampler3D divgIn;
+layout(binding = 2, rgba16f) uniform readonly image3D in2;   // unused (dummy)
+layout(binding = 3, r16f)   uniform          image3D out0;   // presOut
+layout(binding = 4, rgba16f) uniform          image3D out1;  // unused (dummy)
+
+layout(binding = 5) uniform FluidUBO {
+    float dt;         float cellSize;   float velDiss;  float densDiss;
+    float tempDiss;   float ambientTemp;float sigma;    float kappa;
+    float gradScale;  float halfInvCell;float splatRadius;
+    float impulseTemp;float impulseDens;
+    float impulsePosX;float impulsePosY;float impulsePosZ;
+    int addImpulse; int gridW; int gridH; int gridD;
+} u;
+
+// 16^3 = 4096 floats = 16 KB — fits comfortably in the 48 KB shared limit.
+shared float tile[TS * TS * TS];
+
+int tidx(int x, int y, int z) { return z * TS * TS + y * TS + x; }
+
+void main() {
+    ivec3 wg     = ivec3(gl_WorkGroupID);
+    ivec3 lid    = ivec3(gl_LocalInvocationID);
+    int   linId  = int(gl_LocalInvocationIndex);   // 0..511
+
+    // Top-left corner of the halo tile in grid space.
+    ivec3 origin = wg * 8 - K;
+
+    // Load TS^3 = 4096 values; 512 threads → 8 loads each.
+    for (int i = linId; i < TS * TS * TS; i += 512) {
+        int sx = i % TS;
+        int sy = (i / TS) % TS;
+        int sz = i / (TS * TS);
+        ivec3 gc = clamp(origin + ivec3(sx, sy, sz),
+                         ivec3(0), ivec3(u.gridW - 1, u.gridH - 1, u.gridD - 1));
+        tile[i] = texelFetch(presIn, gc, 0).x;
+    }
+
+    // Each thread's divergence is constant across all K inner iterations.
+    ivec3 coord = wg * 8 + lid;
+    bool  valid = coord.x < u.gridW && coord.y < u.gridH && coord.z < u.gridD;
+    float bC    = valid ? texelFetch(divgIn, coord, 0).x : 0.0;
+
+    const float alpha       = -u.cellSize * u.cellSize;
+    const float inverseBeta = 1.0 / 6.0;
+
+    // Center position of this thread within the tile.
+    int cx = lid.x + K;
+    int cy = lid.y + K;
+    int cz = lid.z + K;
+
+    barrier();
+
+    for (int iter = 0; iter < K; ++iter) {
+        float pE = tile[tidx(cx+1, cy,   cz  )];
+        float pW = tile[tidx(cx-1, cy,   cz  )];
+        float pN = tile[tidx(cx,   cy+1, cz  )];
+        float pS = tile[tidx(cx,   cy-1, cz  )];
+        float pU = tile[tidx(cx,   cy,   cz+1)];
+        float pD = tile[tidx(cx,   cy,   cz-1)];
+
+        float newP = (pE + pW + pN + pS + pU + pD + alpha * bC) * inverseBeta;
+
+        barrier();  // all reads done before any thread writes
+        tile[tidx(cx, cy, cz)] = newP;
+        barrier();  // all writes done before next iteration reads
+    }
+
+    if (valid) {
+        imageStore(out0, coord, vec4(tile[tidx(cx, cy, cz)], 0.0, 0.0, 0.0));
+    }
+}

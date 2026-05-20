@@ -12,6 +12,7 @@
 
 // Include the demo framework, vookoo (vku) for building objects and glm for maths.
 // The demo framework uses GLFW to create windows.
+#define VKU_GLFW
 #include <vku/vku_framework.hpp>
 #include <vku/vku.hpp>
 #include <glm/glm.hpp>
@@ -26,14 +27,9 @@ int main() {
   const char *title = "pushConstants";
   auto glfwwindow = glfwCreateWindow(800, 800, title,  nullptr, nullptr);
 
-  // Initialize makers
-  vku::InstanceMaker im{};
-  im.defaultLayers();
-  vku::DeviceMaker dm{};
-  dm.defaultLayers();
-
+  {
   // Initialise the Vookoo demo framework.
-  vku::Framework fw{im, dm};
+  vku::Framework fw{title};
   if (!fw.ok()) {
     std::cout << "Framework creation failed" << std::endl;
     exit(1);
@@ -43,13 +39,13 @@ int main() {
   vk::Device device = fw.device();
 
   // Create a window to draw into
-  vku::Window window{
+  vku::Window window(
     fw.instance(),
     device,
     fw.physicalDevice(),
     fw.graphicsQueueFamilyIndex(),
     glfwwindow
-  };
+  );
   if (!window.ok()) {
     std::cout << "Window creation failed" << std::endl;
     exit(1);
@@ -92,8 +88,9 @@ int main() {
   // to resources are layed out.
   // 
   vku::PipelineLayoutMaker plm{};
-  plm.pushConstantRange(vk::ShaderStageFlagBits::eAll, 0, sizeof(PushConstant));
-  auto pipelineLayout = plm.createUnique(device);
+  auto pipelineLayout = plm
+    .pushConstantRange(vk::ShaderStageFlagBits::eAll, 0, sizeof(PushConstant))
+    .createUnique(device);
 
   auto buildPipeline = [&]() {
     // Make a pipeline to use the vertex format and shaders.
@@ -111,8 +108,12 @@ int main() {
   int frame = 0;
 
   // Loop waiting for the window to close.
-  while (!glfwWindowShouldClose(glfwwindow)) {
+  while (!glfwWindowShouldClose(glfwwindow) && glfwGetKey(glfwwindow, GLFW_KEY_ESCAPE) != GLFW_PRESS) {
     glfwPollEvents();
+
+    int width, height;
+    glfwGetWindowSize(glfwwindow, &width, &height);
+    if (width==0 || height==0) continue;
 
     P.back().rotation = glm::rotate(P.back().rotation, glm::radians(1.0f), glm::vec3(0, 0, 1));
     P.back().colour.r = (std::sin(frame * 0.01f) + 1.0f) / 2.0f;
@@ -130,8 +131,7 @@ int main() {
           wh = window.height();
           pipeline = buildPipeline();
         }
-        vk::CommandBufferBeginInfo cbbi{};
-        cb.begin(cbbi);
+        cb.begin(vk::CommandBufferBeginInfo{});
         cb.beginRenderPass(rpbi, vk::SubpassContents::eInline);
         cb.bindPipeline(vk::PipelineBindPoint::eGraphics, *pipeline);
         cb.bindVertexBuffers(0, buffer.buffer(), vk::DeviceSize(0));
@@ -153,15 +153,12 @@ int main() {
       }
     );
 
-    // Very crude method to prevent your GPU from overheating.
-    std::this_thread::sleep_for(std::chrono::milliseconds(16));
-
     ++frame;
   }
 
   // Wait until all drawing is done and then kill the window.
   device.waitIdle();
-
+  } // all Vulkan objects destroyed here, before GLFW teardown
   glfwDestroyWindow(glfwwindow);
   glfwTerminate();
 

@@ -1,0 +1,90 @@
+#version 450
+
+layout(local_size_x = 64) in;
+layout(constant_id = 0) const int N_PARTICLES = 2048;
+
+struct Particle {
+    vec2  pos;
+    vec2  vel;
+    float life;
+    float size;
+    float pad0;
+    float pad1;
+};
+
+// Ping-pong: read previous frame's slot, write current frame's slot.
+layout(std430, set=0, binding=0) readonly buffer PrevParticles { Particle p_in[];  };
+layout(std430, set=0, binding=1)           buffer CurrParticles { Particle p_out[]; };
+
+struct Emitter {
+    vec2  pos;
+    vec2  vel;
+    float strength;
+    float pad0, pad1, pad2;
+};
+
+layout(std140, set=0, binding=2) uniform EmitterUBO {
+    Emitter ship;
+    Emitter rocks[32];
+    Emitter bullets[16];
+    int     n_rocks;
+    int     n_bullets;
+    float   dt;
+    float   time;
+} em;
+
+float hash(float n) { return fract(sin(n) * 43758.5453); }
+
+void main() {
+    uint idx = gl_GlobalInvocationID.x;
+    if (idx >= uint(N_PARTICLES)) return;
+
+    Particle pt = p_in[idx];
+
+    pt.life -= em.dt * 0.08;
+
+    if (pt.life <= 0.0) {
+        float s = float(idx) + em.time * 0.01;
+        pt.pos  = vec2(hash(s * 1.31) * 2.0 - 1.0, hash(s * 2.73) * 2.0 - 1.0) * vec2(400.0, 300.0);
+        pt.vel  = vec2(hash(s * 5.17) * 2.0 - 1.0, hash(s * 7.31) * 2.0 - 1.0) * 8.0;
+        pt.life = 0.4 + hash(s * 3.91) * 0.6;
+        pt.size = 1.0 + hash(s * 11.3) * 2.0;
+        p_out[idx] = pt;
+        return;
+    }
+
+    pt.vel *= max(0.0, 1.0 - em.dt * 1.5);
+
+    // Ship wake: push outward, biased along direction of movement.
+    {
+        vec2  d    = pt.pos - em.ship.pos;
+        float dist = length(d) + 1.0;
+        pt.vel    += normalize(d + em.ship.vel * 0.3 + vec2(0.0001))
+                     * (em.ship.strength / (dist * dist)) * em.dt * 280.0;
+    }
+
+    // Rock radial push.
+    for (int r = 0; r < em.n_rocks; ++r) {
+        vec2  d    = pt.pos - em.rocks[r].pos;
+        float dist = length(d) + 1.0;
+        pt.vel    += normalize(d + vec2(0.0001))
+                     * (em.rocks[r].strength / (dist * dist)) * em.dt * 200.0;
+    }
+
+    // Bullet wake: push along bullet travel direction.
+    for (int b = 0; b < em.n_bullets; ++b) {
+        vec2  d    = pt.pos - em.bullets[b].pos;
+        float dist = length(d) + 1.0;
+        vec2  bdir = normalize(em.bullets[b].vel + vec2(0.0001));
+        float proj = max(0.0, dot(normalize(d + vec2(0.0001)), bdir));
+        pt.vel    += bdir * (proj * em.bullets[b].strength / (dist * dist)) * em.dt * 160.0;
+    }
+
+    pt.pos += pt.vel * em.dt;
+    if (pt.pos.x >  400.0) pt.pos.x -= 800.0;
+    if (pt.pos.x < -400.0) pt.pos.x += 800.0;
+    if (pt.pos.y >  300.0) pt.pos.y -= 600.0;
+    if (pt.pos.y < -300.0) pt.pos.y += 600.0;
+
+    p_out[idx] = pt;
+}

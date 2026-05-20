@@ -1,4 +1,4 @@
-build/
+build*/
 *~
 *.swp
-
+vulkan_features.csv

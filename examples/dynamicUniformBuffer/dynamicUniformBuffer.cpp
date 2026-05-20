@@ -8,6 +8,7 @@
 
 // Include the demo framework, vookoo (vku) for building objects and glm for maths.
 // The demo framework uses GLFW to create windows.
+#define VKU_GLFW
 #include <vku/vku_framework.hpp>
 #include <vku/vku.hpp>
 #define GLM_ENABLE_EXPERIMENTAL
@@ -23,14 +24,9 @@ int main() {
   auto *title = "dynamicUniformBuffer";
   auto glfwwindow = glfwCreateWindow(800, 800, title, nullptr, nullptr);
 
-  // Initialize makers
-  vku::InstanceMaker im{};
-  im.defaultLayers();
-  vku::DeviceMaker dm{};
-  dm.defaultLayers();
-
+  {
   // Initialise the Vookoo demo framework.
-  vku::Framework fw{im, dm};
+  vku::Framework fw{title};
   if (!fw.ok()) {
     std::cout << "Framework creation failed" << std::endl;
     exit(1);
@@ -40,13 +36,13 @@ int main() {
   auto device = fw.device();
 
   // Create a window to draw into
-  vku::Window window{
+  vku::Window window(
     fw.instance(),
     device,
     fw.physicalDevice(),
     fw.graphicsQueueFamilyIndex(),
     glfwwindow
-  };
+  );
   if (!window.ok()) {
     std::cout << "Window creation failed" << std::endl;
     exit(1);
@@ -55,9 +51,11 @@ int main() {
   ////////////////////////////////////////
   //
   // Create Uniform Buffer
+  // see https://vulkan.gpuinfo.org/displaydevicelimit.php?name=minUniformBufferOffsetAlignment&platform=all
 
   struct PER_OBJECT {
     glm::mat4 MVP;
+    glm::vec4 filler[16-4]; // filler to get overall size to required multiple of minUniformBufferOffsetAlignment (256bytes)
   };
 
   // fill with values (local)
@@ -151,7 +149,7 @@ int main() {
   auto pipeline = buildPipeline();
 
   // Loop waiting for the window to close.
-  while (!glfwWindowShouldClose(glfwwindow)) {
+  while (!glfwWindowShouldClose(glfwwindow) && glfwGetKey(glfwwindow, GLFW_KEY_ESCAPE) != GLFW_PRESS) {
     glfwPollEvents();
 
     window.draw(device, fw.graphicsQueue(),
@@ -167,18 +165,15 @@ int main() {
         vk::CommandBufferBeginInfo cbbi{};
         cb.begin(cbbi);
 
-        cb.updateBuffer(ubo.buffer(), 0, objects.size()*sizeof(PER_OBJECT), &objects[0]); // validation error if inside {beginRenderPass...endRenderPass}
-        // We may or may not need this barrier. It is probably a good precaution.
-        ubo.barrier(
-          cb,
-          vk::PipelineStageFlagBits::eHost, //srcStageMask
-          vk::PipelineStageFlagBits::eFragmentShader, //dstStageMask
-          vk::DependencyFlagBits::eByRegion, //dependencyFlags
-          vk::AccessFlagBits::eHostWrite, //srcAccessMask
-          vk::AccessFlagBits::eShaderRead, //dstAccessMask
-          fw.graphicsQueueFamilyIndex(), //srcQueueFamilyIndex
-          fw.graphicsQueueFamilyIndex() //dstQueueFamilyIndex
-        );
+        ubo.barrier(cb,
+          vk::PipelineStageFlagBits::eAllGraphics, vk::PipelineStageFlagBits::eTransfer,
+          vk::DependencyFlags{}, vk::AccessFlags{}, vk::AccessFlagBits::eTransferWrite,
+          fw.graphicsQueueFamilyIndex(), fw.graphicsQueueFamilyIndex());
+        cb.updateBuffer(ubo.buffer(), 0, objects.size()*sizeof(PER_OBJECT), &objects[0]);
+        ubo.barrier(cb,
+          vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eAllGraphics,
+          vk::DependencyFlags{}, vk::AccessFlagBits::eTransferWrite, vk::AccessFlagBits::eUniformRead,
+          fw.graphicsQueueFamilyIndex(), fw.graphicsQueueFamilyIndex());
 
         cb.beginRenderPass(rpbi, vk::SubpassContents::eInline);
         cb.bindPipeline(vk::PipelineBindPoint::eGraphics, *pipeline);
@@ -198,12 +193,14 @@ int main() {
     objects[0].MVP *= glm::rotate(glm::radians(-0.5f), glm::vec3(0, 0, 1));
     objects[1].MVP *= glm::rotate(glm::radians( 1.0f), glm::vec3(0, 0, 1));
 
-    // Very crude method to prevent your GPU from overheating.
-    //std::this_thread::sleep_for(std::chrono::milliseconds(16));
+    // Crude frame pacer. Proper fix: vk::PresentModeKHR::eFifo in swapchain creation
+    // blocks vkQueuePresentKHR until the display is ready, giving natural vsync pacing.
+    //std::this_thread::sleep_for(std::chrono::milliseconds(16)); // unnecessary: swapchain uses eFifo (vsync)
   }
 
   // Wait until all drawing is done and then kill the window.
   device.waitIdle();
+  } // all Vulkan objects destroyed here, before GLFW teardown
   glfwDestroyWindow(glfwwindow);
   glfwTerminate();
 

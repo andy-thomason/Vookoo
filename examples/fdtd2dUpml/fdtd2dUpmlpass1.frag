@@ -380,6 +380,9 @@ void mainImage( out vec4 ep, out vec4 dp, in vec2 fragCoord ){
       };
   
       ep.z = C3e.z*e.z + C4e.z*(C5e.z*dp.z-C6e.z*d.z);
+    } else {
+      ep = vec4(0.);
+      dp = vec4(0.);
     }
 }
 

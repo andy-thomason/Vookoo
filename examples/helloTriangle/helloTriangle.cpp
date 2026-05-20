@@ -8,6 +8,7 @@
 
 // Include the demo framework, vookoo (vku) for building objects and glm for maths.
 // The demo framework uses GLFW to create windows.
+#define VKU_GLFW
 #include <vku/vku_framework.hpp>
 #include <vku/vku.hpp>
 #include <glm/glm.hpp>
@@ -21,14 +22,9 @@ int main() {
   auto *title = "helloTriangle";
   auto glfwwindow = glfwCreateWindow(800, 800, title, nullptr, nullptr);
 
-  // Initialize makers
-  vku::InstanceMaker im{};
-  im.defaultLayers();
-  vku::DeviceMaker dm{};
-  dm.defaultLayers();
-
+  {
   // Initialise the Vookoo demo framework.
-  vku::Framework fw{im, dm};
+  vku::Framework fw{title};
   if (!fw.ok()) {
     std::cout << "Framework creation failed" << std::endl;
     exit(1);
@@ -38,13 +34,13 @@ int main() {
   auto device = fw.device();
 
   // Create a window to draw into
-  vku::Window window{
+  vku::Window window(
     fw.instance(),
     device,
     fw.physicalDevice(),
     fw.graphicsQueueFamilyIndex(),
     glfwwindow
-  };
+  );
   if (!window.ok()) {
     std::cout << "Window creation failed" << std::endl;
     exit(1);
@@ -102,8 +98,7 @@ int main() {
         wh = window.height();
         pipeline = buildPipeline();
       }
-      vk::CommandBufferBeginInfo cbbi{};
-      cb.begin(cbbi);
+      cb.begin(vk::CommandBufferBeginInfo{});
       cb.beginRenderPass(rpbi, vk::SubpassContents::eInline);
       cb.bindPipeline(vk::PipelineBindPoint::eGraphics, *pipeline);
       cb.bindVertexBuffers(0, buffer.buffer(), vk::DeviceSize(0));
@@ -114,18 +109,20 @@ int main() {
   );
 
   // Loop waiting for the window to close.
-  while (!glfwWindowShouldClose(glfwwindow)) {
+  while (!glfwWindowShouldClose(glfwwindow) && glfwGetKey(glfwwindow, GLFW_KEY_ESCAPE) != GLFW_PRESS) {
     glfwPollEvents();
+
+    int width, height;
+    glfwGetWindowSize(glfwwindow, &width, &height);
+    if (width==0 || height==0) continue;
 
     // draw triangles.
     window.draw(device, fw.graphicsQueue());
-
-    // Very crude method to prevent your GPU from overheating.
-    std::this_thread::sleep_for(std::chrono::milliseconds(16));
   }
 
   // Wait until all drawing is done and then kill the window.
   device.waitIdle();
+  } // all Vulkan objects destroyed here, before GLFW teardown
   glfwDestroyWindow(glfwwindow);
   glfwTerminate();
 

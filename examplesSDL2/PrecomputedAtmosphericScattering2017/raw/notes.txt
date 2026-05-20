@@ -1,0 +1,52 @@
+The pre-computed High Dynamic Range atmosphere textures are 
+irradiance.dat, scattering.dat and transmittance.dat.
+
+The actual C++ code for generating these files is not included here. Please see
+https://ebruneton.github.io/precomputed_atmospheric_scattering/ 
+for the original c++ generator code.
+
+The dat-files are pseudo images since 32bit elements are required for the shader programs.
+
+PNG is limited to 8 or 16 bits per channel, unsigned integer only. It cannot represent any 32-bit or signed data.                     
+                                                                                                                                            
+  vk::Format::eR32G32B32A32S* variants (Sfloat, Sint, Snorm) are all out of reach for PNG.                                                  
+   
+  For 32-bit RGBA data the common alternatives are:                                                                                         
+                  
+  ┌────────┬────────────────────────────────┬──────────────────────────────────────────────┐                                                
+  │ Format │            Supports            │                    Notes                     │
+  ├────────┼────────────────────────────────┼──────────────────────────────────────────────┤                                                
+  │ KTX2   │ All vk::Format values directly │ Khronos standard; designed for Vulkan/OpenGL │
+  ├────────┼────────────────────────────────┼──────────────────────────────────────────────┤
+  │ EXR    │ 16-bit half / 32-bit float     │ Industry standard for HDR; no signed int     │                                                
+  ├────────┼────────────────────────────────┼──────────────────────────────────────────────┤                                                
+  │ TIFF   │ 32-bit float or int            │ Broad support but heavy                      │                                                
+  ├────────┼────────────────────────────────┼──────────────────────────────────────────────┤                                                
+  │ DDS    │ Many GPU formats               │ Common in game toolchains                    │
+  ├────────┼────────────────────────────────┼──────────────────────────────────────────────┤                                                
+  │ DAT    │ Custom here                    │ Just raw data, no width or height info inc.  │
+  └────────┴────────────────────────────────┴──────────────────────────────────────────────┘                                                
+                  
+  In future, KTX2 is the natural fit — it stores the vkFormat field directly in the header so there's no format
+   ambiguity at load time. Decided these demos are meant to limit the number of external libraries and 
+   avoid yet another external dependency.
+
+If you just want to observe the contents of those images the folowing python script may prove helpful
+
+import numpy as np                                                                                                                        
+import matplotlib.pyplot as plt                           
+
+# transmittance — 256×64 RGBA f32                                                                                                         
+t = np.fromfile("transmittance.dat", dtype=np.float32).reshape(64, 256, 4)
+plt.imshow(t[..., :3])   # show RGB channels                                                                                              
+plt.show()                                                
+                                                                                                                                            
+# irradiance — 64×16 RGBA f32                                                                                                             
+i = np.fromfile("irradiance.dat", dtype=np.float32).reshape(16, 64, 4)
+plt.imshow(i[..., :3]/i.max())   # show RGB channels                                                                                              
+plt.show()                                                
+                                                                                                                                          
+# scattering — 256×128×32 RGBA f32 (3D: pick a depth slice)                                                                               
+s = np.fromfile("scattering.dat", dtype=np.float32).reshape(32, 128, 256, 4)
+plt.imshow(s[16, ..., :3])  # slice at depth=16
+plt.show() 

@@ -8,6 +8,7 @@
 
 // Include the demo framework, vookoo (vku) for building objects and glm for maths.
 // The demo framework uses GLFW to create windows.
+#define VKU_GLFW
 #include <vku/vku_framework.hpp>
 #include <vku/vku.hpp>
 #include <glm/glm.hpp>
@@ -55,13 +56,14 @@ int main() {
 
   glfwSetCursorPosCallback(glfwwindow, mouse_callback);
 
-  // Initialize makers
-  vku::InstanceMaker im{};
-  im.defaultLayers();
-  vku::DeviceMaker dm{};
-  dm.defaultLayers();
+  {
+  // Define framework options
+  vku::FrameworkOptions fo = {
+    .useMultiView = true
+  };
 
-  vku::Framework fw{im, dm};
+  // Initialise the Vookoo demo framework.
+  vku::Framework fw{title, fo};
   if (!fw.ok()) {
     std::cout << "Framework creation failed" << std::endl;
     exit(1);
@@ -70,13 +72,14 @@ int main() {
 
   auto device = fw.device();
 
-  vku::Window window{
+  // Create a window to draw into
+  vku::Window window(
     fw.instance(),
     device,
     fw.physicalDevice(),
     fw.graphicsQueueFamilyIndex(),
     glfwwindow
-  };
+  );
   if (!window.ok()) {
     std::cout << "Window creation failed" << std::endl;
     exit(1);
@@ -91,14 +94,14 @@ int main() {
   // Note above miss fact that minDepth = 0.5f also needs to be set
   // flip viewport to match opengl ( +x > Right, +y ^ UP, +z towards viewer from screen ), instead of vulkan default
   // also requires pipeline set with cullMode:BACK and frontFace:CounterClockWise
-  auto viewport = vk::Viewport{
-    0.0f,                                     //Vulkan default:0
-    static_cast<float>(window.height()),      //Vulkan default:0
-    static_cast<float>(window.width()),   //Vulkan default:width
-    -static_cast<float>(window.height()),//Vulkan default:height
-    0.5f,                              //Vulkan default:0
-    1.0f                               //Vulkan default:1
-  };
+  auto viewport = vku::ViewPortMaker{}
+    .x(0.0f)                                      //Vulkan default:0       OpenGL default:0
+    .y(static_cast<float>(window.height()))       //Vulkan default:0       OpenGL default:height
+    .width(static_cast<float>(window.width()))    //Vulkan default:width   OpenGL default:width
+    .height(-static_cast<float>(window.height())) //Vulkan default:height  OpenGL default:-height
+    .minDepth(0.5f)                               //Vulkan default:0       OpenGL default:0.5
+    .maxDepth(1.0f)                               //Vulkan default:1       OpenGL default:1
+    .createUnique();
 
   ////////////////////////////////////////
   //
@@ -440,19 +443,17 @@ int main() {
       // in submission order than the vkCmdBeginRenderPass used to begin the
       // render pass instance.` 
      .dependencyBegin(VK_SUBPASS_EXTERNAL, 0)
-     .dependencySrcStageMask(vk::PipelineStageFlagBits::eFragmentShader)
+     // WAW: prior frame's color write; WAR: prior frame's shader read.
+     // srcStageMask covers both; srcAccessMask flushes the write (WAR needs none).
+     .dependencySrcStageMask(vk::PipelineStageFlagBits::eColorAttachmentOutput | vk::PipelineStageFlagBits::eFragmentShader)
+     .dependencySrcAccessMask(vk::AccessFlagBits::eColorAttachmentWrite)
      .dependencyDstStageMask(vk::PipelineStageFlagBits::eColorAttachmentOutput)
-     .dependencySrcAccessMask(vk::AccessFlagBits::eShaderRead)
-     .dependencyDstAccessMask(vk::AccessFlagBits::eColorAttachmentWrite)
+     .dependencyDstAccessMask(vk::AccessFlagBits::eMemoryWrite)
      .dependencyDependencyFlags(vk::DependencyFlagBits::eByRegion)
-      // dependency: If dstSubpass is equal to VK_SUBPASS_EXTERNAL, 
-      // the second synchronization scope includes commands that occur later
-      // in submission order than the vkCmdEndRenderPass used to end the 
-      // render pass instance.
      .dependencyBegin(0, VK_SUBPASS_EXTERNAL)
      .dependencySrcStageMask(vk::PipelineStageFlagBits::eColorAttachmentOutput)
      .dependencyDstStageMask(vk::PipelineStageFlagBits::eFragmentShader)
-     .dependencySrcAccessMask(vk::AccessFlagBits::eColorAttachmentWrite)
+     .dependencySrcAccessMask(vk::AccessFlagBits::eMemoryWrite)
      .dependencyDstAccessMask(vk::AccessFlagBits::eShaderRead)
      .dependencyDependencyFlags(vk::DependencyFlagBits::eByRegion)
      // Use the maker object to construct the renderpass
@@ -584,13 +585,13 @@ int main() {
     };
   
     // Begin rendering using the framebuffer and renderpass
-    displacementRpbi = vk::RenderPassBeginInfo {
-      *displacementRenderPass,
-      *displacementFrameBuffer,
-      vk::Rect2D{{0, 0}, {window.width(), window.height()}},
-      (uint32_t) clearColours.size(),
-      clearColours.data()
-    };
+    displacementRpbi = vku::RenderPassBeginInfoMaker{}
+      .renderPass( *displacementRenderPass )
+      .framebuffer( *displacementFrameBuffer )
+      .renderArea( vk::Rect2D{{0, 0}, {window.width(), window.height()}} )
+      .clearValueCount( (uint32_t) clearColours.size() )
+      .pClearValues( clearColours.data() )
+      .createUnique();
   
     // Build the renderpass 
     maskRenderPass = RenderPassCommon( maskFbo );
@@ -615,13 +616,13 @@ int main() {
     };
   
     // Begin rendering using the framebuffer and renderpass
-    maskRpbi = vk::RenderPassBeginInfo{
-      *maskRenderPass,
-      *maskFrameBuffer,
-      vk::Rect2D{{0, 0}, {window.width(), window.height()}},
-      (uint32_t) clearColoursMask.size(),
-      clearColoursMask.data()
-    };
+    maskRpbi = vku::RenderPassBeginInfoMaker{}
+      .renderPass( *maskRenderPass )
+      .framebuffer( *maskFrameBuffer )
+      .renderArea( vk::Rect2D{{0, 0}, {window.width(), window.height()}} )
+      .clearValueCount( (uint32_t) clearColoursMask.size() )
+      .pClearValues( clearColoursMask.data() )
+      .createUnique();
   }
 
   ////////////////////////////////////////
@@ -752,13 +753,13 @@ int main() {
     };
   
     // Begin rendering using the framebuffer and renderpass
-    contentRpbi = vk::RenderPassBeginInfo{
-      *contentRenderPass,
-      *contentFrameBuffer,
-      vk::Rect2D{{0, 0}, {window.width(), window.height()}},
-      (uint32_t) clearColourscontent.size(),
-      clearColourscontent.data()
-    };
+    contentRpbi = vku::RenderPassBeginInfoMaker{}
+      .renderPass( *contentRenderPass )
+      .framebuffer( *contentFrameBuffer )
+      .renderArea( vk::Rect2D{{0, 0}, {window.width(), window.height()}} )
+      .clearValueCount( (uint32_t) clearColourscontent.size() )
+      .pClearValues( clearColourscontent.data() )
+      .createUnique();
   }
 
   ////////////////////////////////////////
@@ -828,15 +829,9 @@ int main() {
     // to be able to use gl_ViewIndex which is index 0,1...N-1 layers
     // see https://blog.anishbhobe.site/vulkan-render-to-cubemaps-using-multiview/
     //
-    // Additional requirements to use multiview:
-    // dm.extension(VK_KHR_MULTIVIEW_EXTENSION_NAME); must be added on line 110 of vku_framework.hpp
-    // im.extension(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME); added on line 67 of vku_framework.hpp
-    // Next, need to pass vk::PhysicalDeviceMultiviewFeatures thru pNext chain of the Vk::DeviceCreateInfo
-    // vku::DeviceMaker::createUnique added following near line 427 of vku.hpp 
-    //   ...
-    //     vk::PhysicalDeviceMultiviewFeatures physicalDeviceMultiviewFeatures;
-    //     physicalDeviceMultiviewFeatures.setMultiview(true);
-    //     dci.pNext = &physicalDeviceMultiviewFeatures;
+    // Multiview is core in Vulkan 1.1 â€” no extensions needed.
+    // Enable via FrameworkOptions.useMultiView = true (see main()), which calls
+    // DeviceMaker::enableMultiView() to set VkPhysicalDeviceMultiviewFeatures in the pNext chain.
     
     //  Bit mask that specifies which view the rendering is broadcast to
     //  e.g. 0011 = Broadcast to first and second view (layer)
@@ -904,19 +899,16 @@ int main() {
         // in submission order than the vkCmdBeginRenderPass used to begin the
         // render pass instance.` 
        .dependencyBegin(VK_SUBPASS_EXTERNAL, 0)
-       .dependencySrcStageMask(vk::PipelineStageFlagBits::eFragmentShader)
+       // WAW: prior frame's color write; WAR: prior frame's shader read.
+       .dependencySrcStageMask(vk::PipelineStageFlagBits::eColorAttachmentOutput | vk::PipelineStageFlagBits::eFragmentShader)
+       .dependencySrcAccessMask(vk::AccessFlagBits::eColorAttachmentWrite)
        .dependencyDstStageMask(vk::PipelineStageFlagBits::eColorAttachmentOutput)
-       .dependencySrcAccessMask(vk::AccessFlagBits::eShaderRead)
-       .dependencyDstAccessMask(vk::AccessFlagBits::eColorAttachmentWrite)
+       .dependencyDstAccessMask(vk::AccessFlagBits::eMemoryWrite)
        .dependencyDependencyFlags(vk::DependencyFlagBits::eByRegion)
-        // dependency: If dstSubpass is equal to VK_SUBPASS_EXTERNAL, 
-        // the second synchronization scope includes commands that occur later
-        // in submission order than the vkCmdEndRenderPass used to end the 
-        // render pass instance.
        .dependencyBegin(0, VK_SUBPASS_EXTERNAL)
        .dependencySrcStageMask(vk::PipelineStageFlagBits::eColorAttachmentOutput)
        .dependencyDstStageMask(vk::PipelineStageFlagBits::eFragmentShader)
-       .dependencySrcAccessMask(vk::AccessFlagBits::eColorAttachmentWrite)
+       .dependencySrcAccessMask(vk::AccessFlagBits::eMemoryWrite)
        .dependencyDstAccessMask(vk::AccessFlagBits::eShaderRead)
        .dependencyDependencyFlags(vk::DependencyFlagBits::eByRegion)
        // Use the maker object to construct the renderpass
@@ -961,13 +953,13 @@ int main() {
     };
   
     // Begin rendering using the framebuffer and renderpass
-    reflectionreflectorRpbi = vk::RenderPassBeginInfo{
-      *reflectionreflectorRenderPass,
-      *reflectionreflectorFrameBuffer,
-      vk::Rect2D{{0, 0}, {window.width(), window.height()}},
-      (uint32_t) clearColoursreflectionreflector.size(),
-      clearColoursreflectionreflector.data()
-    };
+    reflectionreflectorRpbi = vku::RenderPassBeginInfoMaker{}
+      .renderPass( *reflectionreflectorRenderPass )
+      .framebuffer( *reflectionreflectorFrameBuffer )
+      .renderArea( vk::Rect2D{{0, 0}, {window.width(), window.height()}} )
+      .clearValueCount( (uint32_t) clearColoursreflectionreflector.size() )
+      .pClearValues( clearColoursreflectionreflector.data() )
+      .createUnique();
   }
 /*
   ////////////////////////////////////////
@@ -1067,13 +1059,13 @@ int main() {
     };
   
     // Begin rendering using the framebuffer and renderpass
-    reflectionplaneRpbi = vk::RenderPassBeginInfo{
-      .renderPass = *reflectionplaneRenderPass,
-      .framebuffer = *reflectionplaneFrameBuffer,
-      .renderArea = vk::Rect2D{{0, 0}, {window.width(), window.height()}},
-      .clearValueCount = (uint32_t) clearColoursreflectionplane.size(),
-      .pClearValues = clearColoursreflectionplane.data()
-    };
+    reflectionplaneRpbi = vku::RenderPassBeginInfoMaker{}
+      .renderPass( *reflectionplaneRenderPass )
+      .framebuffer( *reflectionplaneFrameBuffer )
+      .renderArea( vk::Rect2D{{0, 0}, {window.width(), window.height()}} )
+      .clearValueCount( (uint32_t) clearColoursreflectionplane.size() )
+      .pClearValues( clearColoursreflectionplane.data() )
+      .createUnique();
   }
 */
   ////////////////////////////////////////
@@ -1089,7 +1081,7 @@ int main() {
 
   Uniform_vert uniform_vert {
     .projection = clip * glm::perspective(
-      glm::radians(30.0f), // The vertical Field of View, in radians: the amount of "zoom". Think "camera lens". Usually between 90° (extra wide) and 30° (quite zoomed in)
+      glm::radians(30.0f), // The vertical Field of View, in radians: the amount of "zoom". Think "camera lens". Usually between 90ï¿½ (extra wide) and 30ï¿½ (quite zoomed in)
       float(window.width())/window.height(), // Aspect Ratio. Depends on the size of your window. Notice that 4/3 == 800/600 == 1280/960, sounds familiar ?
       0.1f,                // Near clipping plane. Keep as big as possible, or you'll get precision issues.
       10.0f),              // Far clipping plane. Keep as little as possible.
@@ -1102,7 +1094,7 @@ int main() {
 
   Uniform_vert uniformContent_vert {
     .projection = clip * glm::perspective(
-      glm::radians(30.0f), // The vertical Field of View, in radians: the amount of "zoom". Think "camera lens". Usually between 90° (extra wide) and 30° (quite zoomed in)
+      glm::radians(30.0f), // The vertical Field of View, in radians: the amount of "zoom". Think "camera lens". Usually between 90ï¿½ (extra wide) and 30ï¿½ (quite zoomed in)
       float(window.width())/window.height(), // Aspect Ratio. Depends on the size of your window. Notice that 4/3 == 800/600 == 1280/960, sounds familiar ?
       0.1f,                // Near clipping plane. Keep as big as possible, or you'll get precision issues.
       10.0f),              // Far clipping plane. Keep as little as possible.
@@ -1114,8 +1106,12 @@ int main() {
   };
  
   int iFrame = 0;
-  while (!glfwWindowShouldClose(glfwwindow)) {
+  while (!glfwWindowShouldClose(glfwwindow) && glfwGetKey(glfwwindow, GLFW_KEY_ESCAPE) != GLFW_PRESS) {
     glfwPollEvents();
+
+    int width, height;
+    glfwGetWindowSize(glfwwindow, &width, &height);
+    if (width==0 || height==0) continue;
 
     Uniform_frag uniform_frag {
       .resolution = glm::vec2{window.width(), window.height()},
@@ -1153,8 +1149,24 @@ int main() {
         cb.begin(bi);
 
         // Pass: Render the displacement into the displacementFbo
+        ubo.barrier(cb,
+          vk::PipelineStageFlagBits::eAllGraphics, vk::PipelineStageFlagBits::eTransfer,
+          vk::DependencyFlags{}, vk::AccessFlags{}, vk::AccessFlagBits::eTransferWrite,
+          fw.graphicsQueueFamilyIndex(), fw.graphicsQueueFamilyIndex());
+        ubo_frag.barrier(cb,
+          vk::PipelineStageFlagBits::eAllGraphics, vk::PipelineStageFlagBits::eTransfer,
+          vk::DependencyFlags{}, vk::AccessFlags{}, vk::AccessFlagBits::eTransferWrite,
+          fw.graphicsQueueFamilyIndex(), fw.graphicsQueueFamilyIndex());
         cb.updateBuffer(ubo.buffer(), 0, sizeof(Uniform_vert), &uniform_vert);
         cb.updateBuffer(ubo_frag.buffer(), 0, sizeof(Uniform_frag), &uniform_frag);
+        ubo.barrier(cb,
+          vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eAllGraphics,
+          vk::DependencyFlags{}, vk::AccessFlagBits::eTransferWrite, vk::AccessFlagBits::eUniformRead,
+          fw.graphicsQueueFamilyIndex(), fw.graphicsQueueFamilyIndex());
+        ubo_frag.barrier(cb,
+          vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eAllGraphics,
+          vk::DependencyFlags{}, vk::AccessFlagBits::eTransferWrite, vk::AccessFlagBits::eUniformRead,
+          fw.graphicsQueueFamilyIndex(), fw.graphicsQueueFamilyIndex());
         cb.beginRenderPass(displacementRpbi, vk::SubpassContents::eInline);
         cb.bindVertexBuffers(0, buffer.buffer(), vk::DeviceSize(0));
         cb.bindIndexBuffer(ibo.buffer(), vk::DeviceSize(0), vk::IndexType::eUint32);
@@ -1180,8 +1192,24 @@ int main() {
         cb.endRenderPass();
 
         // Pass: Render into the contentFbo
+        ubo.barrier(cb,
+          vk::PipelineStageFlagBits::eAllGraphics, vk::PipelineStageFlagBits::eTransfer,
+          vk::DependencyFlags{}, vk::AccessFlags{}, vk::AccessFlagBits::eTransferWrite,
+          fw.graphicsQueueFamilyIndex(), fw.graphicsQueueFamilyIndex());
+        uboContent_frag.barrier(cb,
+          vk::PipelineStageFlagBits::eAllGraphics, vk::PipelineStageFlagBits::eTransfer,
+          vk::DependencyFlags{}, vk::AccessFlags{}, vk::AccessFlagBits::eTransferWrite,
+          fw.graphicsQueueFamilyIndex(), fw.graphicsQueueFamilyIndex());
         cb.updateBuffer(ubo.buffer(), 0, sizeof(Uniform_vert), &uniformContent_vert);
         cb.updateBuffer(uboContent_frag.buffer(), 0, sizeof(UniformContent_frag), &uniformcontent_frag);
+        ubo.barrier(cb,
+          vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eAllGraphics,
+          vk::DependencyFlags{}, vk::AccessFlagBits::eTransferWrite, vk::AccessFlagBits::eUniformRead,
+          fw.graphicsQueueFamilyIndex(), fw.graphicsQueueFamilyIndex());
+        uboContent_frag.barrier(cb,
+          vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eAllGraphics,
+          vk::DependencyFlags{}, vk::AccessFlagBits::eTransferWrite, vk::AccessFlagBits::eUniformRead,
+          fw.graphicsQueueFamilyIndex(), fw.graphicsQueueFamilyIndex());
         cb.beginRenderPass(contentRpbi, vk::SubpassContents::eInline);
         cb.bindVertexBuffers(0, bufferContent.buffer(), vk::DeviceSize(0));
         cb.bindIndexBuffer(iboContent.buffer(), vk::DeviceSize(0), vk::IndexType::eUint32);
@@ -1198,8 +1226,24 @@ int main() {
         cb.endRenderPass();
 
         // Pass: Render contentFbo into each face of the cubemap of reflectionreflectorFbo
+        ubo.barrier(cb,
+          vk::PipelineStageFlagBits::eAllGraphics, vk::PipelineStageFlagBits::eTransfer,
+          vk::DependencyFlags{}, vk::AccessFlags{}, vk::AccessFlagBits::eTransferWrite,
+          fw.graphicsQueueFamilyIndex(), fw.graphicsQueueFamilyIndex());
+        uboReflectionReflector_frag.barrier(cb,
+          vk::PipelineStageFlagBits::eAllGraphics, vk::PipelineStageFlagBits::eTransfer,
+          vk::DependencyFlags{}, vk::AccessFlags{}, vk::AccessFlagBits::eTransferWrite,
+          fw.graphicsQueueFamilyIndex(), fw.graphicsQueueFamilyIndex());
         cb.updateBuffer(ubo.buffer(), 0, sizeof(Uniform_vert), &uniform_vert);
         cb.updateBuffer(uboReflectionReflector_frag.buffer(), 0, sizeof(UniformReflectionReflector_frag), &uniformReflectionReflector_frag);
+        ubo.barrier(cb,
+          vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eAllGraphics,
+          vk::DependencyFlags{}, vk::AccessFlagBits::eTransferWrite, vk::AccessFlagBits::eUniformRead,
+          fw.graphicsQueueFamilyIndex(), fw.graphicsQueueFamilyIndex());
+        uboReflectionReflector_frag.barrier(cb,
+          vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eAllGraphics,
+          vk::DependencyFlags{}, vk::AccessFlagBits::eTransferWrite, vk::AccessFlagBits::eUniformRead,
+          fw.graphicsQueueFamilyIndex(), fw.graphicsQueueFamilyIndex());
         cb.beginRenderPass(reflectionreflectorRpbi, vk::SubpassContents::eInline);
         cb.bindVertexBuffers(0, bufferContent.buffer(), vk::DeviceSize(0));
         cb.bindIndexBuffer(iboContent.buffer(), vk::DeviceSize(0), vk::IndexType::eUint32);
@@ -1238,12 +1282,11 @@ int main() {
     uniform_vert.world = glm::rotate( 0.5f*1/60.0f, glm::normalize(glm::vec3(6,2,0)) ) * uniform_vert.world;
     uniform_vert.world = mouse_rotation * uniform_vert.world;
 
-    // Very crude method to prevent your GPU from overheating.
-    //std::this_thread::sleep_for(std::chrono::milliseconds(16));
   }
 
   // Wait until all drawing is done and then kill the window.
   device.waitIdle();
+  } // all Vulkan objects destroyed here, before GLFW teardown
   glfwDestroyWindow(glfwwindow);
   glfwTerminate();
 

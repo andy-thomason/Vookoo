@@ -369,11 +369,17 @@ void mainImage( out vec4 hp, out vec4 bp, in vec2 fragCoord ){
     if (2<=i && i<=ie_tot && 1<=j && j<=je_tot) { 
       bp.x = D1h.x*b.x - D2h.x*(epY.z - e.z)/delta;
       hp.x = D3h.x*h.x + D4h.x*(D5h.x*bp.x - D6h.x*b.x);
+    } else {
+      hp = vec4(0.);
+      bp = vec4(0.);
     }
     // (1:ie_tot,2:je_tot)
     if (1<=i && i<=ie_tot && 2<=j && j<=je_tot) { 
       bp.y = D1h.y*b.y + D2h.y*(epX.z - e.z)/delta;
       hp.y = D3h.y*h.y + D4h.y*(D5h.y*bp.y - D6h.y*b.y);
+    } else {
+      hp = vec4(0.);
+      bp = vec4(0.);
     }
 }
 

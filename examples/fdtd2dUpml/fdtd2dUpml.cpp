@@ -1,3 +1,4 @@
+#define VKU_GLFW
 #include <vku/vku_framework.hpp>
 #include <vku/vku.hpp>
 #define GLM_ENABLE_EXPERIMENTAL
@@ -51,13 +52,8 @@ int main() {
   const char *title = "fdtd2dUpml";
   auto glfwwindow = glfwCreateWindow(1024, 1024, title, nullptr, nullptr);
 
-  // Initialize makers
-  vku::InstanceMaker im{};
-  im.defaultLayers();
-  vku::DeviceMaker dm{};
-  dm.defaultLayers();
-
-  vku::Framework fw{im, dm};
+  {
+  vku::Framework fw{title};
   if (!fw.ok()) {
     std::cout << "Framework creation failed" << std::endl;
     exit(1);
@@ -66,27 +62,32 @@ int main() {
 
   vk::Device device = fw.device();
 
-  vku::Window window{
+  // Create a window to draw into
+  vku::Window window(
     fw.instance(),
     device,
     fw.physicalDevice(),
     fw.graphicsQueueFamilyIndex(),
-    glfwwindow
-  };
+    glfwwindow,
+    // eMailbox: FDTD is a compute-bound simulation where every timestep must be calculated —
+    // no steps can be skipped. eMailbox lets the GPU run uncapped while only presenting the
+    // latest completed frame to the display, so simulation throughput is never vsync-throttled.
+    { .desiredPresentMode = vk::PresentModeKHR::eImmediate, .tripleBuffering = true }
+  );
   if (!window.ok()) {
     std::cout << "Window creation failed" << std::endl;
     exit(1);
   }
   window.dumpCaps(std::cout, fw.physicalDevice());
 
-  auto viewport = vk::Viewport{
-    0.0f, 
-    0.0f,
-    (float)window.width(),
-    (float)window.height(),
-    0.0f,
-    1.0f
-  };
+  auto viewport = vku::ViewPortMaker{}
+    .x(0.0f)                                      //Vulkan default:0       OpenGL default:0
+    .y(0.0f)                                      //Vulkan default:0       OpenGL default:height
+    .width(static_cast<float>(window.width()))    //Vulkan default:width   OpenGL default:width
+    .height(static_cast<float>(window.height()))  //Vulkan default:height  OpenGL default:-height
+    .minDepth(0.0f)                               //Vulkan default:0       OpenGL default:0.5
+    .maxDepth(1.0f)                               //Vulkan default:1       OpenGL default:1
+    .createUnique();
 
   ////////////////////////////////////////
   //
@@ -383,28 +384,19 @@ int main() {
       // in submission order than the vkCmdBeginRenderPass used to begin the
       // render pass instance.` 
      .dependencyBegin(VK_SUBPASS_EXTERNAL, 0)
-     //VK_ACCESS_INPUT_ATTACHMENT_READ_BIT
-     //VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT
-     .dependencySrcAccessMask(vk::AccessFlagBits::eInputAttachmentRead)
-     .dependencySrcStageMask(vk::PipelineStageFlagBits::eFragmentShader)
-     //VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT
-     //VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
-     .dependencyDstAccessMask(vk::AccessFlagBits::eColorAttachmentWrite)
-     .dependencyDstStageMask(vk::PipelineStageFlagBits::eColorAttachmentOutput)
-     .dependencyDependencyFlags(vk::DependencyFlagBits::eByRegion)
-      // dependency: If dstSubpass is equal to VK_SUBPASS_EXTERNAL, 
-      // the second synchronization scope includes commands that occur later
-      // in submission order than the vkCmdEndRenderPass used to end the 
-      // render pass instance.
-     .dependencyBegin(0, VK_SUBPASS_EXTERNAL)
-     //VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT
-     //VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
+     // WAW: prior even-frame color write; WAR: prior odd-frame fragment read.
+     // srcStageMask covers both stages; srcAccessMask flushes the color write (WAR needs none).
+     .dependencySrcStageMask(vk::PipelineStageFlagBits::eColorAttachmentOutput | vk::PipelineStageFlagBits::eFragmentShader)
      .dependencySrcAccessMask(vk::AccessFlagBits::eColorAttachmentWrite)
+     .dependencyDstStageMask(vk::PipelineStageFlagBits::eColorAttachmentOutput)
+     .dependencyDstAccessMask(vk::AccessFlagBits::eColorAttachmentWrite)
+     .dependencyDependencyFlags(vk::DependencyFlagBits::eByRegion)
+     .dependencyBegin(0, VK_SUBPASS_EXTERNAL)
+     // Make color write visible to the next render pass that samples these images.
      .dependencySrcStageMask(vk::PipelineStageFlagBits::eColorAttachmentOutput)
-     //VK_ACCESS_INPUT_ATTACHMENT_READ_BIT
-     //VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT
-     .dependencyDstAccessMask(vk::AccessFlagBits::eInputAttachmentRead)
+     .dependencySrcAccessMask(vk::AccessFlagBits::eColorAttachmentWrite)
      .dependencyDstStageMask(vk::PipelineStageFlagBits::eFragmentShader)
+     .dependencyDstAccessMask(vk::AccessFlagBits::eShaderRead)
      .dependencyDependencyFlags(vk::DependencyFlagBits::eByRegion)
      // Finally use the maker method to construct this renderpass
      .createUnique(device);
@@ -521,42 +513,52 @@ int main() {
   // sets the framebuffer and renderpass
 
   // Begin rendering using the framebuffer and renderpass
-  vk::RenderPassBeginInfo pass0Rpbi[]={{
-    *RenderPass0Ping,
-    *FrameBufferPass0Ping,
-    vk::Rect2D{{0, 0}, {fdtdDomainSize, fdtdDomainSize}},
-    (uint32_t) clearColours.size(),
-    clearColours.data()
-  },{
-    *RenderPass0Pong,
-    *FrameBufferPass0Pong,
-    vk::Rect2D{{0, 0}, {fdtdDomainSize, fdtdDomainSize}},
-    (uint32_t) clearColours.size(),
-    clearColours.data()
-  }};
+  vk::RenderPassBeginInfo pass0Rpbi[]={
+    vku::RenderPassBeginInfoMaker{}
+      .renderPass( *RenderPass0Ping )
+      .framebuffer( *FrameBufferPass0Ping )
+      .renderArea( vk::Rect2D{{0, 0}, {fdtdDomainSize, fdtdDomainSize}} )
+      .clearValueCount( (uint32_t) clearColours.size() )
+      .pClearValues( clearColours.data() )
+      .createUnique(),
+    vku::RenderPassBeginInfoMaker{}
+      .renderPass( *RenderPass0Pong )
+      .framebuffer( *FrameBufferPass0Pong )
+      .renderArea( vk::Rect2D{{0, 0}, {fdtdDomainSize, fdtdDomainSize}} )
+      .clearValueCount( (uint32_t) clearColours.size() )
+      .pClearValues( clearColours.data() )
+      .createUnique()
+  };
 
   ////////////////////////////////////////
   //
   // Build a RenderPassBeginInfo for pass1
   // sets the framebuffer and renderpass
  
-  vk::RenderPassBeginInfo pass1Rpbi[]={{
-    *RenderPass1Ping,
-    *FrameBufferPass1Ping,
-    vk::Rect2D{{0, 0}, {fdtdDomainSize, fdtdDomainSize}},
-    (uint32_t) clearColours.size(),
-    clearColours.data()
-  },{
-    *RenderPass1Pong,
-    *FrameBufferPass1Pong,
-    vk::Rect2D{{0, 0}, {fdtdDomainSize, fdtdDomainSize}},
-    (uint32_t) clearColours.size(),
-    clearColours.data()
-  }};
+  vk::RenderPassBeginInfo pass1Rpbi[]={
+    vku::RenderPassBeginInfoMaker{}
+      .renderPass( *RenderPass1Ping )
+      .framebuffer( *FrameBufferPass1Ping )
+      .renderArea( vk::Rect2D{{0, 0}, {fdtdDomainSize, fdtdDomainSize}} )
+      .clearValueCount( (uint32_t) clearColours.size() )
+      .pClearValues( clearColours.data() )
+      .createUnique(),
+    vku::RenderPassBeginInfoMaker{}
+      .renderPass( *RenderPass1Pong )
+      .framebuffer( *FrameBufferPass1Pong )
+      .renderArea( vk::Rect2D{{0, 0}, {fdtdDomainSize, fdtdDomainSize}} )
+      .clearValueCount( (uint32_t) clearColours.size() )
+      .pClearValues( clearColours.data() )
+      .createUnique()
+  };
 
   int iFrame = 0;
-  while (!glfwWindowShouldClose(glfwwindow)) {
+  while (!glfwWindowShouldClose(glfwwindow) && glfwGetKey(glfwwindow, GLFW_KEY_ESCAPE) != GLFW_PRESS) {
     glfwPollEvents();
+
+    int width, height;
+    glfwGetWindowSize(glfwwindow, &width, &height);
+    if (width==0 || height==0) continue;
 
     window.draw(device, fw.graphicsQueue(),
       [&](vk::CommandBuffer cb, int imageIndex, vk::RenderPassBeginInfo &rpbi) {
@@ -576,9 +578,25 @@ int main() {
         vk::CommandBufferBeginInfo bi{};
         cb.begin(bi);
 
-        // Copy the uniform data to the buffer. (note this is done
-        // inline and so we can discard "uniform" afterwards)
+        ubo.barrier(cb,
+          vk::PipelineStageFlagBits::eAllGraphics,
+          vk::PipelineStageFlagBits::eTransfer,
+          vk::DependencyFlags{},
+          vk::AccessFlags{},
+          vk::AccessFlagBits::eTransferWrite,
+          fw.graphicsQueueFamilyIndex(), fw.graphicsQueueFamilyIndex()
+        );
+
         cb.updateBuffer(ubo.buffer(), 0, sizeof(Uniform), &uniform);
+
+        ubo.barrier(cb,
+          vk::PipelineStageFlagBits::eTransfer,
+          vk::PipelineStageFlagBits::eAllGraphics,
+          vk::DependencyFlags{},
+          vk::AccessFlagBits::eTransferWrite,
+          vk::AccessFlagBits::eUniformRead,
+          fw.graphicsQueueFamilyIndex(), fw.graphicsQueueFamilyIndex()
+        );
 
         // Shared among all following passes
         cb.bindVertexBuffers(0, vbo.buffer(), vk::DeviceSize(0));
@@ -610,11 +628,11 @@ int main() {
         
     );
 
-    //std::this_thread::sleep_for(std::chrono::milliseconds(16)); // unnecessary with swapchain present mode being "Fifo" which is V-SYNC limited.
     iFrame++;
   }
 
   device.waitIdle();
+  } // all Vulkan objects destroyed here, before GLFW teardown
   glfwDestroyWindow(glfwwindow);
   glfwTerminate();
 

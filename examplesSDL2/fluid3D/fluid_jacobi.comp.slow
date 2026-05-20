@@ -1,0 +1,44 @@
+#version 450
+layout(local_size_x = 8, local_size_y = 8, local_size_z = 8) in;
+
+// One Jacobi iteration for the 3D Poisson pressure equation.
+// 6-neighbour stencil: alpha = -h², beta = 6  →  inverseBeta = 1/6.
+// presIn and divgIn are sampler3D so reads go through the L1 texture cache.
+layout(binding = 0) uniform sampler3D presIn;                // presIn  (r16f)
+layout(binding = 1) uniform sampler3D divgIn;                // divgIn  (r16f)
+layout(binding = 2, rgba16f) uniform readonly image3D in2;   // unused  (dummy)
+layout(binding = 3, r16f)   uniform          image3D out0;   // presOut (r16f)
+layout(binding = 4, rgba16f) uniform          image3D out1;  // unused  (dummy)
+
+layout(binding = 5) uniform FluidUBO {
+    float dt;         float cellSize;   float velDiss;  float densDiss;
+    float tempDiss;   float ambientTemp;float sigma;    float kappa;
+    float gradScale;  float halfInvCell;float splatRadius;
+    float impulseTemp;float impulseDens;
+    float impulsePosX;float impulsePosY;float impulsePosZ;
+    int addImpulse; int gridW; int gridH; int gridD;
+} u;
+
+float getP(ivec3 p) {
+    p = clamp(p, ivec3(0), ivec3(u.gridW - 1, u.gridH - 1, u.gridD - 1));
+    return texelFetch(presIn, p, 0).x;
+}
+
+void main() {
+    ivec3 T = ivec3(gl_GlobalInvocationID.xyz);
+    if (T.x >= u.gridW || T.y >= u.gridH || T.z >= u.gridD) return;
+
+    float pE = getP(T + ivec3(1, 0, 0));
+    float pW = getP(T - ivec3(1, 0, 0));
+    float pN = getP(T + ivec3(0, 1, 0));
+    float pS = getP(T - ivec3(0, 1, 0));
+    float pU = getP(T + ivec3(0, 0, 1));
+    float pD = getP(T - ivec3(0, 0, 1));
+    float bC = texelFetch(divgIn, T, 0).x;
+
+    const float alpha       = -u.cellSize * u.cellSize;
+    const float inverseBeta = 1.0 / 6.0;
+
+    float p = (pW + pE + pS + pN + pU + pD + alpha * bC) * inverseBeta;
+    imageStore(out0, T, vec4(p, 0.0, 0.0, 0.0));
+}

@@ -8,6 +8,7 @@
 
 // Include the demo framework, vookoo (vku) for building objects and glm for maths.
 // The demo framework uses GLFW to create windows.
+#define VKU_GLFW
 #include <vku/vku_framework.hpp>
 #include <vku/vku.hpp>
 #include <glm/glm.hpp>
@@ -19,13 +20,8 @@ int main() {
   auto *title = "CyberTruck";
   auto glfwwindow = glfwCreateWindow(1280, 720, title, nullptr, nullptr);
 
-  // Initialize makers
-  vku::InstanceMaker im{};
-  im.defaultLayers();
-  vku::DeviceMaker dm{};
-  dm.defaultLayers();
-
-  vku::Framework fw{im, dm};
+  {
+  vku::Framework fw{title};
   if (!fw.ok()) {
     std::cout << "Framework creation failed" << std::endl;
     exit(1);
@@ -34,13 +30,14 @@ int main() {
 
   auto device = fw.device();
 
-  vku::Window window{
+  // Create a window to draw into
+  vku::Window window(
     fw.instance(),
     device,
     fw.physicalDevice(),
     fw.graphicsQueueFamilyIndex(),
     glfwwindow
-  };
+  );
   if (!window.ok()) {
     std::cout << "Window creation failed" << std::endl;
     exit(1);
@@ -130,14 +127,14 @@ int main() {
     // Note above miss fact that minDepth = 0.5f also needs to be set
     // flip viewport to match opengl ( +x > Right, +y ^ UP, +z towards viewer from screen ), instead of vulkan default
     // also requires pipeline set with cullMode:BACK and frontFace:CounterClockWise
-    auto viewport = vk::Viewport{
-      0.0f,                                     //Vulkan default:0
-      static_cast<float>(window.height()),      //Vulkan default:0
-      static_cast<float>(window.width()),   //Vulkan default:width
-      -static_cast<float>(window.height()),//Vulkan default:height
-      0.5f,                              //Vulkan default:0
-      1.0f                               //Vulkan default:1
-    };
+    auto viewport = vku::ViewPortMaker{}
+      .x(0.0f)                                      //Vulkan default:0       OpenGL default:0
+      .y(static_cast<float>(window.height()))       //Vulkan default:0       OpenGL default:height
+      .width(static_cast<float>(window.width()))    //Vulkan default:width   OpenGL default:width
+      .height(-static_cast<float>(window.height())) //Vulkan default:height  OpenGL default:-height
+      .minDepth(0.5f)                               //Vulkan default:0       OpenGL default:0.5
+      .maxDepth(1.0f)                               //Vulkan default:1       OpenGL default:1
+      .createUnique();
   
     vku::PipelineMaker pm{window.width(), window.height()};
     pm.shader(vk::ShaderStageFlagBits::eVertex, vert)
@@ -159,7 +156,7 @@ int main() {
  
   int iFrame = 0;
   double xpos=window.width()/2.0, ypos=window.height()/2.0;
-  while (!glfwWindowShouldClose(glfwwindow)) {
+  while (!glfwWindowShouldClose(glfwwindow) && glfwGetKey(glfwwindow, GLFW_KEY_ESCAPE) != GLFW_PRESS) {
     glfwPollEvents();
 
     int state = glfwGetMouseButton(glfwwindow, GLFW_MOUSE_BUTTON_LEFT);
@@ -188,8 +185,15 @@ int main() {
         vk::CommandBufferBeginInfo bi{};
         cb.begin(bi);
 
-        // Copy the uniform data to the buffer.
+        ubo.barrier(cb,
+          vk::PipelineStageFlagBits::eAllGraphics, vk::PipelineStageFlagBits::eTransfer,
+          vk::DependencyFlags{}, vk::AccessFlags{}, vk::AccessFlagBits::eTransferWrite,
+          fw.graphicsQueueFamilyIndex(), fw.graphicsQueueFamilyIndex());
         cb.updateBuffer(ubo.buffer(), 0, sizeof(Uniform), &uniform);
+        ubo.barrier(cb,
+          vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eAllGraphics,
+          vk::DependencyFlags{}, vk::AccessFlagBits::eTransferWrite, vk::AccessFlagBits::eUniformRead,
+          fw.graphicsQueueFamilyIndex(), fw.graphicsQueueFamilyIndex());
 
         cb.beginRenderPass(rpbi, vk::SubpassContents::eInline);
         cb.bindVertexBuffers(0, buffer.buffer(), vk::DeviceSize(0));
@@ -202,12 +206,14 @@ int main() {
       }
     );
 
-    // Very crude method to prevent your GPU from overheating.
-    std::this_thread::sleep_for(std::chrono::milliseconds(16));
+    // Crude frame pacer. Proper fix: vk::PresentModeKHR::eFifo in swapchain creation
+    // blocks vkQueuePresentKHR until the display is ready, giving natural vsync pacing.
+    //std::this_thread::sleep_for(std::chrono::milliseconds(16)); // unnecessary: swapchain uses eFifo (vsync)
   }
 
   // Wait until all drawing is done and then kill the window.
   device.waitIdle();
+  } // all Vulkan objects destroyed here, before GLFW teardown
   glfwDestroyWindow(glfwwindow);
   glfwTerminate();
 

@@ -1,0 +1,47 @@
+#version 450
+layout(local_size_x = 8, local_size_y = 8, local_size_z = 8) in;
+
+// Semi-Lagrangian advection using hardware trilinear filtering via sampler3D.
+layout(binding = 0) uniform sampler3D in0;               // stateAIn (vel.xyz, dens)
+layout(binding = 1) uniform sampler3D in1;               // stateBIn (temp, 0, 0, 0)
+layout(binding = 2, rgba16f) uniform readonly image3D in2;   // unused
+layout(binding = 3, rgba16f) uniform          image3D out0;  // stateAOut
+layout(binding = 4, r16f)   uniform          image3D out1;  // stateBOut
+
+layout(binding = 5) uniform FluidUBO {
+    float dt;         float cellSize;   float velDiss;  float densDiss;
+    float tempDiss;   float ambientTemp;float sigma;    float kappa;
+    float gradScale;  float halfInvCell;float splatRadius;
+    float impulseTemp;float impulseDens;
+    float impulsePosX;float impulsePosY;float impulsePosZ;
+    int addImpulse; int gridW; int gridH; int gridD;
+} u;
+
+void main() {
+    ivec3 coord = ivec3(gl_GlobalInvocationID.xyz);
+    if (coord.x >= u.gridW || coord.y >= u.gridH || coord.z >= u.gridD) return;
+
+    vec3 gridSize  = vec3(u.gridW, u.gridH, u.gridD);
+    vec3 uvwCenter = (vec3(coord) + 0.5) / gridSize;
+    vec3 vel = texture(in0, uvwCenter).xyz;
+
+    // Semi-Lagrangian back-trace
+    vec3 samplePos = vec3(coord) + 0.5 - u.dt * vel;
+    samplePos = clamp(samplePos, vec3(0.5), gridSize - 0.5);
+    vec3 uvw = samplePos / gridSize;
+
+    vec4 stateA = texture(in0, uvw);
+    vec4 stateB = texture(in1, uvw);
+
+    stateA.xyz *= u.velDiss;
+    stateA.w   *= u.densDiss;
+    stateB.x   *= u.tempDiss;
+
+    // No-slip: zero velocity at all six faces
+    if (coord.x == 0 || coord.x == u.gridW - 1) stateA.x = 0.0;
+    if (coord.y == 0 || coord.y == u.gridH - 1) stateA.y = 0.0;
+    if (coord.z == 0 || coord.z == u.gridD - 1) stateA.z = 0.0;
+
+    imageStore(out0, coord, stateA);
+    imageStore(out1, coord, stateB);
+}

@@ -8,6 +8,7 @@
 
 // Include the demo framework, vookoo (vku) for building objects and glm for maths.
 // The demo framework uses GLFW to create windows.
+#define VKU_GLFW
 #include <vku/vku_framework.hpp>
 #include <vku/vku.hpp>
 #include <glm/glm.hpp>
@@ -21,21 +22,22 @@ int main() {
   auto *title = "helloInstancing";
   auto glfwwindow = glfwCreateWindow(800, 800, title, nullptr, nullptr);
 
-  // Initialize makers
-  vku::InstanceMaker im{};
-  im.defaultLayers();
-  vku::DeviceMaker dm{};
-  dm.defaultLayers();
-
+  {
   // Initialise the Vookoo demo framework.
-  vku::Framework fw{im, dm};
+  vku::Framework fw{title};
   if (!fw.ok()) {
     std::cout << "Framework creation failed" << std::endl;
     exit(1);
   }
 
   // Create a window to draw into
-  vku::Window window{fw.instance(), fw.device(), fw.physicalDevice(), fw.graphicsQueueFamilyIndex(), glfwwindow};
+  vku::Window window(
+    fw.instance(),
+    fw.device(),
+    fw.physicalDevice(),
+    fw.graphicsQueueFamilyIndex(),
+    glfwwindow
+  );
   if (!window.ok()) {
     std::cout << "Window creation failed" << std::endl;
     exit(1);
@@ -73,13 +75,13 @@ int main() {
 	};
 
   // This is instance data.
-  const std::vector<Instance> instances = {
+  std::vector<Instance> instances = {
     {.pos={ 0.5f,  0.5f, 0.0f}, .rot={0.0f, 0.0f,-1.0f}, .scale=0.25f},
     {.pos={-0.5f, -0.5f, 0.0f}, .rot={0.0f, 0.0f, 1.0f}, .scale=0.50f},
     {.pos={ 0.0f,  0.0f, 0.0f}, .rot={0.0f, 0.0f, 0.5f}, .scale=0.10f},
     {.pos={ 0.2f,  0.1f, 0.0f}, .rot={0.0f, 0.0f, 0.2f}, .scale=0.05f},
   };
-  vku::HostVertexBuffer bufferInstances(fw.device(), fw.memprops(), instances);
+  vku::VertexBuffer bufferInstances(fw.device(), fw.memprops(), instances.size() * sizeof(Instance));
 
   // Create a pipeline using a renderPass built for our window.
   // Make a default pipeline layout. This shows how pointers
@@ -132,31 +134,39 @@ int main() {
 
   // Loop waiting for the window to close.
   int iFrame = 0;
-  while (!glfwWindowShouldClose(glfwwindow)) {
+  while (!glfwWindowShouldClose(glfwwindow) && glfwGetKey(glfwwindow, GLFW_KEY_ESCAPE) != GLFW_PRESS) {
     glfwPollEvents();
 
-    // reuse previously recorded command buffer (defined in window.setStaticCommands)
-    window.draw(fw.device(), fw.graphicsQueue());
+    window.draw(fw.device(), fw.graphicsQueue(),
+      [&](vk::CommandBuffer cb, int imageIndex, vk::RenderPassBeginInfo &rpbi) {
+        instances[0].scale = 0.5*cos(iFrame*6.248*16e-3) + 0.5;
+        instances[1].pos = glm::vec3{-0.5f,-0.5f, 0.0f} + 0.25f*glm::vec3{cos(iFrame*6.248*16e-3),cos(iFrame*6.248*16e-3),0.0};
+        instances[2].rot += glm::vec3{0.0f, 0.0f,-6.248*16e-3};
+        instances[3].pos = glm::vec3{ 0.2f,  0.1f, 0.0f} + 0.25f*glm::vec3{cos(iFrame*6.248*16e-3),sin(iFrame*2*6.248*16e-3),0.0};
 
-    // animate (map... change Instance ...unmap)
-    Instance* objects = static_cast<Instance*>( bufferInstances.map(fw.device()) );
-    objects[0].scale = 0.5*cos(iFrame*6.248*16e-3) + 0.5;
-    objects[1].pos = glm::vec3{-0.5f,-0.5f, 0.0f} + 0.25f*glm::vec3{cos(iFrame*6.248*16e-3),cos(iFrame*6.248*16e-3),0.0};
-    objects[2].rot += glm::vec3{0.0f, 0.0f,-6.248*16e-3};
-    objects[3].pos = glm::vec3{ 0.2f,  0.1f, 0.0f} + 0.25f*glm::vec3{cos(iFrame*6.248*16e-3),sin(iFrame*2*6.248*16e-3),0.0};
-    bufferInstances.unmap(fw.device());
-    // better performance expected, if move map&unmap outside animation loop
-    // and instead, after all objects animated/updated, do bufferInstances.flush(fw.device()) here inside animation loop.
-    // [reference: http://kylehalladay.com/blog/tutorial/vulkan/2017/08/13/Vulkan-Uniform-Buffers.html]
+        vk::CommandBufferBeginInfo bi{};
+        cb.begin(bi);
 
-    // Very crude method to prevent your GPU from overheating.
-    std::this_thread::sleep_for(std::chrono::milliseconds(16));
+        bufferInstances.barrier(cb,
+          vk::PipelineStageFlagBits::eVertexInput, vk::PipelineStageFlagBits::eTransfer,
+          vk::DependencyFlags{}, vk::AccessFlags{}, vk::AccessFlagBits::eTransferWrite,
+          fw.graphicsQueueFamilyIndex(), fw.graphicsQueueFamilyIndex());
+        cb.updateBuffer(bufferInstances.buffer(), 0, instances.size()*sizeof(Instance), instances.data());
+        bufferInstances.barrier(cb,
+          vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eVertexInput,
+          vk::DependencyFlags{}, vk::AccessFlagBits::eTransferWrite, vk::AccessFlagBits::eVertexAttributeRead,
+          fw.graphicsQueueFamilyIndex(), fw.graphicsQueueFamilyIndex());
+
+        cb.end();
+      }
+    );
 
     iFrame++;
   }
 
   // Wait until all drawing is done and then kill the window.
   fw.device().waitIdle();
+  } // all Vulkan objects destroyed here, before GLFW teardown
   glfwDestroyWindow(glfwwindow);
   glfwTerminate();
 

@@ -1,10 +1,16 @@
-cmake_minimum_required(VERSION 3.1.3 FATAL_ERROR)
-cmake_policy(VERSION 3.1.3)
+cmake_minimum_required(VERSION 3.5)
 
 project(Vookoo VERSION 2.0.0)
 
 add_subdirectory(external/glfw)
 add_subdirectory(examples)
+
+find_package(SDL2 QUIET)
+if(SDL2_FOUND)
+    add_subdirectory(examplesSDL2)
+else()
+    message(STATUS "SDL2 not found — skipping examplesSDL2")
+endif()
 
 add_library(vookoo_interface INTERFACE )
 target_sources(vookoo_interface INTERFACE )

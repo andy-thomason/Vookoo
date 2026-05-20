@@ -1,0 +1,24 @@
+#version 460
+
+layout (local_size_x_id = 0, local_size_y_id = 1) in; // _id to set values via specialization constants 
+layout (local_size_z = 1) in; // no need to specialize so set directly
+
+// Get values through push constant
+layout (push_constant) uniform Uniform {
+  float time;
+  int Cx, Cy;
+};
+
+// Write values out through a image 
+layout(rgba8, binding=0) writeonly uniform image2D destTex;
+
+void main() {
+    // texel coordinate we are writing to
+    ivec2 texelPos = ivec2(gl_GlobalInvocationID.xy);
+    // Calculate 1.0 - distance from the center in each work group
+    float local = 1.0 - length(vec2(ivec2(gl_LocalInvocationID.xy) - ivec2(Cx,Cy)) / vec2(Cx,Cy));
+    // Wave covering the screen diagonally
+    float global = sin(float(gl_WorkGroupID.x + gl_WorkGroupID.y) * 0.1 + time) / 2.0 + 0.5;
+    imageStore( destTex, texelPos, vec4(local, global, 0.0, 1.0) );
+}
+

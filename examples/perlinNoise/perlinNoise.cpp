@@ -8,6 +8,7 @@
 
 // Include the demo framework, vookoo (vku) for building objects and glm for maths.
 // The demo framework uses GLFW to create windows.
+#define VKU_GLFW
 #include <vku/vku_framework.hpp>
 #include <vku/vku.hpp>
 #define GLM_ENABLE_EXPERIMENTAL
@@ -49,21 +50,22 @@ int main() {
 
   glfwSetCursorPosCallback(glfwwindow, mouse_callback);
 
-  // Initialize makers
-  vku::InstanceMaker im{};
-  im.defaultLayers();
-  vku::DeviceMaker dm{};
-  dm.defaultLayers();
-
+  {
   // Initialise the Vookoo demo framework.
-  vku::Framework fw{im, dm};
+  vku::Framework fw{title};
   if (!fw.ok()) {
     std::cout << "Framework creation failed" << std::endl;
     exit(1);
   }
 
   // Create a window to draw into
-  vku::Window window{fw.instance(), fw.device(), fw.physicalDevice(), fw.graphicsQueueFamilyIndex(), glfwwindow};
+  vku::Window window(
+    fw.instance(),
+    fw.device(),
+    fw.physicalDevice(),
+    fw.graphicsQueueFamilyIndex(),
+    glfwwindow
+  );
   if (!window.ok()) {
     std::cout << "Window creation failed" << std::endl;
     exit(1);
@@ -198,7 +200,16 @@ int main() {
     };
     instances.push_back(v);
   };
-  vku::HostVertexBuffer bufferInstances(fw.device(), fw.memprops(), instances);
+  int numImages = window.numImageIndices();
+  std::vector<vku::HostVertexBuffer> instanceBuffers;
+  instanceBuffers.reserve(numImages);
+  for (int i = 0; i < numImages; i++) {
+    instanceBuffers.emplace_back(fw.device(), fw.memprops(), instances);
+  }
+  std::vector<Instance*> mappedInstances(numImages);
+  for (int i = 0; i < numImages; i++) {
+    mappedInstances[i] = static_cast<Instance*>(instanceBuffers[i].map(fw.device()));
+  }
 
   ////////////////////////////////////////
   //
@@ -251,14 +262,14 @@ int main() {
   // Note above miss fact that minDepth = 0.5f also needs to be set 
   // flip viewport to match opengl ( +x > Right, +y ^ UP, +z towards viewer from screen ), instead of vulkan default
   // also requires pipeline set with cullMode:BACK and frontFace:CounterClockWise
-  auto viewport = vk::Viewport{
-    0.0f,                                     //Vulkan default:0
-    static_cast<float>(window.height()),      //Vulkan default:0
-    static_cast<float>(window.width()),   //Vulkan default:width
-    -static_cast<float>(window.height()),//Vulkan default:height
-    0.5f,                              //Vulkan default:0
-    1.0f                               //Vulkan default:1
-  };
+  auto viewport = vku::ViewPortMaker{}
+    .x(0.0f)                                      //Vulkan default:0       OpenGL default:0
+    .y(static_cast<float>(window.height()))       //Vulkan default:0       OpenGL default:height
+    .width(static_cast<float>(window.width()))    //Vulkan default:width   OpenGL default:width
+    .height(-static_cast<float>(window.height())) //Vulkan default:height  OpenGL default:-height
+    .minDepth(0.5f)                               //Vulkan default:0       OpenGL default:0.5
+    .maxDepth(1.0f)                               //Vulkan default:1       OpenGL default:1
+    .createUnique();
 
   auto buildPipeline = [&]() {
     // Make a pipeline to use the vertex format and shaders.
@@ -305,7 +316,7 @@ int main() {
       cb.bindPipeline(vk::PipelineBindPoint::eGraphics, *pipeline);
       cb.bindIndexBuffer(ibo.buffer(), vk::DeviceSize(0), vk::IndexType::eUint32);
       cb.bindVertexBuffers(  VERTEX_BUFFER_BIND_ID,  bufferVertices.buffer(), vk::DeviceSize(0)); // Binding point VERTEX_BUFFER_BIND_ID : Mesh vertex buffer
-      cb.bindVertexBuffers(INSTANCE_BUFFER_BIND_ID, bufferInstances.buffer(), vk::DeviceSize(0)); // Binding point INSTANCE_BUFFER_BIND_ID : Instance data buffer
+      cb.bindVertexBuffers(INSTANCE_BUFFER_BIND_ID, instanceBuffers[imageIndex].buffer(), vk::DeviceSize(0)); // Binding point INSTANCE_BUFFER_BIND_ID : Instance data buffer
       cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *pipelineLayout, 0, {descriptorSets[0]}, {});
       cb.drawIndexed(indices.size(), instances.size(), 0, 0, 0);
       cb.endRenderPass();
@@ -319,7 +330,7 @@ int main() {
 
   Uniform uniform {
     .projection = /*invertYhalfZclipspace * */glm::perspective(
-      glm::radians(30.0f), // The vertical Field of View, in radians: the amount of "zoom". Think "camera lens". Usually between 90° (extra wide) and 30° (quite zoomed in)
+      glm::radians(30.0f), // The vertical Field of View, in radians: the amount of "zoom". Think "camera lens". Usually between 90ï¿½ (extra wide) and 30ï¿½ (quite zoomed in)
       float(window.width())/window.height(), // Aspect Ratio. Depends on the size of your window. Notice that 4/3 == 800/600 == 1280/960, sounds familiar ?
       0.1f,                // Near clipping plane. Keep as big as possible, or you'll get precision issues.
       10.0f),              // Far clipping plane. Keep as little as possible.
@@ -334,35 +345,53 @@ int main() {
   int iFrame = 0;
 
   // Loop waiting for the window to close.
-  while (!glfwWindowShouldClose(glfwwindow)) {
+  while (!glfwWindowShouldClose(glfwwindow) && glfwGetKey(glfwwindow, GLFW_KEY_ESCAPE) != GLFW_PRESS) {
     glfwPollEvents();
 
     // reuse previously recorded command buffer (defined in window.setStaticCommands) but dynamically update ubo's iTime
     window.draw(fw.device(), fw.graphicsQueue(),
       [&](vk::CommandBuffer cb, int imageIndex, vk::RenderPassBeginInfo &rpbi) {
+        // commandBufferFences_[imageIndex] already waited â€” safe to write this slot's buffer
+        std::memcpy(mappedInstances[imageIndex], instances.data(), instances.size()*sizeof(Instance));
+        instanceBuffers[imageIndex].flush(fw.device());
+
         uniform.iTime[0] = iFrame/60.f;
         vk::CommandBufferBeginInfo bi{};
         cb.begin(bi);
+
+        ubo.barrier(cb,
+          vk::PipelineStageFlagBits::eAllGraphics,
+          vk::PipelineStageFlagBits::eTransfer,
+          vk::DependencyFlags{},
+          vk::AccessFlags{},
+          vk::AccessFlagBits::eTransferWrite,
+          fw.graphicsQueueFamilyIndex(), fw.graphicsQueueFamilyIndex()
+        );
         cb.updateBuffer(ubo.buffer(), 0, sizeof(Uniform), &uniform);
+        ubo.barrier(cb,
+          vk::PipelineStageFlagBits::eTransfer,
+          vk::PipelineStageFlagBits::eAllGraphics,
+          vk::DependencyFlags{},
+          vk::AccessFlagBits::eTransferWrite,
+          vk::AccessFlagBits::eUniformRead,
+          fw.graphicsQueueFamilyIndex(), fw.graphicsQueueFamilyIndex()
+        );
+
         cb.end();
       }
     );
 
-    // animate (map... change Instance ...unmap)
-    Instance* objects = static_cast<Instance*>( bufferInstances.map(fw.device()) );
-    objects[0].rot += glm::vec3{0.0f, 0.0f,-6.248/10.*16e-3};
+    // animate CPU-side instances vector; uploaded to GPU via cb.updateBuffer each frame
+    instances[0].rot += glm::vec3{0.0f, 0.0f,-6.248/10.*16e-3};
     for (auto i=1; i<instances.size(); i++) {
-      glm::vec2 vr = glm::normalize(glm::vec2(objects[i].pos.x,objects[i].pos.y));
-      objects[i].pos += 0.001f*glm::vec3(-vr.y,vr.x,0.0f);
-      objects[i].rot += .1f*glm::normalize(objects[i].rot); // non-physical animation, a bit cartoonish, but still visually fun
-    };
-    bufferInstances.unmap(fw.device());
-    // better performance expected, if move map&unmap outside animation loop
-    // and instead, after all objects animated/updated, do bufferInstances.flush(fw.device()) here inside animation loop.
-    // [reference: http://kylehalladay.com/blog/tutorial/vulkan/2017/08/13/Vulkan-Uniform-Buffers.html]
+      glm::vec2 vr = glm::normalize(glm::vec2(instances[i].pos.x,instances[i].pos.y));
+      instances[i].pos += 0.001f*glm::vec3(-vr.y,vr.x,0.0f);
+      instances[i].rot += .1f*glm::normalize(instances[i].rot);
+    }
 
-    // Very crude method to prevent your GPU from overheating.
-    //std::this_thread::sleep_for(std::chrono::milliseconds(16));
+    // Crude frame pacer. Proper fix: vk::PresentModeKHR::eFifo in swapchain creation
+    // blocks vkQueuePresentKHR until the display is ready, giving natural vsync pacing.
+    //std::this_thread::sleep_for(std::chrono::milliseconds(16)); // unnecessary: swapchain uses eFifo (vsync)
 
     uniform.world = mouse_rotation * uniform.world;
     iFrame++;
@@ -370,6 +399,10 @@ int main() {
 
   // Wait until all drawing is done and then kill the window.
   fw.device().waitIdle();
+  for (int i = 0; i < numImages; i++) {
+    instanceBuffers[i].unmap(fw.device());
+  }
+  } // all Vulkan objects destroyed here, before GLFW teardown
   glfwDestroyWindow(glfwwindow);
   glfwTerminate();
 
